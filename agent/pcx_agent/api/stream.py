@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import json
 import logging
+from collections.abc import Callable
 
 from fastapi import FastAPI, WebSocket
 from starlette.websockets import WebSocketDisconnect
@@ -96,7 +97,7 @@ def register_stream(app: FastAPI, ctx, hub: StreamHub, auth_timeout_s: float) ->
         if first["type"] == "websocket.disconnect":
             return
         parsed = _parse_auth(first)
-        device = ctx.pairing.authenticate(parsed[0]) if parsed else None
+        device = await asyncio.to_thread(ctx.pairing.authenticate, parsed[0]) if parsed else None
         if parsed is None or device is None:
             await _close(ws, CLOSE_INVALID_TOKEN, "Token inválido")
             return
@@ -104,8 +105,21 @@ def register_stream(app: FastAPI, ctx, hub: StreamHub, auth_timeout_s: float) ->
 
 
 async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: bool) -> None:
+    loop = asyncio.get_running_loop()
     evicted = asyncio.Event()
-    session = ActiveSession(device.id, device.name, evict=evicted.set)
+    revoked = asyncio.Event()
+
+    def notify(event: asyncio.Event) -> Callable[[], None]:
+        # Pode ser chamado de outra thread (bandeja, rotas HTTP): entrega no laco certo.
+        def call() -> None:
+            with contextlib.suppress(RuntimeError):  # laco ja encerrado
+                loop.call_soon_threadsafe(event.set)
+
+        return call
+
+    session = ActiveSession(
+        device.id, device.name, evict=notify(evicted), on_revoke=notify(revoked)
+    )
     slot = _Slot()
     result = ctx.sessions.acquire(session, takeover)
     if result.status == "busy":
@@ -115,24 +129,23 @@ async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: b
     hub.slot = slot
     recv_task = asyncio.create_task(_drain(ws, ctx, device.id))
     evict_task = asyncio.create_task(evicted.wait())
+    revoke_task = asyncio.create_task(revoked.wait())
     try:
+        agent_id, agent_name = await asyncio.to_thread(lambda: (ctx.db.agent_id, ctx.db.agent_name))
         await ws.send_json(
             {
                 "type": "hello",
                 "protocol": PROTOCOL,
-                "agent": {
-                    "id": ctx.db.agent_id,
-                    "name": ctx.db.agent_name,
-                    "version": ctx.settings.version,
-                },
+                "agent": {"id": agent_id, "name": agent_name, "version": ctx.settings.version},
                 "capabilities": sorted(ctx.provider.capabilities()),
             }
         )
+        ctx.sessions.touch(device.id)
         ctx.sampler.nudge()
         while True:
             get_task = asyncio.create_task(slot.get())
             done, _ = await asyncio.wait(
-                {get_task, recv_task, evict_task},
+                {get_task, recv_task, evict_task, revoke_task},
                 timeout=1.0,
                 return_when=asyncio.FIRST_COMPLETED,
             )
@@ -146,8 +159,12 @@ async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: b
                         "data": snapshot.model_dump(mode="json"),
                     }
                 )
+                ctx.sessions.touch(device.id)  # enviar com sucesso prova que o celular esta la
                 continue
             get_task.cancel()
+            if revoke_task in done:
+                await _close(ws, CLOSE_INVALID_TOKEN, "Aparelho desconectado no PC")
+                break
             if evict_task in done:
                 await _close(ws, CLOSE_TAKEN_OVER, "Sessão assumida por outro aparelho")
                 break
@@ -163,6 +180,7 @@ async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: b
     finally:
         recv_task.cancel()
         evict_task.cancel()
+        revoke_task.cancel()
         if hub.slot is slot:
             hub.slot = None
         ctx.sessions.release(device.id, session=session)

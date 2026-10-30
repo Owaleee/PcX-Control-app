@@ -54,7 +54,7 @@ class Sampler:
         self._accumulate(snapshot)
         if self.on_snapshot is not None and self._has_active():
             self.on_snapshot(snapshot)
-        self._maybe_flush()
+        await self._maybe_flush()
 
     def _accumulate(self, snapshot: Snapshot) -> None:
         for metric, value in snapshot.metrics().items():
@@ -63,21 +63,28 @@ class Sampler:
             entry[1] += 1
             entry[2] = max(entry[2], value)
 
-    def _maybe_flush(self) -> None:
+    async def _maybe_flush(self) -> None:
         now = self._clock()
         if now - self._last_flush < self._flush_interval:
             return
         ts = self._wall()
-        try:
-            for metric, (total, count, peak) in self._acc.items():
-                self._history.record(ts, metric, total / count, peak)
-            if now - self._last_prune >= PRUNE_INTERVAL_S:
-                self._history.prune(ts)
-                self._last_prune = now
-        except Exception:
-            logger.exception("Falha ao gravar o historico")
+        rows = [(metric, total / count, peak) for metric, (total, count, peak) in self._acc.items()]
         self._acc.clear()
         self._last_flush = now
+        prune = now - self._last_prune >= PRUNE_INTERVAL_S
+        if prune:
+            self._last_prune = now
+        try:
+            # O SQLite (commit + fsync) roda em outra thread: nunca trava o laco de eventos.
+            await asyncio.to_thread(self._write, ts, rows, prune)
+        except Exception:
+            logger.exception("Falha ao gravar o historico")
+
+    def _write(self, ts: float, rows: list[tuple[str, float, float]], prune: bool) -> None:
+        if rows:
+            self._history.record_many(ts, rows)
+        if prune:
+            self._history.prune(ts)
 
     async def run(self) -> None:
         self._stop.clear()

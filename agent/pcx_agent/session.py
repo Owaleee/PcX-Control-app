@@ -12,6 +12,7 @@ class ActiveSession:
     device_id: str
     device_name: str
     evict: Callable[[], None]
+    on_revoke: Callable[[], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,16 @@ class SessionManager:
             if session is not None and current is not session:
                 return
             self._session = None
+
+    def revoke(self, device_id: str | None) -> None:
+        """Encerra a sessao do aparelho revogado (None: qualquer aparelho) e avisa a conexao."""
+        with self._lock:
+            current = self._session
+            if current is None or (device_id is not None and current.device_id != device_id):
+                return
+            self._session = None
+        if current.on_revoke is not None:
+            current.on_revoke()
 
     def touch(self, device_id: str) -> None:
         with self._lock:

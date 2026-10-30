@@ -69,7 +69,14 @@ def main(argv: list[str] | None = None) -> int:
         import uvicorn
 
         uvicorn.run(
-            create_app(ctx), host=args.host, port=settings.port, access_log=False, log_level="info"
+            create_app(ctx),
+            host=args.host,
+            port=settings.port,
+            access_log=False,
+            log_level="info",
+            # Ping do protocolo WebSocket: fecha conexoes mortas (celular sem sinal, Wi-Fi caiu).
+            ws_ping_interval=5.0,
+            ws_ping_timeout=10.0,
         )
         return 0
     finally:

@@ -65,3 +65,20 @@ def test_reset_clears_failures():
         limiter.record_failure("a")
     limiter.reset("a")
     assert limiter.record_failure("a") == 4
+
+
+def test_begin_attempt_counts_up_front_and_reports_remaining():
+    limiter, _ = make()
+    assert [limiter.begin_attempt("a") for _ in range(5)] == [
+        (None, 4), (None, 3), (None, 2), (None, 1), (None, 0),
+    ]
+    retry, left = limiter.begin_attempt("a")
+    assert retry is not None and 59 <= retry <= 60 and left == 0
+
+
+def test_begin_attempt_success_reset_clears_the_reservation():
+    limiter, _ = make()
+    for _ in range(3):
+        limiter.begin_attempt("a")
+    limiter.reset("a")
+    assert limiter.begin_attempt("a") == (None, 4)

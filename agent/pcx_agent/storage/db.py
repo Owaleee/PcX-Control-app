@@ -39,6 +39,7 @@ class Database:
         self._conn.row_factory = sqlite3.Row
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA synchronous=NORMAL")  # seguro em WAL, sem fsync a cada commit
             self._conn.executescript(SCHEMA)
             self._conn.commit()
         if self.get_setting("agent_id") is None:
@@ -66,6 +67,14 @@ class Database:
             cursor = self._conn.execute(sql, params)
             self._conn.commit()
             return cursor.rowcount
+
+    def executemany(self, sql: str, rows: Sequence[Sequence[Any]]) -> None:
+        """Varias linhas numa unica transacao (um commit so)."""
+        if not rows:
+            return
+        with self._lock:
+            self._conn.executemany(sql, rows)
+            self._conn.commit()
 
     def query(self, sql: str, params: Sequence[Any] = ()) -> list[sqlite3.Row]:
         with self._lock:

@@ -24,6 +24,13 @@ class HistoryStore:
             (ts, metric, avg, max_),
         )
 
+    def record_many(self, ts: float, rows: list[tuple[str, float, float]]) -> None:
+        """Grava varias metricas do mesmo instante em uma transacao: (metrica, media, maximo)."""
+        self._db.executemany(
+            "INSERT OR REPLACE INTO history (ts, metric, avg, max) VALUES (?, ?, ?, ?)",
+            [(ts, metric, avg, peak) for metric, avg, peak in rows],
+        )
+
     def query(self, metric: str, range_: str, now: float) -> list[HistoryPoint]:
         if range_ not in VALID_RANGES:
             raise ValueError(f"Intervalo invalido: {range_}")

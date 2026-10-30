@@ -1,4 +1,5 @@
 import threading
+import time
 
 import pytest
 
@@ -180,3 +181,65 @@ def test_invalid_name_does_not_count_as_failed_attempt(env):
     for _ in range(6):
         error_of(lambda: service.pair("", password="segredo-123", client_ip="10.0.0.1"))
     assert pair_pw(service).token
+
+
+def test_concurrent_wrong_passwords_never_exceed_five_verifications(env):
+    service, *_ = env
+    calls: list[int] = []
+    lock = threading.Lock()
+    real_verify = service._passwords.verify
+
+    def slow_verify(password: str) -> bool:
+        with lock:
+            calls.append(1)
+        time.sleep(0.05)  # alarga a janela em que as outras threads passariam do limite
+        return real_verify(password)
+
+    service._passwords.verify = slow_verify
+    outcomes: list[str] = []
+
+    def attempt() -> None:
+        try:
+            service.pair("Moto G", password="errada-123", client_ip="9.9.9.9")
+        except PairError as err:
+            with lock:
+                outcomes.append(err.kind)
+
+    threads = [threading.Thread(target=attempt) for _ in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(calls) <= 5
+    assert outcomes.count("rate_limited") >= 15
+
+
+def test_authenticate_does_not_write_when_used_within_the_hour(env):
+    service, db, _, wall = env
+    result = pair_pw(service)
+    first = db.query("SELECT last_used_at FROM devices")[0]["last_used_at"]
+    wall.now += 60
+    assert service.authenticate(result.token) is not None
+    assert db.query("SELECT last_used_at FROM devices")[0]["last_used_at"] == first
+    wall.now += 3600
+    assert service.authenticate(result.token) is not None
+    assert db.query("SELECT last_used_at FROM devices")[0]["last_used_at"] > first
+
+
+def test_revoke_notifies_listener_with_device_id(env):
+    service, *_ = env
+    seen: list = []
+    service.on_revoke = seen.append
+    result = pair_pw(service)
+    service.revoke(result.device_id)
+    service.revoke("id-inexistente")
+    assert seen == [result.device_id]
+
+
+def test_revoke_all_notifies_listener_with_none(env):
+    service, *_ = env
+    seen: list = []
+    service.on_revoke = seen.append
+    pair_pw(service)
+    service.revoke_all()
+    assert seen == [None]

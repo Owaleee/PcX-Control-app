@@ -19,9 +19,11 @@ FAST = {"idle_interval": 0.05, "active_interval": 0.05, "flush_interval": 0.05}
 def live(tmp_path):
     opened = []
 
-    def make(auth_timeout_s: float = 5.0):
+    def make(auth_timeout_s: float = 5.0, session_timeout_s: float = 15.0):
         settings = load_settings(data_dir=tmp_path / f"d{len(opened)}")
-        ctx = build_context(settings, FakeSensorProvider(seed=2), **FAST)
+        ctx = build_context(
+            settings, FakeSensorProvider(seed=2), session_timeout_s=session_timeout_s, **FAST
+        )
         ctx.passwords.set_password(PASSWORD)
         client = TestClient(create_app(ctx, auth_timeout_s=auth_timeout_s))
         client.__enter__()
@@ -196,3 +198,66 @@ def test_same_device_reconnect_keeps_new_session(live):
             assert close_code(old) == 1001
             assert new.receive_json()["type"] == "snapshot"
             assert client.get("/v1/info").json()["busy"] is True
+
+
+def test_listening_only_client_stays_connected_past_session_timeout(live):
+    """O spec nao exige mensagens do celular: quem so escuta nao pode ser derrubado."""
+    client, ctx = live(session_timeout_s=0.3)
+    token, _ = token_for(ctx)
+    with client.websocket_connect("/v1/stream") as ws:
+        ws.send_text(auth(token))
+        assert ws.receive_json()["type"] == "hello"
+        deadline = time.monotonic() + 1.6
+        count = 0
+        while time.monotonic() < deadline:
+            assert ws.receive_json()["type"] == "snapshot"
+            count += 1
+        assert count > 10
+        assert client.get("/v1/info").json()["busy"] is True
+
+
+def test_client_messages_are_accepted_and_ignored(live):
+    client, ctx = live()
+    token, _ = token_for(ctx)
+    with client.websocket_connect("/v1/stream") as ws:
+        ws.send_text(auth(token))
+        assert ws.receive_json()["type"] == "hello"
+        ws.send_text('{"type": "ping"}')
+        ws.send_text("lixo qualquer")
+        assert ws.receive_json()["type"] == "snapshot"
+        assert ws.receive_json()["type"] == "snapshot"
+
+
+def test_revoking_active_device_closes_stream_with_4401_and_frees_session(live):
+    client, ctx = live()
+    token, device_id = token_for(ctx)
+    with client.websocket_connect("/v1/stream") as ws:
+        ws.send_text(auth(token))
+        assert ws.receive_json()["type"] == "hello"
+        started = time.monotonic()
+        ctx.pairing.revoke(device_id)  # como a bandeja faria, de outra thread
+        assert close_code(ws) == 4401
+        assert time.monotonic() - started < 2
+    assert client.get("/v1/info").json()["busy"] is False
+
+
+def test_revoke_all_closes_stream(live):
+    client, ctx = live()
+    token, _ = token_for(ctx)
+    with client.websocket_connect("/v1/stream") as ws:
+        ws.send_text(auth(token))
+        assert ws.receive_json()["type"] == "hello"
+        ctx.pairing.revoke_all()
+        assert close_code(ws) == 4401
+
+
+def test_revoking_another_device_keeps_stream(live):
+    client, ctx = live()
+    token, _ = token_for(ctx, "Moto G", "10.0.0.1")
+    _, other_id = token_for(ctx, "Pixel", "10.0.0.2")
+    with client.websocket_connect("/v1/stream") as ws:
+        ws.send_text(auth(token))
+        assert ws.receive_json()["type"] == "hello"
+        ctx.pairing.revoke(other_id)
+        assert ws.receive_json()["type"] == "snapshot"
+        assert ws.receive_json()["type"] == "snapshot"

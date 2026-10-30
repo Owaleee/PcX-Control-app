@@ -66,3 +66,10 @@ def test_record_same_ts_metric_overwrites(store):
 
 def test_valid_ranges_constant():
     assert set(VALID_RANGES) == {"15m", "1h", "24h"}
+
+
+def test_record_many_writes_all_rows_in_one_call(store):
+    store.record_many(NOW - 10, [("cpu.total", 30.0, 50.0), ("ram.percent", 60.0, 61.0)])
+    assert store.query("cpu.total", "15m", NOW)[0].max == 50.0
+    assert store.query("ram.percent", "15m", NOW)[0].avg == 60.0
+    store.record_many(NOW - 10, [])

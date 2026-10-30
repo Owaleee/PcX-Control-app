@@ -38,19 +38,25 @@ class AppContext:
 
 
 def build_context(
-    settings: Settings, provider: SensorProvider, **sampler_options: float
+    settings: Settings,
+    provider: SensorProvider,
+    *,
+    session_timeout_s: float = 15.0,
+    **sampler_options: float,
 ) -> AppContext:
     db = Database(settings.data_dir / "pcx.db")
     passwords = PasswordService(db)
     limiter = RateLimiter()
-    sessions = SessionManager()
+    sessions = SessionManager(timeout_s=session_timeout_s)
     history = HistoryStore(db)
+    pairing = PairingService(db, passwords, limiter)
+    pairing.on_revoke = sessions.revoke  # revogar um aparelho derruba a transmissao dele
     return AppContext(
         settings=settings,
         db=db,
         passwords=passwords,
         limiter=limiter,
-        pairing=PairingService(db, passwords, limiter),
+        pairing=pairing,
         sessions=sessions,
         history=history,
         sampler=Sampler(provider, history, sessions.has_active, **sampler_options),

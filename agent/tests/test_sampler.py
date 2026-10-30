@@ -170,3 +170,33 @@ async def test_nudge_wakes_sleeping_loop(parts):
     assert provider.calls >= 2
     sampler.stop()
     await asyncio.wait_for(task, timeout=1.0)
+
+
+async def test_slow_history_write_does_not_block_the_event_loop(parts):
+    import time
+
+    class SlowHistory:
+        def record_many(self, ts, rows):
+            time.sleep(0.3)
+
+        def prune(self, now, keep_s=86400.0):
+            return 0
+
+    _, clock, wall = parts
+    sampler = Sampler(
+        ScriptedProvider([10.0]), SlowHistory(), lambda: False, clock=clock, wall=wall
+    )
+    clock.now = 5.0  # forca o flush neste tick
+    loop = asyncio.get_running_loop()
+    gaps: list[float] = []
+
+    async def heartbeat():
+        last = loop.time()
+        for _ in range(30):
+            await asyncio.sleep(0.01)
+            now = loop.time()
+            gaps.append(now - last - 0.01)
+            last = now
+
+    await asyncio.gather(sampler.tick(), heartbeat())
+    assert max(gaps) < 0.1

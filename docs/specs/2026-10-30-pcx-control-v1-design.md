@@ -129,7 +129,9 @@ A v1 usa HTTP sem criptografia. O README informa que o uso é para redes domést
 - Vários celulares podem estar pareados com o mesmo PC, mas apenas **um tem sessão ativa**.
 - Enquanto há sessão ativa, outros aparelhos recebem `409` nas rotas protegidas (`snapshot`, `history`) e no WebSocket, com `{ "code": "session_busy", "active_device": "Moto G de Alexandre" }`.
 - **Assumir a sessão:** o app pergunta "PC em uso por *X*. Assumir?". Se o usuário confirmar, envia `takeover: true` na autenticação. O aparelho antigo recebe o fechamento `4409` ("Sessão assumida por outro aparelho").
-- A sessão termina quando o WebSocket fecha, quando o aparelho fica 15 s sem responder ao ping ou quando é revogado.
+- A sessão termina quando o WebSocket fecha, quando a conexão morre ou quando o aparelho é revogado.
+- **Conexão viva:** o agente envia pings do protocolo WebSocket a cada 5 s e fecha a conexão se não houver resposta em 10 s (o celular responde sozinho, sem código do app). O celular **não** precisa enviar mensagens depois do `auth`; mensagens extras são aceitas e ignoradas. Cada envio bem-sucedido renova a sessão.
+- **Revogação:** revogar um aparelho (ou todos) na bandeja fecha a transmissão dele com `4401` e libera a sessão na hora.
 - Ao terminar, o agente volta ao modo ocioso.
 
 ## 5. Dados e protocolo

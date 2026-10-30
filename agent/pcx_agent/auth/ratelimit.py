@@ -34,19 +34,37 @@ class RateLimiter:
                 return None
             return remaining
 
+    def _record_locked(self, key: str, now: float) -> int:
+        window = self._failures.setdefault(key, deque())
+        while window and now - window[0] >= self._window:
+            window.popleft()
+        window.append(now)
+        remaining = max(0, self._max - len(window))
+        if len(window) >= self._max:
+            self._blocked_until[key] = now + self._block
+            window.clear()
+        return remaining
+
     def record_failure(self, key: str) -> int:
         """Registra uma falha e devolve quantas tentativas restam antes do bloqueio."""
         with self._lock:
+            return self._record_locked(key, self._clock())
+
+    def begin_attempt(self, key: str) -> tuple[float | None, int]:
+        """Reserva uma tentativa de forma atomica, ANTES de verificar a credencial.
+
+        Devolve (segundos_de_bloqueio, 0) se a chave esta bloqueada; senao conta a tentativa
+        como falha provisoria e devolve (None, tentativas_restantes). Quem acertar chama
+        `reset`. Assim, pedidos simultaneos nao passam do limite.
+        """
+        with self._lock:
             now = self._clock()
-            window = self._failures.setdefault(key, deque())
-            while window and now - window[0] >= self._window:
-                window.popleft()
-            window.append(now)
-            remaining = max(0, self._max - len(window))
-            if len(window) >= self._max:
-                self._blocked_until[key] = now + self._block
-                window.clear()
-            return remaining
+            until = self._blocked_until.get(key)
+            if until is not None:
+                if until > now:
+                    return until - now, 0
+                del self._blocked_until[key]
+            return None, self._record_locked(key, now)
 
     def reset(self, key: str) -> None:
         with self._lock:

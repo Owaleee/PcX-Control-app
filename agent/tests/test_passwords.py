@@ -54,3 +54,32 @@ def test_password_stored_only_as_hash(db):
     PasswordService(db).set_password("segredo-123")
     values = [row["value"] for row in db.query("SELECT value FROM settings")]
     assert all("segredo-123" not in value for value in values)
+
+
+def test_scrypt_concurrency_is_bounded(db, monkeypatch):
+    import threading
+    import time
+
+    import pcx_agent.auth.passwords as passwords_module
+
+    service = PasswordService(db)
+    service.set_password("segredo-123")
+    state = {"now": 0, "peak": 0}
+    lock = threading.Lock()
+
+    def slow_verify(password, stored):
+        with lock:
+            state["now"] += 1
+            state["peak"] = max(state["peak"], state["now"])
+        time.sleep(0.05)
+        with lock:
+            state["now"] -= 1
+        return False
+
+    monkeypatch.setattr(passwords_module, "verify_password", slow_verify)
+    threads = [threading.Thread(target=service.verify, args=("x",)) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert state["peak"] <= 2

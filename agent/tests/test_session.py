@@ -106,3 +106,45 @@ def test_release_with_old_session_object_keeps_the_new_one():
     assert manager.active() is new
     manager.release("a", session=new)
     assert manager.active() is None
+
+
+def test_revoke_ends_matching_session_and_calls_on_revoke_once():
+    manager, _ = make()
+    calls: list[str] = []
+    manager.acquire(
+        ActiveSession("a", "Moto G", evict=lambda: None, on_revoke=lambda: calls.append("a")),
+        takeover=False,
+    )
+    manager.revoke("a")
+    manager.revoke("a")
+    assert calls == ["a"]
+    assert manager.active() is None
+
+
+def test_revoke_none_ends_any_session():
+    manager, _ = make()
+    calls: list[str] = []
+    manager.acquire(
+        ActiveSession("a", "Moto G", evict=lambda: None, on_revoke=lambda: calls.append("a")),
+        takeover=False,
+    )
+    manager.revoke(None)
+    assert calls == ["a"] and manager.active() is None
+
+
+def test_revoke_other_device_is_noop():
+    manager, _ = make()
+    calls: list[str] = []
+    manager.acquire(
+        ActiveSession("a", "Moto G", evict=lambda: None, on_revoke=lambda: calls.append("a")),
+        takeover=False,
+    )
+    manager.revoke("b")
+    assert calls == [] and manager.active().device_id == "a"
+
+
+def test_revoke_without_on_revoke_callback_just_frees_the_session():
+    manager, _ = make()
+    manager.acquire(session("a"), takeover=False)
+    manager.revoke("a")
+    assert manager.active() is None

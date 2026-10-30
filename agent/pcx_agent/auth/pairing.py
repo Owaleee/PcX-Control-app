@@ -17,6 +17,7 @@ from pcx_agent.storage.db import Database
 
 ErrorKind = Literal["rate_limited", "bad_credentials", "code_invalid_or_expired", "invalid_name"]
 MAX_NAME_LENGTH = 64
+RENEW_AFTER_S = 3600.0
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,7 @@ class PairingService:
         self._now = now
         self._code: tuple[str, float] | None = None
         self._lock = threading.Lock()
+        self.on_revoke: Callable[[str | None], None] | None = None
 
     def new_code(self) -> str:
         code = secrets.token_urlsafe(16)
@@ -106,19 +108,17 @@ class PairingService:
         password: str | None = None,
         client_ip: str,
     ) -> PairResult:
-        blocked = self._limiter.blocked_for(client_ip)
-        if blocked is not None:
-            raise PairError("rate_limited", retry_after=blocked)
         name = _clean_name(device_name)
+        retry_after, left = self._limiter.begin_attempt(client_ip)
+        if retry_after is not None:
+            raise PairError("rate_limited", retry_after=retry_after)
 
         if code is not None:
             if not self._consume_code(code):
-                self._limiter.record_failure(client_ip)
                 raise PairError("code_invalid_or_expired")
         elif password is not None and self._passwords.verify(password):
             pass
         else:
-            left = self._limiter.record_failure(client_ip)
             raise PairError("bad_credentials", attempts_left=left)
 
         self._limiter.reset(client_ip)
@@ -146,14 +146,22 @@ class PairingService:
         if now - row["last_used_at"] > self._token_ttl:
             self._db.execute("DELETE FROM devices WHERE id = ?", (row["id"],))
             return None
-        self._db.execute("UPDATE devices SET last_used_at = ? WHERE id = ?", (now, row["id"]))
-        return Device(row["id"], row["name"], row["created_at"], now)
+        last_used = row["last_used_at"]
+        if now - last_used >= RENEW_AFTER_S:  # evita um fsync por reconexao
+            self._db.execute("UPDATE devices SET last_used_at = ? WHERE id = ?", (now, row["id"]))
+            last_used = now
+        return Device(row["id"], row["name"], row["created_at"], last_used)
 
     def revoke(self, device_id: str) -> bool:
-        return self._db.execute("DELETE FROM devices WHERE id = ?", (device_id,)) > 0
+        deleted = self._db.execute("DELETE FROM devices WHERE id = ?", (device_id,)) > 0
+        if deleted and self.on_revoke is not None:
+            self.on_revoke(device_id)
+        return deleted
 
     def revoke_all(self) -> None:
         self._db.execute("DELETE FROM devices")
+        if self.on_revoke is not None:
+            self.on_revoke(None)
 
     def list_devices(self) -> list[Device]:
         rows = self._db.query("SELECT * FROM devices ORDER BY created_at, name")

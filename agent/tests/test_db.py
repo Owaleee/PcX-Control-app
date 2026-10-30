@@ -66,3 +66,10 @@ def test_load_settings_creates_dir(tmp_path):
 
 def test_load_settings_default_port(tmp_path):
     assert load_settings(data_dir=tmp_path).port == 8765
+
+
+def test_wal_with_normal_synchronous(tmp_path):
+    db = Database(tmp_path / "pcx.db")
+    assert db.query("PRAGMA journal_mode")[0][0] == "wal"
+    assert db.query("PRAGMA synchronous")[0][0] == 1  # NORMAL
+    db.close()

@@ -111,3 +111,14 @@ def test_real_uvicorn_server_accepts_websocket(tmp_path):
         server.should_exit = True
         thread.join(timeout=5)
         ctx.db.close()
+
+
+def test_main_configures_websocket_ping_to_detect_dead_connections(tmp_path, monkeypatch):
+    import uvicorn
+
+    captured = {}
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: captured.update(kwargs))
+    assert main(["--demo", "--data-dir", str(tmp_path), "--port", "0"]) == 0
+    assert captured["ws_ping_interval"] <= 10
+    assert captured["ws_ping_timeout"] <= 15
+    assert captured["access_log"] is False
