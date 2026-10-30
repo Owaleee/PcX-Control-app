@@ -28,7 +28,7 @@ class Sampler:
         self._provider = provider
         self._history = history
         self._has_active = has_active_session
-        self._on_snapshot = on_snapshot
+        self.on_snapshot = on_snapshot
         self._idle = idle_interval
         self._active = active_interval
         self._flush_interval = flush_interval
@@ -38,6 +38,7 @@ class Sampler:
         self._last_flush = clock()
         self._last_prune = clock()
         self._stop = asyncio.Event()
+        self._nudge = asyncio.Event()
         self.latest: Snapshot | None = None
 
     def current_interval(self) -> float:
@@ -51,8 +52,8 @@ class Sampler:
             return
         self.latest = snapshot
         self._accumulate(snapshot)
-        if self._on_snapshot is not None and self._has_active():
-            self._on_snapshot(snapshot)
+        if self.on_snapshot is not None and self._has_active():
+            self.on_snapshot(snapshot)
         self._maybe_flush()
 
     def _accumulate(self, snapshot: Snapshot) -> None:
@@ -81,11 +82,17 @@ class Sampler:
     async def run(self) -> None:
         self._stop.clear()
         while not self._stop.is_set():
+            self._nudge.clear()
             await self.tick()
             try:
-                await asyncio.wait_for(self._stop.wait(), timeout=self.current_interval())
+                await asyncio.wait_for(self._nudge.wait(), timeout=self.current_interval())
             except TimeoutError:
                 pass
 
+    def nudge(self) -> None:
+        """Acorda o laco para ler agora (por exemplo, quando uma sessao comeca)."""
+        self._nudge.set()
+
     def stop(self) -> None:
         self._stop.set()
+        self._nudge.set()

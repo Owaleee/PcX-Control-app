@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from pcx_agent import PROTOCOL
+from pcx_agent.api.stream import StreamHub, register_stream
 from pcx_agent.auth.pairing import Device, PairError, PairingService
 from pcx_agent.auth.passwords import PasswordService
 from pcx_agent.auth.ratelimit import RateLimiter
@@ -36,7 +37,9 @@ class AppContext:
     provider: SensorProvider
 
 
-def build_context(settings: Settings, provider: SensorProvider) -> AppContext:
+def build_context(
+    settings: Settings, provider: SensorProvider, **sampler_options: float
+) -> AppContext:
     db = Database(settings.data_dir / "pcx.db")
     passwords = PasswordService(db)
     limiter = RateLimiter()
@@ -50,7 +53,7 @@ def build_context(settings: Settings, provider: SensorProvider) -> AppContext:
         pairing=PairingService(db, passwords, limiter),
         sessions=sessions,
         history=history,
-        sampler=Sampler(provider, history, sessions.has_active),
+        sampler=Sampler(provider, history, sessions.has_active, **sampler_options),
         provider=provider,
     )
 
@@ -105,7 +108,9 @@ def _token_from(request: Request) -> str | None:
     return value.strip()
 
 
-def create_app(ctx: AppContext, *, run_sampler: bool = True) -> FastAPI:
+def create_app(
+    ctx: AppContext, *, run_sampler: bool = True, auth_timeout_s: float = 5.0
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         task = asyncio.create_task(ctx.sampler.run()) if run_sampler else None
@@ -123,6 +128,10 @@ def create_app(ctx: AppContext, *, run_sampler: bool = True) -> FastAPI:
         openapi_url=None,
         lifespan=lifespan,
     )
+
+    hub = StreamHub()
+    ctx.sampler.on_snapshot = hub.publish
+    register_stream(app, ctx, hub, auth_timeout_s)
 
     @app.exception_handler(ApiError)
     async def api_error_handler(_request: Request, err: ApiError) -> JSONResponse:

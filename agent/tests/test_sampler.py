@@ -152,3 +152,21 @@ async def test_run_stops_on_stop(parts):
     assert sampler.latest is not None
     sampler.stop()
     await asyncio.wait_for(task, timeout=1.0)
+
+
+async def test_nudge_wakes_sleeping_loop(parts):
+    sampler, provider = build(parts, [10.0], idle_interval=30.0)
+    task = asyncio.create_task(sampler.run())
+    for _ in range(100):
+        if provider.calls >= 1:
+            break
+        await asyncio.sleep(0.01)
+    assert provider.calls == 1
+    sampler.nudge()
+    for _ in range(100):
+        if provider.calls >= 2:
+            break
+        await asyncio.sleep(0.01)
+    assert provider.calls >= 2
+    sampler.stop()
+    await asyncio.wait_for(task, timeout=1.0)
