@@ -5,6 +5,18 @@ from typing import Annotated, Protocol
 
 from pydantic import BaseModel, Field
 
+METRIC_NAMES: frozenset[str] = frozenset({
+    "cpu.total",
+    "ram.percent",
+    "net.down_bps",
+    "net.up_bps",
+    "disk.read_bps",
+    "disk.write_bps",
+    "gpu.usage",
+    "gpu.temp",
+    "gpu.vram_percent",
+})
+
 Percent = Annotated[float, Field(ge=0, le=100)]
 NonNegative = Annotated[float, Field(ge=0)]
 

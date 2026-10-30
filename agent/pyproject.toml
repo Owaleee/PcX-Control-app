@@ -44,3 +44,6 @@ omit = ["pcx_agent/sensors/windows/*", "pcx_agent/tray/*"]
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+
+[tool.ruff.lint.per-file-ignores]
+"pcx_agent/api/*.py" = ["B008"]  # Depends(...) como valor padrao e o idioma do FastAPI
