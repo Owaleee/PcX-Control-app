@@ -38,3 +38,8 @@ jobs:
       - name: Testes (Windows)
         if: runner.os == 'Windows'
         run: pytest
+      - name: Testes de Windows (falha se algum for pulado)
+        if: runner.os == 'Windows'
+        run: |
+          pytest -m windows --junitxml=windows-tests.xml
+          python -c "import xml.etree.ElementTree as E; r = E.parse('windows-tests.xml').getroot(); s = r if r.tag == 'testsuite' else r[0]; assert int(s.get('tests')) >= 4 and int(s.get('skipped')) == 0, dict(s.attrib)"
