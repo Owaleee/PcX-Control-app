@@ -49,8 +49,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 ; Um unico pedido de administrador, so para a regra de firewall. Se for negado, a instalacao segue.
-Filename: "{app}\firewall.cmd"; Parameters: "add ""{app}\PcXControl.exe"""; Verb: runas; Flags: shellexec runhidden waituntilterminated; StatusMsg: "Liberando o PcX Control na rede privada..."
+Filename: "{cmd}"; Parameters: "/c """"{app}\firewall.cmd"" add ""{app}\PcXControl.exe"""""; Verb: runas; Flags: shellexec runhidden waituntilterminated; StatusMsg: "Liberando o PcX Control na rede privada..."
 Filename: "{app}\PcXControl.exe"; Description: "Abrir o PcX Control"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
-Filename: "{app}\firewall.cmd"; Parameters: "remove"; Verb: runas; Flags: shellexec runhidden waituntilterminated; RunOnceId: "RemoveFirewall"
+Filename: "{cmd}"; Parameters: "/c """"{app}\firewall.cmd"" remove"""; Verb: runas; Flags: shellexec runhidden waituntilterminated; RunOnceId: "RemoveFirewall"

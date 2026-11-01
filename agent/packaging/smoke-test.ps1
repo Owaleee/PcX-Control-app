@@ -13,8 +13,10 @@ function Fail([string]$Message) { Write-Host "FALHOU: $Message"; exit 1 }
 if (-not (Test-Path $Installer)) { Fail "instalador nao encontrado: $Installer" }
 
 Write-Host "Instalando em $Dir"
+$Log = Join-Path $env:TEMP "pcx-install.log"
 $p = Start-Process -FilePath $Installer -Wait -PassThru -ArgumentList @(
-    "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=autostart", "/DIR=`"$Dir`"")
+    "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=autostart", "/DIR=`"$Dir`"",
+    "/LOG=`"$Log`"")
 if ($p.ExitCode -ne 0) { Fail "instalador saiu com $($p.ExitCode)" }
 
 $Exe = Join-Path $Dir "PcXControl.exe"
@@ -22,6 +24,8 @@ if (-not (Test-Path $Exe)) { Fail "PcXControl.exe nao foi instalado" }
 
 $rule = Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue
 if (-not $rule) {
+    Write-Host "Log do instalador (trecho):"
+    Get-Content $Log | Select-String -Pattern "Run|firewall|cmd|Error|Erro" | ForEach-Object { Write-Host "  > $_" }
     Write-Host "Diagnostico: rodando firewall.cmd direto"
     & cmd /c "`"$Dir\firewall.cmd`" add `"$Exe`"" 2>&1 | ForEach-Object { Write-Host "  $_" }
     Write-Host "  saida: $LASTEXITCODE"
