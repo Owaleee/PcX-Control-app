@@ -17,8 +17,10 @@ pytestmark = [
 ]
 
 
-@pytest.fixture
-def root():
+@pytest.fixture(scope="module")
+def _tk_root():
+    # Um Tk por arquivo: criar varios seguidos falha de vez em quando no runner do Windows
+    # ("Can't find a usable tk.tcl").
     window = tk.Tk()
     window.withdraw()
     from pcx_agent.tray.widgets import apply_style
@@ -26,6 +28,17 @@ def root():
     apply_style(window)
     yield window
     window.destroy()
+
+
+@pytest.fixture
+def root(_tk_root):
+    from pcx_agent.tray.widgets import BaseWindow
+
+    yield _tk_root
+    BaseWindow._open.clear()
+    for child in _tk_root.winfo_children():
+        child.destroy()
+    _tk_root.report_callback_exception = tk.Tk.report_callback_exception.__get__(_tk_root)
 
 
 @pytest.fixture
