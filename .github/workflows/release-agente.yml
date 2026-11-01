@@ -1,0 +1,46 @@
+name: release-agente
+
+on:
+  push:
+    tags: ["agente-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Notas e conferencia das versoes
+        run: python agent/tools/release_notes.py "${{ github.ref_name }}" --out notes.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notas
+          path: notes.md
+
+  package:
+    needs: notes
+    uses: ./.github/workflows/windows-package.yml
+
+  release:
+    needs: [notes, package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefatos
+          merge-multiple: true
+      - name: Rascunho da release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          INSTALLER: ${{ needs.package.outputs.installer }}
+        run: |
+          VERSION="${TAG#agente-v}"
+          gh release create "$TAG" --repo "${{ github.repository }}" --draft \
+            --title "PcX Control Agente $VERSION" --notes-file artefatos/notes.md \
+            "artefatos/$INSTALLER"
