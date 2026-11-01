@@ -6,6 +6,7 @@ qualquer sistema) e --self-test SAIDA (autoteste para a CI).
 
 import argparse
 import getpass
+import logging
 import sys
 import tempfile
 import threading
@@ -20,6 +21,7 @@ from pcx_agent.pairing_uri import local_ipv4, pairing_uri, print_pairing
 from pcx_agent.server import AgentServer, PortInUseError, StartupError
 
 DEMO_PASSWORD = "demo-password"
+logger = logging.getLogger("pcx_agent.main")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -114,26 +116,31 @@ def run_tray(args) -> int:
     if lock is None:
         show_message(texts.APP_NAME, texts.ALREADY_RUNNING)
         return 0
-    ctx = build_context(settings, _provider(demo=False))
-    server = AgentServer(ctx, args.host, settings.port)
+    ctx = None
+    server = None
     try:
+        ctx = build_context(settings, _provider(demo=False))
+        server = AgentServer(ctx, args.host, settings.port)
         try:
             server.start()
         except PortInUseError as exc:
             text = texts.PORT_IN_USE.format(porta=exc.port, arquivo=settings.config_path)
             show_message(texts.APP_NAME, text, error=True)
             return 1
-        except StartupError as exc:
-            show_message(texts.APP_NAME, str(exc), error=True)
-            return 1
         from pcx_agent.tray.app import TrayApp
 
         controller = AgentController(ctx, settings.port)
         autostart = AutoStart(WinRegistryRunStore(), launch_command())
         return TrayApp(settings, server, controller, autostart).run()
+    except Exception:
+        logger.exception("Falha ao iniciar o agente")
+        show_message(texts.APP_NAME, texts.STARTUP_ERROR.format(pasta=settings.log_dir), error=True)
+        return 1
     finally:
-        server.stop()
-        ctx.db.close()
+        if server is not None:
+            server.stop()
+        if ctx is not None:
+            ctx.db.close()
         lock.release()
 
 
