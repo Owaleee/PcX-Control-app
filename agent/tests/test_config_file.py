@@ -51,3 +51,9 @@ def test_config_that_is_not_an_object_falls_back(tmp_path):
 def test_cli_port_overrides_config(tmp_path):
     (tmp_path / "config.json").write_text('{"port": 9000}', encoding="utf-8")
     assert load_settings(data_dir=tmp_path, port=9100).port == 9100
+
+
+def test_config_saved_with_bom_is_read(tmp_path):
+    """O Bloco de Notas pode salvar "UTF-8 com BOM"; a porta do usuario continua valendo."""
+    (tmp_path / "config.json").write_bytes(b'\xef\xbb\xbf{"port": 9001}')
+    assert load_settings(data_dir=tmp_path).port == 9001

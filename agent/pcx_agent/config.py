@@ -47,7 +47,7 @@ def _port_from_file(path: Path) -> int:
         path.write_text(json.dumps({"port": DEFAULT_PORT}, indent=2) + "\n", encoding="utf-8")
         return DEFAULT_PORT
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))  # aceita BOM
     except (OSError, ValueError) as exc:
         logger.warning("config.json ilegível (%s); usando a porta %d.", exc, DEFAULT_PORT)
         return DEFAULT_PORT
