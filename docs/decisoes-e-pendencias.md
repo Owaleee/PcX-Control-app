@@ -62,3 +62,33 @@ revisão independente encontrou e o que ficou para depois. Os documentos de orig
 - Os 4 testes específicos de Windows passam. O `snapshot` trouxe CPU, RAM, 3 discos, rede e a GPU
   com VRAM e temperatura.
 - AMD, Intel e várias GPUs físicas **ainda não foram testadas**.
+
+---
+
+# App Android v0.2.0 (Plano 2)
+
+Documentos de origem: o [spec](specs/2026-10-30-pcx-control-v1-design.md) (§4 a §6) e o
+[plano 2](plans/2026-11-01-plano-2-app.md).
+
+## Decisões que divergem ou completam o plano
+
+| Decisão | Por quê |
+| --- | --- |
+| **Uma conexão por PC**, num `PcProvider` compartilhado pelas telas | Se cada tela abrisse a sua, o mesmo celular abriria várias sessões e uma derrubaria a outra em ciclo. |
+| Avisos de "PC em uso" e "desconectado no PC" ficam no `PcProvider` | Valem em qualquer tela do PC, inclusive no modo painel. |
+| Contrato do protocolo em `docs/protocol/fixtures`, gerado pelo agente | Se um lado mudar o formato, os testes do outro lado falham. |
+| QR code impresso no terminal do agente | Permite testar o app antes da bandeja do Windows (Plano 3). |
+| O mesmo QR lido várias vezes gera um único pareamento | A câmera dispara o mesmo código várias vezes por segundo. |
+| Espera de reconexão com teto de 15 s depois da variação de ±20% | O spec diz "até 15 s". |
+| Ao voltar do segundo plano, só reconecta se foi o app que pausou | Não reabre sessões revogadas, assumidas ou ocupadas. |
+| Contraste mínimo 4,5:1 também no texto secundário dos temas | Legibilidade, principalmente no AMOLED. |
+| Cartão sem ação é uma `View`, e a barra de progresso é acessível | O leitor de tela (TalkBack) não enxergava a barra. |
+| Instalação das dependências com a tabela local do SDK (`EXPO_OFFLINE`) | O ambiente de build não alcança o servidor de compatibilidade do Expo. |
+| `react-dom` fixado na versão do React do SDK | Conflito de versões puxado pelo expo-router. |
+| Removidos do template os arquivos que não fazem parte do app | `App.tsx`, `index.ts`, favicon, licença duplicada e arquivos de configuração de ferramentas. |
+| Perfil `development` do EAS não criado | Exigiria o `expo-dev-client`; o Expo Go cobre o desenvolvimento. |
+
+## Validação
+
+- 214 testes no app (Jest) e 189 no agente (pytest); typecheck, lint e CI verdes.
+- Falta o teste manual no celular e no PC: [roteiro](teste-manual-app.md).
