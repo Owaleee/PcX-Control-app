@@ -19,13 +19,14 @@ jest.mock('expo-camera', () => {
 });
 jest.mock('../../src/storage/storage', () => ({
   savePc: jest.fn(async () => undefined),
+  getPc: jest.fn(async () => null),
   getTheme: jest.fn(async () => 'dark'),
   setTheme: jest.fn(),
 }));
 jest.mock('../../src/api/http', () => ({ ...jest.requireActual('../../src/api/http'), pair: jest.fn() }));
 
 const http = jest.requireMock('../../src/api/http') as { pair: jest.Mock };
-const storage = jest.requireMock('../../src/storage/storage') as { savePc: jest.Mock };
+const storage = jest.requireMock('../../src/storage/storage') as { savePc: jest.Mock; getPc: jest.Mock };
 const camera = (jest.requireMock('expo-camera') as { __camera: { onScan?: (e: { data: string }) => void } })
   .__camera;
 
@@ -38,6 +39,8 @@ beforeEach(() => {
   resetRouter();
   http.pair.mockReset();
   storage.savePc.mockClear();
+  storage.getPc.mockReset();
+  storage.getPc.mockResolvedValue(null);
   camera.onScan = undefined;
 });
 
@@ -156,4 +159,27 @@ test('QR de outro PC (id diferente da resposta) nao e salvo', async () => {
   await act(async () => camera.onScan?.({ data: QR }));
   expect(screen.getByText('O QR code não corresponde a este PC.')).toBeTruthy();
   expect(storage.savePc).not.toHaveBeenCalled();
+});
+
+
+test('QR expirado diante da camera nao vira uma sequencia de pedidos', async () => {
+  http.pair.mockRejectedValue(apiError('code_invalid_or_expired'));
+  await render(<AddPc />);
+  await act(async () => camera.onScan?.({ data: QR }));
+  await act(async () => camera.onScan?.({ data: QR }));
+  await act(async () => camera.onScan?.({ data: QR }));
+  expect(http.pair).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('Código expirado. Gere outro no PC.')).toBeTruthy();
+  // Um QR novo (outro codigo) volta a ser aceito.
+  http.pair.mockResolvedValue(fx.clone(fx.pair));
+  await act(async () => camera.onScan?.({ data: QR.replace('CODIGO', 'NOVO') }));
+  expect(http.pair).toHaveBeenCalledTimes(2);
+});
+
+test('parear de novo o mesmo PC preserva o apelido', async () => {
+  storage.getPc.mockResolvedValue({ agentId: AGENT, alias: 'PC da sala' });
+  http.pair.mockResolvedValue(fx.clone(fx.pair));
+  await render(<AddPc />);
+  await act(async () => camera.onScan?.({ data: QR }));
+  expect(storage.savePc).toHaveBeenCalledWith(expect.objectContaining({ agentId: AGENT, alias: 'PC da sala' }));
 });

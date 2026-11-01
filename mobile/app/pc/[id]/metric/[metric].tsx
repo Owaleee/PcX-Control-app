@@ -11,6 +11,8 @@ import { METRIC_NAMES } from '../../../../src/protocol/metrics';
 import type { MetricName, Range } from '../../../../src/protocol/types';
 import { useTheme } from '../../../../src/theme/ThemeProvider';
 
+const SPAN_S: Record<Range, number> = { '15m': 900, '1h': 3600, '24h': 86400 };
+
 const TABS: { range: Range; label: string }[] = [
   { range: '15m', label: '15 min' },
   { range: '1h', label: '1 h' },
@@ -32,9 +34,9 @@ export default function MetricDetail() {
 
 function MetricChart({ metric }: { metric: MetricName }) {
   const { theme } = useTheme();
-  const { pc, snapshot } = usePc();
+  const { pc, snapshot, session } = usePc();
   const [range, setRange] = useState<Range>('15m');
-  const { points, loading, error } = useMetricHistory(pc, metric, range, snapshot);
+  const { points, loading, error } = useMetricHistory(pc, metric, range, snapshot, session);
   const averages = points.map((p) => p.avg);
   const mean = averages.length ? averages.reduce((a, b) => a + b, 0) / averages.length : null;
   const peak = points.length ? Math.max(...points.map((p) => p.max)) : null;
@@ -59,7 +61,13 @@ function MetricChart({ metric }: { metric: MetricName }) {
         ))}
       </View>
       <View style={[styles.chart, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Sparkline values={averages} height={180} color={theme.accent} max={metricScale(metric, averages)} />
+        <Sparkline
+          points={points.map((p) => ({ t: p.t, v: p.avg }))}
+          height={180}
+          color={theme.accent}
+          max={metricScale(metric, averages)}
+          span={SPAN_S[range]}
+        />
       </View>
       {loading ? <Body>Carregando histórico…</Body> : null}
       <Message text={error} />

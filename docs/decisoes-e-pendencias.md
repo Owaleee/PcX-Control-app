@@ -88,7 +88,44 @@ Documentos de origem: o [spec](specs/2026-10-30-pcx-control-v1-design.md) (§4 a
 | Removidos do template os arquivos que não fazem parte do app | `App.tsx`, `index.ts`, favicon, licença duplicada e arquivos de configuração de ferramentas. |
 | Perfil `development` do EAS não criado | Exigiria o `expo-dev-client`; o Expo Go cobre o desenvolvimento. |
 
+## Achados da revisão independente (corrigidos)
+
+1. **Conexão meio-aberta ficava em "Conectado" com valores congelados** (PC suspenso, roteador
+   reiniciado): agora um vigia reconecta após 8 s sem nenhuma mensagem do agente.
+2. **QR expirado diante da câmera virava uma sequência de tentativas** até bloquear o IP: o QR que
+   falhou não é tentado de novo.
+3. **Histórico não era buscado de novo** depois de assumir a sessão ou reconectar: cada sessão nova
+   refaz a busca.
+4. **"Desconectar" duplicava a tela inicial** na pilha de navegação: as saídas voltam à tela
+   inicial existente.
+5. **Trocar o IP do PC exigia parear de novo**: agora o endereço pode ser corrigido nos ajustes
+   (o app confere que é o mesmo PC) e um novo pareamento preserva o apelido.
+6. **Gráficos distorciam o tempo** (o eixo seguia a ordem dos pontos): agora o eixo é o horário.
+7. **Modo painel não esmaecia valores antigos** e o aviso de estado ficava fixo (risco de
+   burn-in): agora esmaece e o aviso anda junto com o painel.
+8. **Modo painel ignorava as áreas seguras** (recorte da câmera e barra de navegação).
+9. **"Esquecer este PC" mostrava um alerta de erro**: a conexão é encerrada antes.
+
+Durante as correções, um teste também pegou um defeito novo: depois de parar a conexão de
+propósito, voltar do segundo plano a reabria.
+
+## Pendências (menores)
+
+- Texto do aviso de sessão assumida pode ficar mais claro ("Outro aparelho assumiu a sessão deste PC").
+- Um QR de outro PC já pareia naquele PC antes de o app recusar (aparelho órfão no outro agente).
+- Voltar da tela de pareamento com um pedido em andamento ainda pode abrir o painel depois.
+- Câmera negada em definitivo: oferecer o atalho para as configurações do Android.
+- Uma GPU ou disco com dado inválido descarta a leitura inteira em vez de só o item.
+- O `hello` não confere se o PC no endereço é o mesmo salvo.
+- Cartões de disco sem gráfico; taxas de leitura e escrita dos discos não aparecem.
+- Gráfico de 24 h sem redução de pontos (até ~17 mil pontos redesenhados).
+- O tema salvo aparece um instante depois da abertura (começa no escuro).
+- Estado "ocupado" sem botão "Tentar de novo".
+- Agente: aviso quando não encontra o IP da rede e o QR sai com `127.0.0.1`.
+- Testes de navegação real (`renderRouter`) e do `AppState` integrado ao `PcProvider`.
+- Rodar `npx expo install --check` numa máquina com acesso ao servidor do Expo antes do build.
+
 ## Validação
 
-- 214 testes no app (Jest) e 189 no agente (pytest); typecheck, lint e CI verdes.
+- 228 testes no app (Jest) e 189 no agente (pytest); typecheck, lint e CI verdes.
 - Falta o teste manual no celular e no PC: [roteiro](teste-manual-app.md).

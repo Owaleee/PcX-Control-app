@@ -23,12 +23,16 @@ jest.mock('../../src/hooks/useMetricHistory', () => ({
   ...jest.requireActual('../../src/hooks/useMetricHistory'),
   useMetricHistory: jest.fn(() => ({ points: [], loading: false, error: null })),
 }));
-jest.mock('../../src/api/http', () => ({ ...jest.requireActual('../../src/api/http'), forgetMe: jest.fn() }));
+jest.mock('../../src/api/http', () => ({
+  ...jest.requireActual('../../src/api/http'),
+  forgetMe: jest.fn(),
+  getInfo: jest.fn(),
+}));
 
 const storage = jest.requireMock('../../src/storage/storage') as Record<string, jest.Mock>;
 const conn = jest.requireMock('../../src/hooks/usePcConnection') as { usePcConnection: jest.Mock };
 const history = jest.requireMock('../../src/hooks/useMetricHistory') as { useMetricHistory: jest.Mock };
-const http = jest.requireMock('../../src/api/http') as { forgetMe: jest.Mock };
+const http = jest.requireMock('../../src/api/http') as { forgetMe: jest.Mock; getInfo: jest.Mock };
 
 const PC: SavedPc = {
   agentId: 'a1',
@@ -42,9 +46,10 @@ const PC: SavedPc = {
 const connected: ConnState = { kind: 'connected', hello: fx.clone(fx.hello) };
 const takeover = jest.fn();
 const reconnect = jest.fn();
+const stop = jest.fn();
 
 function setConnection(state: ConnState, snapshot: unknown = fx.clone(fx.snapshotMessage)) {
-  conn.usePcConnection.mockReturnValue({ state, snapshot, takeover, reconnect });
+  conn.usePcConnection.mockReturnValue({ state, snapshot, takeover, reconnect, stop });
 }
 
 async function renderWith(node: React.ReactElement) {
@@ -62,6 +67,8 @@ beforeEach(() => {
   storage.removePc!.mockClear();
   storage.updatePc!.mockClear();
   takeover.mockClear();
+  stop.mockClear();
+  http.getInfo.mockReset();
   http.forgetMe.mockReset();
   history.useMetricHistory.mockClear();
   setConnection(connected);
@@ -128,8 +135,9 @@ describe('painel', () => {
     await act(async () => undefined);
     expect(storage.removePc).toHaveBeenCalledTimes(1);
     expect(storage.removePc).toHaveBeenCalledWith('a1');
-    expect(routerMock.replace).toHaveBeenCalledTimes(1);
-    expect(routerMock.replace).toHaveBeenCalledWith('/');
+    expect(routerMock.dismissTo).toHaveBeenCalledTimes(1);
+    expect(routerMock.dismissTo).toHaveBeenCalledWith('/');
+    expect(routerMock.replace).not.toHaveBeenCalled();
     expect(alertSpy.mock.calls[0][1]).toBe('Este celular foi desconectado no PC. Pareie de novo.');
   });
 
@@ -156,7 +164,7 @@ describe('detalhe da metrica', () => {
     expect(screen.getByText('Média: 13,3%')).toBeTruthy();
     expect(screen.getByText('Máximo: 31,5%')).toBeTruthy();
     await fireEvent.press(screen.getByText('1 h'));
-    expect(history.useMetricHistory).toHaveBeenLastCalledWith(PC, 'cpu.total', '1h', expect.anything());
+    expect(history.useMetricHistory).toHaveBeenLastCalledWith(PC, 'cpu.total', '1h', expect.anything(), 1);
   });
 
   test('metrica desconhecida', async () => {
@@ -181,8 +189,9 @@ describe('ajustes do PC', () => {
     const confirm = alertSpy.mock.calls[0][2].find((b: { text: string }) => b.text === 'Esquecer');
     await act(async () => confirm.onPress());
     expect(http.forgetMe).toHaveBeenCalledWith('http://192.168.0.10:8765', 'tok');
+    expect(stop.mock.invocationCallOrder[0]).toBeLessThan(http.forgetMe.mock.invocationCallOrder[0]!);
     expect(storage.removePc).toHaveBeenCalledWith('a1');
-    expect(routerMock.replace).toHaveBeenCalledWith('/');
+    expect(routerMock.dismissTo).toHaveBeenCalledWith('/');
   });
 
   test('esquecer com o PC fora do ar pergunta antes de remover', async () => {
@@ -200,7 +209,50 @@ describe('ajustes do PC', () => {
   test('desconectar volta ao inicio sem apagar', async () => {
     await renderWith(<PcSettings />);
     await fireEvent.press(screen.getByText('Desconectar'));
-    expect(routerMock.replace).toHaveBeenCalledWith('/');
+    expect(routerMock.dismissTo).toHaveBeenCalledWith('/');
+    expect(routerMock.replace).not.toHaveBeenCalled();
     expect(storage.removePc).not.toHaveBeenCalled();
   });
+});
+
+
+describe('troca de IP do PC (sem parear de novo)', () => {
+  test('salva o novo endereco quando o PC confirma que e o mesmo', async () => {
+    http.getInfo.mockResolvedValue({ ...fx.clone(fx.info), agent_id: 'a1' });
+    await renderWith(<PcSettings />);
+    await fireEvent.changeText(screen.getByLabelText('IP do PC'), '192.168.0.55');
+    await fireEvent.press(screen.getByText('Salvar endereço'));
+    await act(async () => undefined);
+    expect(http.getInfo).toHaveBeenCalledWith('http://192.168.0.55:8765');
+    expect(storage.updatePc).toHaveBeenCalledWith('a1', { host: '192.168.0.55', port: 8765 });
+    expect(screen.getByText('Endereço salvo.')).toBeTruthy();
+  });
+
+  test('recusa o endereco de outro PC', async () => {
+    http.getInfo.mockResolvedValue({ ...fx.clone(fx.info), agent_id: 'outro' });
+    await renderWith(<PcSettings />);
+    await fireEvent.changeText(screen.getByLabelText('IP do PC'), '192.168.0.55');
+    await fireEvent.press(screen.getByText('Salvar endereço'));
+    await act(async () => undefined);
+    expect(screen.getByText('Esse endereço é de outro PC.')).toBeTruthy();
+    expect(storage.updatePc).not.toHaveBeenCalled();
+  });
+
+  test('IP invalido nao consulta a rede', async () => {
+    await renderWith(<PcSettings />);
+    await fireEvent.changeText(screen.getByLabelText('IP do PC'), '999.1.1.1');
+    await fireEvent.press(screen.getByText('Salvar endereço'));
+    expect(screen.getByText('Digite o IP do PC, como 192.168.0.10.')).toBeTruthy();
+    expect(http.getInfo).not.toHaveBeenCalled();
+  });
+});
+
+test('o painel recarrega o PC salvo depois de um ajuste (apelido aparece na hora)', async () => {
+  await renderWith(<PcSettings />);
+  const before = storage.getPc!.mock.calls.length;
+  storage.getPc!.mockResolvedValue({ ...PC, alias: 'PC da sala' });
+  await fireEvent.changeText(screen.getByLabelText('Apelido'), 'PC da sala');
+  await fireEvent.press(screen.getByText('Salvar apelido'));
+  await act(async () => undefined);
+  expect(storage.getPc!.mock.calls.length).toBe(before + 1);
 });

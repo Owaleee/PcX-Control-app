@@ -8,35 +8,43 @@ import { StatusPill, statusLabel } from '../../src/components/StatusPill';
 import type { ConnState } from '../../src/connection/ConnectionManager';
 import * as fx from '../protocol/fixtures';
 
+const pts = (pairs: [number, number][]) => pairs.map(([t, v]) => ({ t, v }));
+
 describe('sparklinePath', () => {
   test('coordenadas exatas', () => {
-    expect(sparklinePath([0, 50, 100], 100, 50)).toBe('M0 50 L50 25 L100 0');
+    expect(sparklinePath(pts([[0, 0], [5, 50], [10, 100]]), 100, 50)).toBe('M0 50 L50 25 L100 0');
+  });
+
+  test('o eixo X segue o tempo, nao a ordem dos pontos', () => {
+    expect(sparklinePath(pts([[0, 0], [5, 0], [6, 0], [7, 0]]), 70, 10)).toBe('M0 10 L50 10 L60 10 L70 10');
+  });
+
+  test('janela fixa: pontos antigos ficam a esquerda do fim', () => {
+    expect(sparklinePath(pts([[100, 0], [190, 0]]), 100, 10, 0, 100, 100)).toBe('M10 10 L100 10');
   });
 
   test('valores fora do intervalo sao limitados', () => {
-    expect(sparklinePath([-20, 150], 100, 50)).toBe('M0 50 L100 0');
+    expect(sparklinePath(pts([[0, -20], [1, 150]]), 100, 50)).toBe('M0 50 L100 0');
   });
 
   test('lista vazia e ponto unico', () => {
     expect(sparklinePath([], 100, 50)).toBe('');
-    expect(sparklinePath([50], 100, 50)).toBe('M0 25 L100 25');
+    expect(sparklinePath(pts([[3, 50]]), 100, 50)).toBe('M0 25 L100 25');
   });
 
   test('maximo proprio para taxas', () => {
-    expect(sparklinePath([0, 2048], 100, 40, 0, 4096)).toBe('M0 40 L100 20');
+    expect(sparklinePath(pts([[0, 0], [1, 2048]]), 100, 40, 0, 4096)).toBe('M0 40 L100 20');
   });
 
   test('intervalo sem largura nao gera NaN', () => {
-    expect(sparklinePath([5, 5], 100, 40, 5, 5)).toBe('M0 40 L100 40');
-  });
-
-  test('arredonda para no maximo 2 casas', () => {
-    expect(sparklinePath([0, 33.333, 100], 100, 30)).toBe('M0 30 L50 20 L100 0');
+    expect(sparklinePath(pts([[0, 5], [1, 5]]), 100, 40, 5, 5)).toBe('M0 40 L100 40');
   });
 });
 
 test('Sparkline desenha o caminho calculado', async () => {
-  const { toJSON } = await render(<Sparkline values={[0, 50, 100]} width={100} height={50} color="#fff" />);
+  const { toJSON } = await render(
+    <Sparkline points={pts([[0, 0], [5, 50], [10, 100]])} width={100} height={50} color="#fff" />,
+  );
   expect(JSON.stringify(toJSON())).toContain('M0 50 L50 25 L100 0');
 });
 

@@ -197,3 +197,36 @@ describe('backoffDelay', () => {
     expect(backoffDelay(4, () => 0)).toBe(12000);
   });
 });
+
+
+describe('conexao meio-aberta (PC suspenso, roteador reiniciado)', () => {
+  test('8 s sem nenhuma mensagem depois do hello: reconecta', () => {
+    const { manager, last } = setup();
+    connect(manager);
+    jest.advanceTimersByTime(8000);
+    expect(FakeSocket.all[0]?.closedWith).not.toBeNull();
+    expect(last()?.kind).toBe('reconnecting');
+    jest.advanceTimersByTime(1000);
+    expect(FakeSocket.all).toHaveLength(2);
+  });
+
+  test('leituras a cada 1 s mantem a conexao por 30 s', () => {
+    const { manager, last } = setup();
+    connect(manager);
+    for (let i = 0; i < 30; i += 1) {
+      jest.advanceTimersByTime(1000);
+      FakeSocket.last.receive(fx.snapshotMessage);
+    }
+    expect(last()?.kind).toBe('connected');
+    expect(FakeSocket.all).toHaveLength(1);
+  });
+
+  test('stop cancela o vigia', () => {
+    const { manager, last } = setup();
+    connect(manager);
+    manager.stop();
+    jest.advanceTimersByTime(60_000);
+    expect(last()).toEqual({ kind: 'stopped' });
+    expect(FakeSocket.all).toHaveLength(1);
+  });
+});

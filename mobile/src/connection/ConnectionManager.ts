@@ -25,6 +25,8 @@ export const CLOSE_REVOKED = 4401;
 export const CLOSE_TAKEN_OVER = 4409;
 export const CLOSE_BUSY = 4423;
 const HELLO_TIMEOUT_MS = 10_000;
+/** O agente manda 1 leitura por segundo: 8 s de silencio significam conexao morta. */
+export const SILENCE_TIMEOUT_MS = 8_000;
 
 type Options = {
   url: string;
@@ -41,6 +43,7 @@ export class ConnectionManager {
   private socket: SocketLike | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private helloTimer: ReturnType<typeof setTimeout> | null = null;
+  private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private attempt = 0;
   private takeover = false;
   private stateListeners = new Set<(s: ConnState) => void>();
@@ -94,8 +97,10 @@ export class ConnectionManager {
   private clearTimers(): void {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     if (this.helloTimer) clearTimeout(this.helloTimer);
+    if (this.silenceTimer) clearTimeout(this.silenceTimer);
     this.retryTimer = null;
     this.helloTimer = null;
+    this.silenceTimer = null;
   }
 
   /** Fecha o socket atual sem que os eventos atrasados dele afetem o estado. */
@@ -134,6 +139,16 @@ export class ConnectionManager {
     }, HELLO_TIMEOUT_MS);
   }
 
+  /** Conexao meio-aberta (PC suspenso, roteador reiniciado) nao gera onclose: o vigia detecta. */
+  private armSilenceWatch(): void {
+    if (this.silenceTimer) clearTimeout(this.silenceTimer);
+    this.silenceTimer = setTimeout(() => {
+      this.silenceTimer = null;
+      this.abandonSocket(4000);
+      this.scheduleRetry();
+    }, SILENCE_TIMEOUT_MS);
+  }
+
   private handleMessage(data: unknown): void {
     if (typeof data !== 'string') return;
     let message: unknown;
@@ -150,10 +165,12 @@ export class ConnectionManager {
       this.helloTimer = null;
       this.attempt = 0;
       this.takeover = false;
+      this.armSilenceWatch();
       this.setState({ kind: 'connected', hello });
     } else if (type === 'snapshot') {
       const snapshot = parseSnapshotMessage(message);
       if (!snapshot) return;
+      this.armSilenceWatch();
       this.last = snapshot;
       for (const listener of [...this.snapshotListeners]) listener(snapshot);
     }

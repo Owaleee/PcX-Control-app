@@ -4,6 +4,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Gauge } from '../../../src/components/Gauge';
 import { statusLabel } from '../../../src/components/StatusPill';
@@ -15,11 +16,14 @@ import { nextTheme } from '../../../src/theme/themes';
 
 const CONTROLS_MS = 3000;
 const SHIFT_MS = 180_000;
+const GAP = 16;
 
 export default function PanelMode() {
   useKeepAwake();
   const { theme, name, setName } = useTheme();
   const { snapshot, capabilities, state } = usePc();
+  const insets = useSafeAreaInsets();
+  const stale = state.kind !== 'connected';
   const [controlsAt, setControlsAt] = useState<number | null>(null);
   const [dim, setDim] = useState(false);
   const [step, setStep] = useState(0);
@@ -55,10 +59,24 @@ export default function PanelMode() {
       <Pressable testID="panel-touch" accessibilityLabel="Mostrar controles" style={styles.root} onPress={touch}>
         <View
           testID="panel-grid"
-          style={[styles.grid, { transform: [{ translateX: shift.x }, { translateY: shift.y }] }]}
+          style={[
+            styles.grid,
+            {
+              paddingTop: GAP + insets.top,
+              paddingBottom: GAP + insets.bottom,
+              paddingLeft: GAP + insets.left,
+              paddingRight: GAP + insets.right,
+              transform: [{ translateX: shift.x }, { translateY: shift.y }],
+            },
+          ]}
         >
+          {stale ? (
+            <Text style={[styles.status, { color: theme.text, backgroundColor: theme.surface }]}>
+              {statusLabel(state)}
+            </Text>
+          ) : null}
           {data ? (
-            <>
+            <View testID="panel-gauges" style={[styles.gauges, { opacity: stale ? 0.5 : 1 }]}>
               <View style={styles.row}>
                 <Gauge label="CPU" value={formatPercent(data.cpu_total)} percent={data.cpu_total} />
                 {gpu ? <Gauge label="GPU" value={formatPercent(gpu.usage_percent)} percent={gpu.usage_percent} /> : null}
@@ -73,18 +91,21 @@ export default function PanelMode() {
                 />
                 <Gauge label="Rede" value={`↓ ${formatRate(data.net_down_bps)}`} detail={`↑ ${formatRate(data.net_up_bps)}`} />
               </View>
-            </>
+            </View>
           ) : (
             <Text style={[styles.waiting, { color: theme.textMuted }]}>Aguardando dados do PC…</Text>
           )}
         </View>
       </Pressable>
-      {state.kind !== 'connected' ? (
-        <Text style={[styles.status, { color: theme.text, backgroundColor: theme.surface }]}>{statusLabel(state)}</Text>
-      ) : null}
       {dim ? <View testID="dim-overlay" pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dim]} /> : null}
       {controlsAt !== null ? (
-        <View style={[styles.controls, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View
+          testID="panel-controls"
+          style={[
+            styles.controls,
+            { bottom: GAP + insets.bottom, backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
           {[
             { label: 'Sair', onPress: () => router.back() },
             {
@@ -114,12 +135,11 @@ export default function PanelMode() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  grid: { flex: 1, padding: 16, gap: 16 },
+  grid: { flex: 1, gap: GAP },
+  gauges: { flex: 1, gap: GAP },
   row: { flex: 1, flexDirection: 'row', gap: 16 },
   waiting: { fontSize: 22, textAlign: 'center', marginTop: 40 },
   status: {
-    position: 'absolute',
-    top: 12,
     alignSelf: 'center',
     paddingHorizontal: 14,
     paddingVertical: 6,
@@ -130,7 +150,6 @@ const styles = StyleSheet.create({
   dim: { backgroundColor: '#000000', opacity: 0.6 },
   controls: {
     position: 'absolute',
-    bottom: 16,
     alignSelf: 'center',
     flexDirection: 'row',
     gap: 8,

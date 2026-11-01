@@ -47,5 +47,8 @@ O terminal mostra o código de pareamento, o endereço `pcx://pair?...` e o QR c
 | 12 | Mandar o app para segundo plano por 1 min | Ao voltar, reconecta sozinho |
 | 13 | Esquecer o PC nos ajustes | Some da lista; no PC, o token deixa de valer |
 | 14 | Modo painel por 1 h | Sem travar nem desconectar |
+| 15 | Suspender o PC com o painel aberto e acordar | Em até ~10 s mostra "Reconectando…" com valores esmaecidos; volta sozinho quando o PC acorda |
+| 16 | Trocar o IP do PC (ou reiniciar o roteador) e corrigir em Ajustes do PC → "Salvar endereço" | Volta a conectar sem parear de novo; o apelido continua |
+| 17 | Ler um QR code expirado (mais de 5 minutos) | Mostra "Código expirado. Gere outro no PC." uma vez, sem bloquear o celular por excesso de tentativas |
 
 Anote o modelo do celular, a versão do Android e a versão do Windows junto com o resultado.

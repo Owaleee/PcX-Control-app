@@ -22,11 +22,13 @@ export function useMetricHistory(
   metric: MetricName,
   range: Range,
   snapshot: SnapshotMessage | null,
+  session = 0,
 ) {
   const host = pc?.host;
   const port = pc?.port;
   const token = pc?.token;
-  const key = `${host}:${port}:${token}:${metric}:${range}`;
+  // Cada sessao nova (novo hello) busca de novo: depois de assumir, de reconectar ou de voltar.
+  const key = `${host}:${port}:${token}:${metric}:${range}:${session}`;
 
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [seen, setSeen] = useState<SnapshotMessage | null>(null);

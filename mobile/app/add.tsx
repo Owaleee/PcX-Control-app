@@ -8,7 +8,7 @@ import { baseUrl, pair, userMessage } from '../src/api/http';
 import { Body, Button, Field, Message, Screen, Title } from '../src/components/ui';
 import { normalizeIpv4 } from '../src/protocol/ip';
 import { parsePairingUri } from '../src/protocol/qr';
-import { savePc } from '../src/storage/storage';
+import { getPc, savePc } from '../src/storage/storage';
 
 const DEFAULT_PORT = '8765';
 
@@ -25,13 +25,16 @@ export default function AddPc() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const inFlight = useRef(false);
+  // O ultimo QR que deu erro: a camera o le varias vezes por segundo, e cada tentativa
+  // conta no limite de tentativas do PC.
+  const failedQr = useRef<string | null>(null);
 
-  async function connect(target: Target, credentials: Credentials, expectedAgentId?: string) {
-    if (inFlight.current) return;
+  async function connect(target: Target, credentials: Credentials, expectedAgentId?: string): Promise<boolean> {
+    if (inFlight.current) return false;
     const name = deviceName.trim();
     if (!name) {
       setMessage('Digite um nome para este celular.');
-      return;
+      return false;
     }
     inFlight.current = true;
     setBusy(true);
@@ -40,9 +43,11 @@ export default function AddPc() {
       const result = await pair(baseUrl(target.host, target.port), { device_name: name, ...credentials });
       if (expectedAgentId && result.agent.id !== expectedAgentId) {
         setMessage('O QR code não corresponde a este PC.');
-        return;
+        return false;
       }
+      const previous = await getPc(result.agent.id).catch(() => null);
       await savePc({
+        alias: previous?.alias,
         agentId: result.agent.id,
         name: result.agent.name,
         host: target.host,
@@ -52,8 +57,10 @@ export default function AddPc() {
         addedAt: Date.now(),
       });
       router.replace(`/pc/${encodeURIComponent(result.agent.id)}`);
+      return true;
     } catch (err) {
       setMessage(userMessage(err));
+      return false;
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -61,13 +68,16 @@ export default function AddPc() {
   }
 
   function onScan({ data }: { data: string }) {
-    if (inFlight.current) return;
+    if (inFlight.current || data === failedQr.current) return;
     const target = parsePairingUri(data);
     if (!target) {
+      failedQr.current = data;
       setMessage('Este QR code não é do PcX Control.');
       return;
     }
-    void connect({ host: target.host, port: target.port }, { code: target.code }, target.agentId);
+    void connect({ host: target.host, port: target.port }, { code: target.code }, target.agentId).then((ok) => {
+      if (!ok) failedQr.current = data;
+    });
   }
 
   function onManual() {

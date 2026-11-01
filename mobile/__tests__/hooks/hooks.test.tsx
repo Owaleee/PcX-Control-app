@@ -186,3 +186,32 @@ describe('useMetricHistory', () => {
     await waitFor(() => expect(result.current.error).toMatch(/^PC não encontrado/));
   });
 });
+
+
+test('uma sessao nova busca o historico de novo (ex.: depois de assumir)', async () => {
+  const busy = Object.assign(new Error('session_busy'), {
+    name: 'ApiError',
+    kind: 'session_busy',
+    activeDevice: 'Pixel',
+  });
+  http.getHistory.mockRejectedValueOnce(busy).mockResolvedValueOnce(fx.clone(fx.history));
+  const { result, rerender } = await renderHook(
+    ({ session }: { session: number }) => useMetricHistory(PC, 'cpu.total', '15m', null, session),
+    { initialProps: { session: 1 } },
+  );
+  await waitFor(() => expect(result.current.error).toBe('PC em uso por Pixel.'));
+  await rerender({ session: 2 });
+  await waitFor(() => expect(result.current.points).toHaveLength(2));
+  expect(result.current.error).toBeNull();
+  expect(http.getHistory).toHaveBeenCalledTimes(2);
+});
+
+test('usePcConnection expoe stop, que nao reconecta ao voltar do segundo plano', async () => {
+  const { result } = await renderHook(() => usePcConnection(PC));
+  const manager = Fake.instances[0];
+  await act(async () => result.current.stop());
+  expect(manager.stops).toBe(1);
+  await act(async () => appStateHandler?.('background'));
+  await act(async () => appStateHandler?.('active'));
+  expect(manager.starts).toHaveLength(1);
+});

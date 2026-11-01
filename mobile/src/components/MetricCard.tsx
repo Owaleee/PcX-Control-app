@@ -1,14 +1,14 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
-import { Sparkline } from './Sparkline';
+import { Sparkline, type SeriesPoint } from './Sparkline';
 
 type Props = {
   title: string;
   value: string;
   detail?: string;
   percent?: number;
-  history?: number[];
+  history?: SeriesPoint[];
   historyMax?: number;
   stale?: boolean;
   onPress?: () => void;
@@ -37,7 +37,7 @@ export function MetricCard({ title, value, detail, percent, history, historyMax,
         </View>
       ) : null}
       {history && history.length > 1 ? (
-        <Sparkline values={history} color={theme.accent} max={historyMax ?? 100} />
+        <Sparkline points={history} color={theme.accent} max={historyMax ?? 100} span={900} />
       ) : null}
       {detail ? <Text style={[styles.detail, { color: theme.textMuted }]}>{detail}</Text> : null}
     </>

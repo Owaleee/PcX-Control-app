@@ -22,6 +22,7 @@ export function formatMetric(metric: MetricName, value: number): string {
 
 /** Percentuais e temperatura usam escala fixa; taxas usam o maior valor visto. */
 export function metricScale(metric: MetricName, values: number[]): number {
+  // Taxas nao tem teto natural: usa o maior valor da janela.
   if (metric === 'gpu.temp') return 100;
   if (metric.endsWith('_bps')) return Math.max(1024, ...values);
   return 100;

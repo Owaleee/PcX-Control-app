@@ -14,6 +14,9 @@ jest.mock('expo-screen-orientation', () => ({
   OrientationLock: { LANDSCAPE: 'LANDSCAPE' },
 }));
 jest.mock('expo-keep-awake', () => ({ useKeepAwake: jest.fn() }));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 24, left: 48, right: 0 }),
+}));
 jest.mock('../../src/hooks/PcContext', () => ({ usePc: jest.fn() }));
 jest.mock('../../src/theme/ThemeProvider', () => ({
   ...jest.requireActual('../../src/theme/ThemeProvider'),
@@ -128,4 +131,29 @@ test('sem conexao mostra o estado sobre o painel', async () => {
   await render(<PanelMode />);
   expect(screen.getByText('Reconectando…')).toBeTruthy();
   expect(screen.getByText('Aguardando dados do PC…')).toBeTruthy();
+});
+
+
+test('sem conexao os medidores esmaecem e o aviso anda junto com o painel', async () => {
+  (usePc as jest.Mock).mockReturnValue({
+    pc: { agentId: 'a1', name: 'PC' },
+    state: { kind: 'reconnecting', attempt: 1, retryInMs: 1000 },
+    snapshot: fx.clone(fx.snapshotMessage),
+    capabilities: fx.hello.capabilities,
+  });
+  await render(<PanelMode />);
+  const grid = screen.getByTestId('panel-grid');
+  expect(StyleSheet.flatten(screen.getByTestId('panel-gauges').props.style).opacity).toBe(0.5);
+  expect(screen.getByText('Reconectando…')).toBeTruthy();
+  // O aviso fica dentro do bloco deslocado (protecao contra burn-in).
+  expect(screen.getByTestId('panel-grid')).toContainElement(screen.getByText('Reconectando…'));
+});
+
+test('respeita as areas seguras da tela (recorte da camera e barra de navegacao)', async () => {
+  await render(<PanelMode />);
+  const style = StyleSheet.flatten(screen.getByTestId('panel-grid').props.style);
+  expect(style.paddingLeft).toBe(16 + 48);
+  expect(style.paddingBottom).toBe(16 + 24);
+  await fireEvent.press(screen.getByTestId('panel-touch'));
+  expect(StyleSheet.flatten(screen.getByTestId('panel-controls').props.style).bottom).toBe(16 + 24);
 });

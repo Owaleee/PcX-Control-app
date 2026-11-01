@@ -13,6 +13,7 @@ export function usePcConnection(pc: SavedPc | null) {
   const [snapshot, setSnapshot] = useState<SnapshotMessage | null>(null);
   const managerRef = useRef<ConnectionManager | null>(null);
   const pausedRef = useRef(false);
+  const stoppedRef = useRef(false); // parado de proposito: nao volta sozinho
 
   const host = pc?.host;
   const port = pc?.port;
@@ -21,6 +22,7 @@ export function usePcConnection(pc: SavedPc | null) {
   useEffect(() => {
     if (!host || !port || !token) return undefined;
     const manager = new ConnectionManager({ url: `ws://${host}:${port}/v1/stream`, token });
+    stoppedRef.current = false;
     managerRef.current = manager;
     const offState = manager.onState(setState);
     const offSnapshot = manager.onSnapshot(setSnapshot);
@@ -28,7 +30,7 @@ export function usePcConnection(pc: SavedPc | null) {
 
     const subscription = AppState.addEventListener('change', (next) => {
       if (next === 'background') {
-        if (!FINAL.has(manager.state.kind)) {
+        if (!stoppedRef.current && !FINAL.has(manager.state.kind)) {
           pausedRef.current = true;
           manager.stop();
         }
@@ -47,8 +49,20 @@ export function usePcConnection(pc: SavedPc | null) {
     };
   }, [host, port, token]);
 
-  const takeover = useCallback(() => managerRef.current?.start({ takeover: true }), []);
-  const reconnect = useCallback(() => managerRef.current?.start(), []);
+  const takeover = useCallback(() => {
+    stoppedRef.current = false;
+    managerRef.current?.start({ takeover: true });
+  }, []);
+  /** Para de vez (ex.: antes de esquecer o PC); nao volta sozinho do segundo plano. */
+  const stop = useCallback(() => {
+    stoppedRef.current = true;
+    pausedRef.current = false;
+    managerRef.current?.stop();
+  }, []);
+  const reconnect = useCallback(() => {
+    stoppedRef.current = false;
+    managerRef.current?.start();
+  }, []);
 
-  return { state, snapshot, takeover, reconnect };
+  return { state, snapshot, takeover, reconnect, stop };
 }

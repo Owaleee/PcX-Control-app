@@ -12,9 +12,9 @@ import type { MetricName } from '../../../src/protocol/types';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 
 function useSeries(metric: MetricName) {
-  const { pc, snapshot } = usePc();
-  const { points } = useMetricHistory(pc, metric, '15m', snapshot);
-  return points.map((p) => p.avg);
+  const { pc, snapshot, session } = usePc();
+  const { points } = useMetricHistory(pc, metric, '15m', snapshot, session);
+  return points.map((p) => ({ t: p.t, v: p.avg }));
 }
 
 export default function PcPanel() {
@@ -101,7 +101,7 @@ export default function PcPanel() {
             title="Rede"
             value={`↓ ${formatRate(data.net_down_bps)}  ↑ ${formatRate(data.net_up_bps)}`}
             history={net}
-            historyMax={metricScale('net.down_bps', net)}
+            historyMax={metricScale('net.down_bps', net.map((p) => p.v))}
             stale={stale}
             onPress={open('net.down_bps')}
           />

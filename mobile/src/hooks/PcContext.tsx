@@ -1,7 +1,7 @@
 // Uma conexao por PC, compartilhada pelas telas (painel, detalhe, modo painel).
 // Abrir uma conexao por tela faria o mesmo celular disputar a propria sessao.
 import { router } from 'expo-router';
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
 
 import { Body, Button, Screen, Title } from '../components/ui';
@@ -15,8 +15,13 @@ type PcContextValue = {
   state: ConnState;
   snapshot: SnapshotMessage | null;
   capabilities: string[];
+  /** Muda a cada hello: telas que buscam dados (historico) refazem a busca. */
+  session: number;
   takeover: () => void;
   reconnect: () => void;
+  stop: () => void;
+  /** Rele o PC salvo (depois de mudar apelido ou endereco). */
+  refresh: () => void;
 };
 
 const PcContext = createContext<PcContextValue | null>(null);
@@ -29,8 +34,11 @@ export function usePc(): PcContextValue {
 
 export function PcProvider({ agentId, children }: { agentId: string; children: ReactNode }) {
   const [pc, setPc] = useState<SavedPc | null | undefined>(undefined);
-  const { state, snapshot, takeover, reconnect } = usePcConnection(pc ?? null);
+  const { state, snapshot, takeover, reconnect, stop } = usePcConnection(pc ?? null);
   const [capabilities, setCapabilities] = useState<string[]>([]);
+  const [session, setSession] = useState(0);
+  const [lastHello, setLastHello] = useState<unknown>(null);
+  const [reload, setReload] = useState(0);
   const handled = useRef<ConnState['kind'] | null>(null);
 
   useEffect(() => {
@@ -41,10 +49,15 @@ export function PcProvider({ agentId, children }: { agentId: string; children: R
     return () => {
       active = false;
     };
-  }, [agentId]);
+  }, [agentId, reload]);
 
-  // Guarda as capacidades do ultimo hello (o modo painel usa mesmo durante uma reconexao).
-  if (state.kind === 'connected' && state.hello.capabilities !== capabilities) {
+  const refresh = useCallback(() => setReload((n) => n + 1), []);
+
+  // Cada hello novo e uma sessao nova; guarda tambem as capacidades (o modo painel as usa
+  // durante uma reconexao).
+  if (state.kind === 'connected' && state.hello !== lastHello) {
+    setLastHello(state.hello);
+    setSession((n) => n + 1);
     setCapabilities(state.hello.capabilities);
   }
 
@@ -53,10 +66,12 @@ export function PcProvider({ agentId, children }: { agentId: string; children: R
     if (state.kind === 'revoked') {
       if (handled.current === 'revoked') return;
       handled.current = 'revoked';
-      void removePc(pc.agentId).finally(() => {
-        Alert.alert('Desconectado', 'Este celular foi desconectado no PC. Pareie de novo.');
-        router.replace('/');
-      });
+      removePc(pc.agentId)
+        .catch(() => undefined)
+        .finally(() => {
+          Alert.alert('Desconectado', 'Este celular foi desconectado no PC. Pareie de novo.');
+          router.dismissTo('/');
+        });
     } else if (state.kind === 'busy') {
       if (handled.current === 'busy') return;
       handled.current = 'busy';
@@ -81,12 +96,12 @@ export function PcProvider({ agentId, children }: { agentId: string; children: R
       <Screen>
         <Title>PC não encontrado.</Title>
         <Body>Ele pode ter sido removido deste celular.</Body>
-        <Button title="Voltar" onPress={() => router.replace('/')} />
+        <Button title="Voltar" onPress={() => router.dismissTo('/')} />
       </Screen>
     );
   }
   return (
-    <PcContext.Provider value={{ pc, state, snapshot, capabilities, takeover, reconnect }}>
+    <PcContext.Provider value={{ pc, state, snapshot, capabilities, session, takeover, reconnect, stop, refresh }}>
       {children}
     </PcContext.Provider>
   );
