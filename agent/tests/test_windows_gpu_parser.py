@@ -96,3 +96,44 @@ def test_parse_vram_usage_reads_adapter_memory_instances():
     assert parsed[f"luid_{RTX}_phys_0"] == 3 * GIB
     assert f"luid_{OTHER}_phys_0" not in parsed
     assert "lixo" not in parsed
+
+
+# --- Amostras reais (RTX 3070, Windows 11): capturadas por tools/capture_gpu_samples.py ---
+
+REAL = json.loads((Path(__file__).parent / "data" / "pdh_real_rtx3070.json").read_text())
+REAL_RTX = "0x00000000_0x0000d38e"
+REAL_ADAPTERS = {REAL_RTX: AdapterInfo("NVIDIA GeForce RTX 3070", 8406433792)}
+
+
+def test_real_samples_every_engine_instance_name_matches_the_expected_format():
+    """Se o Windows mudar o formato dos nomes, este teste avisa em vez de a GPU sumir calada."""
+    from pcx_agent.sensors.windows.gpu import _ENGINE, _MEMORY
+
+    assert len(REAL["engines"]) > 100
+    assert all(_ENGINE.match(s["InstanceName"]) for s in REAL["engines"])
+    assert all(_MEMORY.match(s["InstanceName"]) for s in REAL["memory"])
+
+
+def test_real_samples_return_only_the_physical_gpu_with_vram():
+    used = parse_vram_usage(REAL["memory"])
+    readings = parse_gpu_usage(REAL["engines"], REAL_ADAPTERS, vram_used=used)
+    assert [r.name for r in readings] == ["NVIDIA GeForce RTX 3070"]
+    gpu = readings[0]
+    assert gpu.id == f"luid_{REAL_RTX}_phys_0"
+    assert 0 < gpu.usage_percent <= 100
+    assert gpu.vram_used_bytes == 2739310592
+    assert gpu.vram_total_bytes == 8406433792
+
+
+def test_real_samples_ignore_the_second_adapter_that_dxgi_does_not_list():
+    """O LUID ...ffcb aparece nos contadores, mas nao e GPU fisica (nao esta na lista DXGI)."""
+    from pcx_agent.sensors.windows.gpu import _ENGINE
+
+    luids = {
+        match.group(1).lower()
+        for sample in REAL["engines"]
+        if (match := _ENGINE.match(sample["InstanceName"]))
+    }
+    assert luids == {REAL_RTX, "0x00000000_0x0000ffcb"}
+    readings = parse_gpu_usage(REAL["engines"], REAL_ADAPTERS)
+    assert len(readings) == 1
