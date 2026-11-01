@@ -17,7 +17,7 @@
 - Coleta: 5 s sem sessão ativa, 1 s com sessão. Histórico: média e máximo a cada 5 s, retenção de 24 h.
 - Fechamentos do WebSocket: `4401` token inválido, `4408` sem auth em 5 s, `4409` sessão assumida, `4423` sessão ocupada sem `takeover`.
 - Sem uso por núcleo de CPU. Senha, código e token nunca aparecem em logs.
-- Commits em português, no padrão Conventional Commits, sem trailers de coautoria.
+- Commits em português, no padrão Conventional Commits.
 - Cobertura mínima de 80% fora de `sensors/windows` e `tray`.
 
 ## Revisão de riscos (entradas que o spec não detalha)
