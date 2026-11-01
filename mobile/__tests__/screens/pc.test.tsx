@@ -80,9 +80,11 @@ describe('painel', () => {
   test('mostra os cartoes a partir da leitura', async () => {
     await renderWith(<Panel />);
     expect(screen.getByText('Conectado')).toBeTruthy();
-    expect(screen.getByText('13,0%')).toBeTruthy();
-    expect(screen.getByText('43,8%')).toBeTruthy();
-    expect(screen.getByText('14,0 / 31,9 GiB')).toBeTruthy();
+    expect(screen.getByText('13%')).toBeTruthy();
+    expect(screen.getByText('44%')).toBeTruthy();
+    expect(screen.getByText('18%')).toBeTruthy();
+    expect(screen.getByText('81%')).toBeTruthy();
+    expect(screen.getByText('14,0 / 31,9 GiB · 17,9 GiB livres')).toBeTruthy();
     expect(screen.getByText('NVIDIA GeForce RTX 3070')).toBeTruthy();
     expect(screen.getByText('VRAM 2,5 / 7,8 GiB · 49 °C')).toBeTruthy();
     expect(screen.getByText('Disco C:\\')).toBeTruthy();
@@ -161,8 +163,8 @@ describe('detalhe da metrica', () => {
     paramsMock.current = { id: 'a1', metric: 'cpu.total' };
     history.useMetricHistory.mockReturnValue({ points: fx.clone(fx.history).points, loading: false, error: null });
     await renderWith(<MetricDetail />);
-    expect(screen.getByText('Média: 13,3%')).toBeTruthy();
-    expect(screen.getByText('Máximo: 31,5%')).toBeTruthy();
+    expect(screen.getByText('Média: 13%')).toBeTruthy();
+    expect(screen.getByText('Máximo: 32%')).toBeTruthy();
     await fireEvent.press(screen.getByText('1 h'));
     expect(history.useMetricHistory).toHaveBeenLastCalledWith(PC, 'cpu.total', '1h', expect.anything(), 1);
   });

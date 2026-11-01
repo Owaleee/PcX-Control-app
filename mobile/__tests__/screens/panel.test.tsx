@@ -37,7 +37,7 @@ function setup({ capabilities = fx.hello.capabilities as string[], temp = 49 as 
     snapshot,
     capabilities,
   });
-  (useTheme as jest.Mock).mockReturnValue({ theme: THEMES.dark, name: 'dark', setName });
+  (useTheme as jest.Mock).mockReturnValue({ theme: THEMES.dark, name: 'dark', setName, precise: false });
 }
 
 beforeEach(() => {
@@ -60,7 +60,8 @@ test('trava em paisagem, mantem a tela ligada e libera ao sair', async () => {
 test('mostra os medidores principais', async () => {
   await render(<PanelMode />);
   expect(screen.getByText('CPU')).toBeTruthy();
-  expect(screen.getByText('13,0%')).toBeTruthy();
+  expect(screen.getByText('13%')).toBeTruthy();
+  expect(screen.getByText('14,0 / 31,9 GiB · 17,9 GiB livres')).toBeTruthy();
   expect(screen.getByText('GPU')).toBeTruthy();
   expect(screen.getByText('Temperatura GPU')).toBeTruthy();
   expect(screen.getByText('49 °C')).toBeTruthy();
@@ -156,4 +157,12 @@ test('respeita as areas seguras da tela (recorte da camera e barra de navegacao)
   expect(style.paddingBottom).toBe(16 + 24);
   await fireEvent.press(screen.getByTestId('panel-touch'));
   expect(StyleSheet.flatten(screen.getByTestId('panel-controls').props.style).bottom).toBe(16 + 24);
+});
+
+
+test('com numeros precisos, uma casa decimal', async () => {
+  (useTheme as jest.Mock).mockReturnValue({ theme: THEMES.dark, name: 'dark', setName, precise: true });
+  await render(<PanelMode />);
+  expect(screen.getByText('13,0%')).toBeTruthy();
+  expect(screen.getByText('43,8%')).toBeTruthy();
 });

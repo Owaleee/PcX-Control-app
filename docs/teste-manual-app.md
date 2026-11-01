@@ -51,4 +51,13 @@ O terminal mostra o código de pareamento, o endereço `pcx://pair?...` e o QR c
 | 16 | Trocar o IP do PC (ou reiniciar o roteador) e corrigir em Ajustes do PC → "Salvar endereço" | Volta a conectar sem parear de novo; o apelido continua |
 | 17 | Ler um QR code expirado (mais de 5 minutos) | Mostra "Código expirado. Gere outro no PC." uma vez, sem bloquear o celular por excesso de tentativas |
 
+| 18 | Configurações → "Números precisos" desligado (padrão) e ligado | Percentuais inteiros (51%) e, ligado, com uma casa (50,5%), no painel, no detalhe e no modo painel |
+| 19 | Cartão de memória | Mostra usado / total e quanto está livre ("· 17,9 GiB livres") |
+
 Anote o modelo do celular, a versão do Android e a versão do Windows junto com o resultado.
+
+## Resultados
+
+| Data | Aparelho | Sistema | Como | Resultado |
+| --- | --- | --- | --- | --- |
+| 01/11/2026 | Poco X7 Pro | Android 16, HyperOS 3.0.302 | Expo Go + agente no Windows (RTX 3070) | Itens 1 a 16 aprovados, sem erros. Pedido: percentuais inteiros por padrão e RAM livre (itens 18 e 19, adicionados depois) |

@@ -29,6 +29,8 @@ Primeira versão do **app Android**.
 - Modo painel em paisagem: tela sempre ligada, controles por toque, escurecer e deslocamento de
   pixels contra burn-in.
 - Temas Escuro, Claro e AMOLED (fundo preto puro), com contraste de leitura testado.
+- Percentuais inteiros por padrão (51%) e opção "Números precisos" nas Configurações (50,5%).
+- Memória RAM livre ao lado da usada, no painel e no modo painel.
 - Token guardado no armazenamento seguro do Android; a senha nunca é salva no celular.
 - Ícone próprio e build do APK pelo EAS.
 - Agente: QR code de pareamento no terminal e contrato do protocolo em

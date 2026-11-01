@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Gauge } from '../../../src/components/Gauge';
 import { statusLabel } from '../../../src/components/StatusPill';
-import { formatPercent, formatRate, formatTemp, formatUsage } from '../../../src/format/format';
+import { formatFree, formatPercent, formatRate, formatTemp, formatUsage } from '../../../src/format/format';
 import { usePc } from '../../../src/hooks/PcContext';
 import { pixelShiftOffset } from '../../../src/theme/pixelShift';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -20,7 +20,8 @@ const GAP = 16;
 
 export default function PanelMode() {
   useKeepAwake();
-  const { theme, name, setName } = useTheme();
+  const { theme, name, setName, precise } = useTheme();
+  const percent = (value: number) => formatPercent(value, { precise });
   const { snapshot, capabilities, state } = usePc();
   const insets = useSafeAreaInsets();
   const stale = state.kind !== 'connected';
@@ -78,16 +79,16 @@ export default function PanelMode() {
           {data ? (
             <View testID="panel-gauges" style={[styles.gauges, { opacity: stale ? 0.5 : 1 }]}>
               <View style={styles.row}>
-                <Gauge label="CPU" value={formatPercent(data.cpu_total)} percent={data.cpu_total} />
-                {gpu ? <Gauge label="GPU" value={formatPercent(gpu.usage_percent)} percent={gpu.usage_percent} /> : null}
+                <Gauge label="CPU" value={percent(data.cpu_total)} percent={data.cpu_total} />
+                {gpu ? <Gauge label="GPU" value={percent(gpu.usage_percent)} percent={gpu.usage_percent} /> : null}
                 {temp !== null ? <Gauge label="Temperatura GPU" value={formatTemp(temp)} percent={temp} /> : null}
               </View>
               <View style={styles.row}>
                 <Gauge
                   label="RAM"
-                  value={formatPercent(data.ram_percent)}
+                  value={percent(data.ram_percent)}
                   percent={data.ram_percent}
-                  detail={formatUsage(data.ram_used_bytes, data.ram_total_bytes)}
+                  detail={`${formatUsage(data.ram_used_bytes, data.ram_total_bytes)} · ${formatFree(data.ram_used_bytes, data.ram_total_bytes)}`}
                 />
                 <Gauge label="Rede" value={`↓ ${formatRate(data.net_down_bps)}`} detail={`↑ ${formatRate(data.net_up_bps)}`} />
               </View>

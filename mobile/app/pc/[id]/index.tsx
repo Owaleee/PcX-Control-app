@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MetricCard } from '../../../src/components/MetricCard';
 import { StatusPill } from '../../../src/components/StatusPill';
 import { Body, Button, Message, Screen } from '../../../src/components/ui';
-import { formatPercent, formatRate, formatTemp, formatUptime, formatUsage } from '../../../src/format/format';
+import { formatFree, formatPercent, formatRate, formatTemp, formatUptime, formatUsage } from '../../../src/format/format';
 import { metricScale } from '../../../src/format/metric';
 import { usePc } from '../../../src/hooks/PcContext';
 import { useMetricHistory } from '../../../src/hooks/useMetricHistory';
@@ -18,7 +18,8 @@ function useSeries(metric: MetricName) {
 }
 
 export default function PcPanel() {
-  const { theme } = useTheme();
+  const { theme, precise } = useTheme();
+  const percent = (value: number) => formatPercent(value, { precise });
   const { pc, state, snapshot, takeover } = usePc();
   const cpu = useSeries('cpu.total');
   const ram = useSeries('ram.percent');
@@ -63,7 +64,7 @@ export default function PcPanel() {
           </Text>
           <MetricCard
             title="CPU"
-            value={formatPercent(data.cpu_total)}
+            value={percent(data.cpu_total)}
             percent={data.cpu_total}
             history={cpu}
             stale={stale}
@@ -71,9 +72,9 @@ export default function PcPanel() {
           />
           <MetricCard
             title="Memória RAM"
-            value={formatPercent(data.ram_percent)}
+            value={percent(data.ram_percent)}
             percent={data.ram_percent}
-            detail={formatUsage(data.ram_used_bytes, data.ram_total_bytes)}
+            detail={`${formatUsage(data.ram_used_bytes, data.ram_total_bytes)} · ${formatFree(data.ram_used_bytes, data.ram_total_bytes)}`}
             history={ram}
             stale={stale}
             onPress={open('ram.percent')}
@@ -88,7 +89,7 @@ export default function PcPanel() {
               <MetricCard
                 key={g.id}
                 title={g.name}
-                value={formatPercent(g.usage_percent)}
+                value={percent(g.usage_percent)}
                 percent={g.usage_percent}
                 detail={[vram, temp].filter(Boolean).join(' · ') || undefined}
                 history={index === 0 ? gpu : undefined}
@@ -109,7 +110,7 @@ export default function PcPanel() {
             <MetricCard
               key={d.mount}
               title={`Disco ${d.mount}`}
-              value={formatPercent(d.percent)}
+              value={percent(d.percent)}
               percent={d.percent}
               detail={formatUsage(d.used_bytes, d.total_bytes)}
               stale={stale}

@@ -88,7 +88,7 @@ export default function Home() {
         );
       })}
       <Button title="Adicionar PC" onPress={() => router.push('/add')} />
-      <Button title="Aparência" variant="secondary" onPress={() => router.push('/settings')} />
+      <Button title="Configurações" variant="secondary" onPress={() => router.push('/settings')} />
     </Screen>
   );
 }

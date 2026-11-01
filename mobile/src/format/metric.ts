@@ -14,10 +14,10 @@ export const METRIC_TITLES: Record<MetricName, string> = {
 };
 
 /** Formata um valor da metrica na unidade certa. */
-export function formatMetric(metric: MetricName, value: number): string {
+export function formatMetric(metric: MetricName, value: number, precise = false): string {
   if (metric.endsWith('_bps')) return formatRate(value);
   if (metric === 'gpu.temp') return formatTemp(value);
-  return formatPercent(value);
+  return formatPercent(value, { precise });
 }
 
 /** Percentuais e temperatura usam escala fixa; taxas usam o maior valor visto. */

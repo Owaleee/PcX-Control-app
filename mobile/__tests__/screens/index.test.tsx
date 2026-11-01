@@ -66,3 +66,11 @@ test('tocar no PC abre o painel', async () => {
   await fireEvent.press(await screen.findByText('PC abc'));
   expect(routerMock.push).toHaveBeenCalledWith('/pc/abc');
 });
+
+
+test('botao Configuracoes abre a tela de configuracoes', async () => {
+  storage.listPcs.mockResolvedValue([]);
+  await render(<Home />);
+  await fireEvent.press(await screen.findByText('Configurações'));
+  expect(routerMock.push).toHaveBeenCalledWith('/settings');
+});

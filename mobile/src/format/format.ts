@@ -4,8 +4,10 @@ const DASH = '—';
 const ok = (v: number) => Number.isFinite(v) && v >= 0;
 const comma = (v: number, digits = 1) => v.toFixed(digits).replace('.', ',');
 
-export function formatPercent(value: number): string {
-  return ok(value) ? `${comma(value)}%` : DASH;
+/** Percentual inteiro por padrao (51%); com `precise`, uma casa decimal (50,5%). */
+export function formatPercent(value: number, options: { precise?: boolean } = {}): string {
+  if (!ok(value)) return DASH;
+  return options.precise ? `${comma(value)}%` : `${Math.round(value)}%`;
 }
 
 export function formatBytes(value: number): string {
@@ -62,4 +64,10 @@ export function formatUsage(used: number, total: number): string {
     unit += 1;
   }
   return `${comma(used / divisor)} / ${comma(total / divisor)} ${units[unit]}`;
+}
+
+/** Quanto sobra: "17,9 GiB livres". */
+export function formatFree(used: number, total: number): string {
+  if (!ok(used) || !ok(total)) return DASH;
+  return `${formatBytes(Math.max(0, total - used))} livres`;
 }

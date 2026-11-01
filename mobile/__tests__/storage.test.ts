@@ -1,9 +1,11 @@
 import {
   getPc,
+  getPrecise,
   getTheme,
   listPcs,
   removePc,
   savePc,
+  setPrecise,
   setTheme,
   updatePc,
   type SavedPc,
@@ -96,4 +98,15 @@ test('entrada corrompida e ignorada sem quebrar', async () => {
 test('agentId com caracteres estranhos nao gera chave invalida', async () => {
   await savePc(pc('id com espaço/barra'));
   expect((await listPcs())[0]?.agentId).toBe('id com espaço/barra');
+});
+
+
+test('numeros precisos vem desligado e persiste', async () => {
+  expect(await getPrecise()).toBe(false);
+  await setPrecise(true);
+  expect(await getPrecise()).toBe(true);
+  await setPrecise(false);
+  expect(await getPrecise()).toBe(false);
+  secure.__store.set('pcx.precise', 'lixo');
+  expect(await getPrecise()).toBe(false);
 });

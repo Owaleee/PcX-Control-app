@@ -16,6 +16,7 @@ export type SavedPc = {
 
 const INDEX_KEY = 'pcx.index';
 const THEME_KEY = 'pcx.theme';
+const PRECISE_KEY = 'pcx.precise';
 
 /** O secure-store so aceita letras, numeros, ponto, hifen e sublinhado nas chaves. */
 function pcKey(agentId: string): string {
@@ -91,4 +92,13 @@ export async function getTheme(): Promise<ThemeName> {
 
 export async function setTheme(name: ThemeName): Promise<void> {
   await SecureStore.setItemAsync(THEME_KEY, name);
+}
+
+/** "Numeros precisos": percentuais com uma casa decimal. Desligado por padrao. */
+export async function getPrecise(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(PRECISE_KEY)) === '1';
+}
+
+export async function setPrecise(precise: boolean): Promise<void> {
+  await SecureStore.setItemAsync(PRECISE_KEY, precise ? '1' : '0');
 }

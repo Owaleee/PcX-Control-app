@@ -125,7 +125,15 @@ propósito, voltar do segundo plano a reabria.
 - Testes de navegação real (`renderRouter`) e do `AppState` integrado ao `PcProvider`.
 - Rodar `npx expo install --check` numa máquina com acesso ao servidor do Expo antes do build.
 
+## Depois do primeiro teste no celular
+
+- Teste manual no Poco X7 Pro (Android 16): itens 1 a 16 aprovados.
+- Pedidos do teste: **percentuais inteiros por padrão**, com a opção "Números precisos" (desligada)
+  nas Configurações, e **RAM livre** ao lado da usada. Tamanhos (GiB) e velocidades continuam com
+  uma casa decimal, para não esconder valores pequenos como "0,4 KB/s".
+- O botão "Aparência" virou "Configurações", com as seções Aparência e Números.
+
 ## Validação
 
-- 228 testes no app (Jest) e 189 no agente (pytest); typecheck, lint e CI verdes.
+- 243 testes no app (Jest) e 189 no agente (pytest); typecheck, lint e CI verdes.
 - Falta o teste manual no celular e no PC: [roteiro](teste-manual-app.md).

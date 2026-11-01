@@ -33,7 +33,7 @@ export default function MetricDetail() {
 }
 
 function MetricChart({ metric }: { metric: MetricName }) {
-  const { theme } = useTheme();
+  const { theme, precise } = useTheme();
   const { pc, snapshot, session } = usePc();
   const [range, setRange] = useState<Range>('15m');
   const { points, loading, error } = useMetricHistory(pc, metric, range, snapshot, session);
@@ -71,8 +71,8 @@ function MetricChart({ metric }: { metric: MetricName }) {
       </View>
       {loading ? <Body>Carregando histórico…</Body> : null}
       <Message text={error} />
-      {mean !== null ? <Body>{`Média: ${formatMetric(metric, mean)}`}</Body> : null}
-      {peak !== null ? <Body>{`Máximo: ${formatMetric(metric, peak)}`}</Body> : null}
+      {mean !== null ? <Body>{`Média: ${formatMetric(metric, mean, precise)}`}</Body> : null}
+      {peak !== null ? <Body>{`Máximo: ${formatMetric(metric, peak, precise)}`}</Body> : null}
       {!loading && !error && points.length === 0 ? <Body>Ainda não há dados neste intervalo.</Body> : null}
     </Screen>
   );

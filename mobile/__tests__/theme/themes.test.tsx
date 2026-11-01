@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Pressable, Text } from 'react-native';
 
-import { ThemeProvider, useTheme } from '../../src/theme/ThemeProvider';
+import { ThemeProvider, usePercent, useTheme } from '../../src/theme/ThemeProvider';
 import { pixelShiftOffset } from '../../src/theme/pixelShift';
 import { THEMES, contrastRatio, nextTheme } from '../../src/theme/themes';
 import { THEME_NAMES } from '../../src/theme/names';
@@ -9,10 +9,14 @@ import { THEME_NAMES } from '../../src/theme/names';
 jest.mock('../../src/storage/storage', () => ({
   getTheme: jest.fn(async () => 'light'),
   setTheme: jest.fn(async () => undefined),
+  getPrecise: jest.fn(async () => true),
+  setPrecise: jest.fn(async () => undefined),
 }));
 const storage = jest.requireMock('../../src/storage/storage') as {
   getTheme: jest.Mock;
   setTheme: jest.Mock;
+  getPrecise: jest.Mock;
+  setPrecise: jest.Mock;
 };
 
 test('AMOLED usa fundo preto puro', () => {
@@ -82,4 +86,34 @@ describe('pixelShiftOffset', () => {
   test('respeita o limite pedido', () => {
     expect(Math.max(...Array.from({ length: 8 }, (_, s) => Math.abs(pixelShiftOffset(s, 2).x)))).toBe(2);
   });
+});
+
+
+function PercentProbe() {
+  const percent = usePercent();
+  const { precise, setPrecise } = useTheme();
+  return (
+    <Pressable onPress={() => setPrecise(!precise)}>
+      <Text>{percent(50.5)}</Text>
+    </Pressable>
+  );
+}
+
+test('usePercent segue a preferencia salva e a troca', async () => {
+  await render(
+    <ThemeProvider>
+      <PercentProbe />
+    </ThemeProvider>,
+  );
+  await waitFor(() => expect(screen.getByText('50,5%')).toBeTruthy());
+  await act(async () => {
+    await fireEvent.press(screen.getByText('50,5%'));
+  });
+  expect(screen.getByText('51%')).toBeTruthy();
+  expect(storage.setPrecise).toHaveBeenCalledWith(false);
+});
+
+test('sem provedor, percentual inteiro', async () => {
+  await render(<PercentProbe />);
+  expect(screen.getByText('51%')).toBeTruthy();
 });
