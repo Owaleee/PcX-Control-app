@@ -151,13 +151,30 @@ Documentos de origem: o [spec](specs/2026-10-30-pcx-control-v1-design.md) (§3, 
 | Regra de firewall **pelo programa**, sem porta fixa | Mudar a porta no `config.json` continua funcionando sem refazer a regra. Continua só no perfil Privado e só na rede local. |
 | `AppMutex` do instalador igual ao mutex do agente | O instalador pede para fechar o agente antes de atualizar. |
 | Desinstalar mantém `%LOCALAPPDATA%\PcXControl` | Reinstalar não exige parear os celulares de novo. |
-| Teto global: 30 falhas por minuto somando todos os IPs | Impede varrer senhas trocando de IP. Custo: alguém na rede pode travar o pareamento por 60 s. Só falhas reais contam; um acerto não arma o bloqueio. |
+| Teto global: 30 senhas erradas por minuto somando todos os IPs | Impede varrer senhas trocando de IP. Vale só para senha: os códigos do QR têm 128 bits, então o dono continua pareando pelo QR mesmo se alguém na rede travar o pareamento por senha por 60 s. Só falhas reais contam, e o teto é conferido antes do limite do IP. |
 | Logs escondem qualquer palavra base64url de 22+ caracteres | Pega tokens e códigos sem depender de quem escreve o log. Também esconde o `agent_id` e nomes longos em tracebacks. |
 | `setup_logging` assume os loggers do Uvicorn | A configuração padrão do Uvicorn corta a propagação, e os erros dele sumiriam do arquivo. |
 | Checagem de porta com `SO_EXCLUSIVEADDRUSE` no Windows | Com `SO_REUSEADDR`, o Windows deixaria dois programas na mesma porta. |
 | Ícone recortado em volta do monitor | O ícone do app tem a margem do ícone adaptativo do Android e ficaria minúsculo a 16 px. |
 | Interface: cores e tamanhos em `tray/theme.py`, textos em `tray/texts.py`, regras no `AgentController` | Manutenção: mudar uma cor ou frase é mexer num arquivo só; janelas novas herdam de `BaseWindow`. |
 | `--self-test` no executável | A CI prova que o `.exe` congelado tem todos os módulos (PyInstaller costuma esquecer importações dinâmicas). |
+
+## Achados da revisão independente (corrigidos)
+
+1. **Uma ação do menu que falhasse travava a bandeja inteira**, inclusive o Sair, sem nada no
+   log: agora cada ação é isolada e os erros da interface vão para o `agent.log`.
+2. **Erro inesperado ao iniciar** aparecia como o traceback cru do PyInstaller: agora vai para o
+   log e vira uma mensagem.
+3. **O autoteste não carregava a bandeja**: agora carrega o pystray, o tkinter e o QR no
+   executável, e o teste de fumaça exige isso.
+4. **Desinstalar podia deixar o início com o Windows apontando para um .exe apagado**, e uma
+   atualização religava o início desligado na bandeja: agora o desinstalador sempre remove o
+   valor e a atualização não mexe nele.
+5. **Reabrir logo depois de Sair** com celular conectado podia dar "porta em uso" no Windows:
+   restos em `TIME_WAIT` não contam mais, e Sair termina em poucos segundos.
+6. `config.json` salvo com BOM (Bloco de Notas) era ignorado.
+7. O teto global bloqueava também o pareamento por QR.
+8. Recusar o pedido de administrador mostrava uma caixa de erro no instalador.
 
 ## Validação
 
