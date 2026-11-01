@@ -4,30 +4,40 @@ Faça este roteiro no Expo Go e depois de novo no APK instalado.
 
 ## Preparar o PC (Windows)
 
-1. Atualize o código e as dependências do agente (a 0.2.0 tem dependência nova, o `qrcode`):
+1. Baixe o instalador (`PcXControl-Setup-X.Y.Z.exe`) do artefato `instalador-windows` da CI
+   ou da release do agente, e instale. Aceite o pedido de administrador: ele cria a regra de
+   firewall só para a rede **Privada**.
+2. A rede Wi-Fi de casa precisa estar como **Privada** nas configurações do Windows.
+3. O assistente abre sozinho: crie a senha e deixe o QR code na tela.
 
-```powershell
-cd $HOME\Documents\PcX-Control-app
-git pull
-cd agent
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,windows]"
-```
-
-2. Libere a porta 8765 **só na rede privada** (PowerShell como administrador, uma vez):
+**Plano B (sem o instalador, rodando pelo código):** libere a porta no PowerShell como
+administrador e rode o agente no terminal.
 
 ```powershell
 New-NetFirewallRule -Name "PcXControl-Agente" -DisplayName "PcX Control - agente" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8765 -Profile Private -RemoteAddress LocalSubnet
+cd agent
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,windows]"
+.\.venv\Scripts\python.exe -m pcx_agent --console
 ```
 
-A rede Wi-Fi de casa precisa estar como **Privada** nas configurações do Windows.
+## Instalador e bandeja
 
-3. Rode o agente aberto para a rede (PowerShell normal):
-
-```powershell
-.\.venv\Scripts\python.exe -m pcx_agent
-```
-
-O terminal mostra o código de pareamento, o endereço `pcx://pair?...` e o QR code.
+| # | Teste | Esperado |
+| --- | --- | --- |
+| A1 | Cronometrar do clique no instalador até o primeiro dado no celular | Menos de 2 minutos |
+| A2 | Regra no "Firewall do Windows com Segurança Avançada" | "PcX Control - agente", entrada, perfil Privado, rede local |
+| A3 | Abrir o PcX Control de novo pelo menu Iniciar | "O PcX Control já está rodando." |
+| A4 | Passar o mouse no ícone, com e sem celular conectado | "aguardando celular" / "conectado a <nome>" |
+| A5 | Dois cliques no ícone | Abre "Parear celular" com o QR e a contagem regressiva |
+| A6 | Parear pelo QR | "Celular <nome> pareado!", a janela fecha em 2 s e chega a notificação |
+| A7 | Esperar 5 minutos com o QR aberto | "Código expirado. Gere outro." e o botão gera outro |
+| A8 | Celulares pareados → Desconectar o celular ativo | O app mostra "Este celular foi desconectado no PC." |
+| A9 | Trocar senha → "Sim, desconectar" | A senha nova funciona no pareamento manual; todos os celulares saem |
+| A10 | Desmarcar e marcar "Iniciar com o Windows" e reiniciar o PC | Abre sozinho só quando marcado |
+| A11 | Abrir pasta de logs | Abre `logs`; o `agent.log` não contém senha, código nem token |
+| A12 | CPU do agente ocioso no Gerenciador de Tarefas por 5 min | Média abaixo de 1% |
+| A13 | Instalar de novo com o agente aberto | O instalador pede para fechar o PcX Control |
+| A14 | Desinstalar | A regra de firewall some; `%LOCALAPPDATA%\PcXControl` continua |
 
 ## Roteiro
 
