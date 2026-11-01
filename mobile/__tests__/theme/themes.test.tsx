@@ -49,14 +49,14 @@ function Probe() {
 }
 
 test('ThemeProvider carrega o tema salvo e persiste a troca', async () => {
-  render(
+  await render(
     <ThemeProvider>
       <Probe />
     </ThemeProvider>,
   );
   await waitFor(() => expect(screen.getByText(`light:${THEMES.light.background}`)).toBeTruthy());
   await act(async () => {
-    fireEvent.press(screen.getByText(/light/));
+    await fireEvent.press(screen.getByText(/light/));
   });
   expect(screen.getByText(`amoled:${THEMES.amoled.background}`)).toBeTruthy();
   expect(storage.setTheme).toHaveBeenCalledWith('amoled');
