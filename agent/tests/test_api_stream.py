@@ -261,3 +261,27 @@ def test_revoking_another_device_keeps_stream(live):
         ctx.pairing.revoke(other_id)
         assert ws.receive_json()["type"] == "snapshot"
         assert ws.receive_json()["type"] == "snapshot"
+
+
+def test_truncate_reason_keeps_valid_utf8_under_123_bytes():
+    from pcx_agent.api.stream import truncate_reason
+
+    text = truncate_reason("ç" * 62)
+    assert len(text.encode("utf-8")) <= 123
+    assert text == "ç" * 61
+    assert truncate_reason("Moto G") == "Moto G"
+
+
+def test_hello_and_snapshot_builders_match_the_wire_format():
+    from pcx_agent.api.stream import build_hello, build_snapshot_message
+
+    hello = build_hello("id", "PC", "1.2.3", {"ram", "cpu"})
+    assert hello == {
+        "type": "hello",
+        "protocol": 1,
+        "agent": {"id": "id", "name": "PC", "version": "1.2.3"},
+        "capabilities": ["cpu", "ram"],
+    }
+    message = build_snapshot_message(7, make_snapshot())
+    assert (message["type"], message["seq"]) == ("snapshot", 7)
+    assert message["data"]["cpu_total"] == 10.0

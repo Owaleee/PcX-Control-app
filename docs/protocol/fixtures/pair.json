@@ -1,0 +1,10 @@
+{
+  "device_id": "0b6f4c2e-5d1a-4c3b-9a8e-7f6d5c4b3a21",
+  "token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "agent": {
+    "id": "8e3c523e-8ee9-4e80-b25f-411510ac887f",
+    "name": "PC-DEMO",
+    "version": "1.2.3",
+    "protocol": 1
+  }
+}

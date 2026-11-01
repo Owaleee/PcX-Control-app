@@ -10,11 +10,38 @@ A versão do **protocolo** é independente da versão do app (hoje: `protocol: 1
 ## [Não lançado]
 
 ### Planejado
-- App Android: pareamento por QR code, painel em retrato, modo painel em paisagem, temas
-  Escuro, Claro e AMOLED (Plano 2).
 - Agente no Windows: ícone na bandeja, assistente da primeira execução, instalador e regra de
   firewall (Plano 3).
 - Versão `1.0.0`: instalador do agente + APK + notas de lançamento.
+
+## [0.2.0] - 2026-11-01
+
+Primeira versão do **app Android**.
+
+### Adicionado
+- App em Expo SDK 58 com as telas Meus PCs, Adicionar PC, Aparência, Painel, Detalhe da métrica,
+  Ajustes do PC e Modo painel.
+- Pareamento lendo o QR code do agente ou por IP + senha, com mensagens de erro em português.
+- Conexão em tempo real com reconexão automática (1, 2, 4, 8 s, até 15 s), sessão única com opção
+  de assumir e tratamento de celular revogado no PC.
+- Painel com CPU, RAM, GPU (uso, VRAM e temperatura), rede e discos, com gráficos dos últimos
+  15 minutos e detalhe de 15 min, 1 h e 24 h.
+- Modo painel em paisagem: tela sempre ligada, controles por toque, escurecer e deslocamento de
+  pixels contra burn-in.
+- Temas Escuro, Claro e AMOLED (fundo preto puro), com contraste de leitura testado.
+- Percentuais inteiros por padrão (51%) e opção "Números precisos" nas Configurações (50,5%).
+- Memória RAM livre ao lado da usada, no painel e no modo painel.
+- Token guardado no armazenamento seguro do Android; a senha nunca é salva no celular.
+- Ícone próprio e build do APK pelo EAS.
+- Agente: QR code de pareamento no terminal e contrato do protocolo em
+  [`docs/protocol/fixtures`](docs/protocol/fixtures), testado pelo agente e pelo app.
+
+### Corrigido
+- Agente: o aviso de sessão ocupada (`4423`) não chegava quando o nome do aparelho ativo passava
+  de 123 bytes.
+
+### Documentação
+- [Protocolo](docs/protocolo.md) e [teste manual do app](docs/teste-manual-app.md).
 
 ## [0.1.0] - 2026-11-01
 
@@ -49,5 +76,6 @@ terminal, no Windows (sensores reais) ou em qualquer sistema com `--demo` (senso
 ### Pendências conhecidas
 Veja [docs/decisoes-e-pendencias.md](docs/decisoes-e-pendencias.md).
 
-[Não lançado]: https://github.com/Owaleee/PcX-Control-app/compare/v0.1.0...HEAD
+[Não lançado]: https://github.com/Owaleee/PcX-Control-app/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Owaleee/PcX-Control-app/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Owaleee/PcX-Control-app/releases/tag/v0.1.0

@@ -9,6 +9,7 @@ from pathlib import Path
 from pcx_agent import __version__
 from pcx_agent.api.app import build_context, create_app
 from pcx_agent.config import DEFAULT_PORT, load_settings
+from pcx_agent.pairing_uri import local_ipv4, pairing_uri, print_pairing
 
 DEMO_PASSWORD = "demo-password"
 
@@ -62,7 +63,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PcX Control {__version__} | porta {settings.port} | dados em {settings.data_dir}")
         if args.demo:
             print(f"Modo demo (sensores simulados). Senha: {DEMO_PASSWORD}")
-        print(f"Código de pareamento: {ctx.pairing.new_code()} (vale 5 minutos)")
+        qr_host = local_ipv4() if args.host in ("0.0.0.0", "::") else args.host
+        code = ctx.pairing.new_code()
+        uri = pairing_uri(ctx.db.agent_id, qr_host, settings.port or DEFAULT_PORT, code)
+        print_pairing(sys.stdout, code, uri)
         if args.dry_run:
             return 0
 

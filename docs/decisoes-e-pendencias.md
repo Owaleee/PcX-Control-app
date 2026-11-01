@@ -62,3 +62,78 @@ revisão independente encontrou e o que ficou para depois. Os documentos de orig
 - Os 4 testes específicos de Windows passam. O `snapshot` trouxe CPU, RAM, 3 discos, rede e a GPU
   com VRAM e temperatura.
 - AMD, Intel e várias GPUs físicas **ainda não foram testadas**.
+
+---
+
+# App Android v0.2.0 (Plano 2)
+
+Documentos de origem: o [spec](specs/2026-10-30-pcx-control-v1-design.md) (§4 a §6) e o
+[plano 2](plans/2026-11-01-plano-2-app.md).
+
+## Decisões que divergem ou completam o plano
+
+| Decisão | Por quê |
+| --- | --- |
+| **Uma conexão por PC**, num `PcProvider` compartilhado pelas telas | Se cada tela abrisse a sua, o mesmo celular abriria várias sessões e uma derrubaria a outra em ciclo. |
+| Avisos de "PC em uso" e "desconectado no PC" ficam no `PcProvider` | Valem em qualquer tela do PC, inclusive no modo painel. |
+| Contrato do protocolo em `docs/protocol/fixtures`, gerado pelo agente | Se um lado mudar o formato, os testes do outro lado falham. |
+| QR code impresso no terminal do agente | Permite testar o app antes da bandeja do Windows (Plano 3). |
+| O mesmo QR lido várias vezes gera um único pareamento | A câmera dispara o mesmo código várias vezes por segundo. |
+| Espera de reconexão com teto de 15 s depois da variação de ±20% | O spec diz "até 15 s". |
+| Ao voltar do segundo plano, só reconecta se foi o app que pausou | Não reabre sessões revogadas, assumidas ou ocupadas. |
+| Contraste mínimo 4,5:1 também no texto secundário dos temas | Legibilidade, principalmente no AMOLED. |
+| Cartão sem ação é uma `View`, e a barra de progresso é acessível | O leitor de tela (TalkBack) não enxergava a barra. |
+| Instalação das dependências com a tabela local do SDK (`EXPO_OFFLINE`) | O ambiente de build não alcança o servidor de compatibilidade do Expo. |
+| `react-dom` fixado na versão do React do SDK | Conflito de versões puxado pelo expo-router. |
+| Removidos do template os arquivos que não fazem parte do app | `App.tsx`, `index.ts`, favicon, licença duplicada e arquivos de configuração de ferramentas. |
+| Perfil `development` do EAS não criado | Exigiria o `expo-dev-client`; o Expo Go cobre o desenvolvimento. |
+
+## Achados da revisão independente (corrigidos)
+
+1. **Conexão meio-aberta ficava em "Conectado" com valores congelados** (PC suspenso, roteador
+   reiniciado): agora um vigia reconecta após 8 s sem nenhuma mensagem do agente.
+2. **QR expirado diante da câmera virava uma sequência de tentativas** até bloquear o IP: o QR que
+   falhou não é tentado de novo.
+3. **Histórico não era buscado de novo** depois de assumir a sessão ou reconectar: cada sessão nova
+   refaz a busca.
+4. **"Desconectar" duplicava a tela inicial** na pilha de navegação: as saídas voltam à tela
+   inicial existente.
+5. **Trocar o IP do PC exigia parear de novo**: agora o endereço pode ser corrigido nos ajustes
+   (o app confere que é o mesmo PC) e um novo pareamento preserva o apelido.
+6. **Gráficos distorciam o tempo** (o eixo seguia a ordem dos pontos): agora o eixo é o horário.
+7. **Modo painel não esmaecia valores antigos** e o aviso de estado ficava fixo (risco de
+   burn-in): agora esmaece e o aviso anda junto com o painel.
+8. **Modo painel ignorava as áreas seguras** (recorte da câmera e barra de navegação).
+9. **"Esquecer este PC" mostrava um alerta de erro**: a conexão é encerrada antes.
+
+Durante as correções, um teste também pegou um defeito novo: depois de parar a conexão de
+propósito, voltar do segundo plano a reabria.
+
+## Pendências (menores)
+
+- Texto do aviso de sessão assumida pode ficar mais claro ("Outro aparelho assumiu a sessão deste PC").
+- Um QR de outro PC já pareia naquele PC antes de o app recusar (aparelho órfão no outro agente).
+- Voltar da tela de pareamento com um pedido em andamento ainda pode abrir o painel depois.
+- Câmera negada em definitivo: oferecer o atalho para as configurações do Android.
+- Uma GPU ou disco com dado inválido descarta a leitura inteira em vez de só o item.
+- O `hello` não confere se o PC no endereço é o mesmo salvo.
+- Cartões de disco sem gráfico; taxas de leitura e escrita dos discos não aparecem.
+- Gráfico de 24 h sem redução de pontos (até ~17 mil pontos redesenhados).
+- O tema salvo aparece um instante depois da abertura (começa no escuro).
+- Estado "ocupado" sem botão "Tentar de novo".
+- Agente: aviso quando não encontra o IP da rede e o QR sai com `127.0.0.1`.
+- Testes de navegação real (`renderRouter`) e do `AppState` integrado ao `PcProvider`.
+- Rodar `npx expo install --check` numa máquina com acesso ao servidor do Expo antes do build.
+
+## Depois do primeiro teste no celular
+
+- Teste manual no Poco X7 Pro (Android 16): itens 1 a 16 aprovados.
+- Pedidos do teste: **percentuais inteiros por padrão**, com a opção "Números precisos" (desligada)
+  nas Configurações, e **RAM livre** ao lado da usada. Tamanhos (GiB) e velocidades continuam com
+  uma casa decimal, para não esconder valores pequenos como "0,4 KB/s".
+- O botão "Aparência" virou "Configurações", com as seções Aparência e Números.
+
+## Validação
+
+- 243 testes no app (Jest) e 189 no agente (pytest); typecheck, lint e CI verdes.
+- Falta o teste manual no celular e no PC: [roteiro](teste-manual-app.md).

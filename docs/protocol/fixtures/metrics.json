@@ -1,0 +1,24 @@
+{
+  "names": [
+    "cpu.total",
+    "disk.read_bps",
+    "disk.write_bps",
+    "gpu.temp",
+    "gpu.usage",
+    "gpu.vram_percent",
+    "net.down_bps",
+    "net.up_bps",
+    "ram.percent"
+  ],
+  "from_snapshot": {
+    "cpu.total": 13.0,
+    "ram.percent": 43.8,
+    "net.down_bps": 4099.7,
+    "net.up_bps": 447.9,
+    "disk.read_bps": 2965907.8,
+    "disk.write_bps": 3423685.9,
+    "gpu.usage": 17.98,
+    "gpu.temp": 49.0,
+    "gpu.vram_percent": 32.375245571909694
+  }
+}
