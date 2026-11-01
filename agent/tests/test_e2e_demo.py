@@ -113,15 +113,56 @@ def test_real_uvicorn_server_accepts_websocket(tmp_path):
         ctx.db.close()
 
 
-def test_main_configures_websocket_ping_to_detect_dead_connections(tmp_path, monkeypatch):
-    import uvicorn
+def test_server_config_pings_websocket_to_detect_dead_connections():
+    from pcx_agent.server import uvicorn_config
 
-    captured = {}
-    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: captured.update(kwargs))
-    assert main(["--demo", "--data-dir", str(tmp_path), "--port", "0"]) == 0
-    assert captured["ws_ping_interval"] <= 10
-    assert captured["ws_ping_timeout"] <= 15
-    assert captured["access_log"] is False
+    config = uvicorn_config(object(), "127.0.0.1", 0)
+    assert config.ws_ping_interval <= 10
+    assert config.ws_ping_timeout <= 15
+    assert config.access_log is False
+
+
+def test_demo_console_uses_agent_server(tmp_path, monkeypatch, capsys):
+    import pcx_agent.main as cli
+
+    calls = []
+
+    class FakeServer:
+        def __init__(self, ctx, host, port):
+            calls.append(("init", host, port))
+
+        def start(self):
+            calls.append("start")
+
+        def stop(self):
+            calls.append("stop")
+
+    monkeypatch.setattr(cli, "AgentServer", FakeServer)
+    monkeypatch.setattr(cli, "_wait_until_interrupted", lambda: calls.append("wait"))
+    assert main(["--demo", "--data-dir", str(tmp_path), "--port", "9123"]) == 0
+    assert calls == [("init", "0.0.0.0", 9123), "start", "wait", "stop"]
+    assert "pcx://pair?v=1" in capsys.readouterr().out
+
+
+def test_console_reports_port_in_use(tmp_path, capsys):
+    import socket
+
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        code = main(["--demo", "--data-dir", str(tmp_path), "--host", "127.0.0.1",
+                     "--port", str(port)])
+    assert code == 1
+    assert f"A porta {port} já está em uso" in capsys.readouterr().err
+
+
+def test_console_warns_without_network(tmp_path, monkeypatch, capsys):
+    import pcx_agent.main as cli
+
+    monkeypatch.setattr(cli, "local_ipv4", lambda: "127.0.0.1")
+    assert main(["--demo", "--data-dir", str(tmp_path), "--port", "0", "--dry-run"]) == 0
+    assert "Não encontrei a rede deste PC" in capsys.readouterr().out
 
 
 def test_busy_close_code_survives_long_device_name(tmp_path):
