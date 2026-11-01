@@ -41,7 +41,7 @@ markers = ["windows: testes que exigem Windows real"]
 
 [tool.coverage.run]
 source = ["pcx_agent"]
-omit = ["pcx_agent/sensors/windows/*", "pcx_agent/tray/*"]
+omit = ["pcx_agent/sensors/windows/*", "pcx_agent/tray/*", "pcx_agent/winsys/*"]
 
 [tool.ruff]
 line-length = 100
