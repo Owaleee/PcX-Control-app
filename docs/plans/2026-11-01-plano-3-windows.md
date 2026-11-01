@@ -21,6 +21,7 @@
 - Instalador: usuário atual (`PrivilegesRequired=lowest`), pasta `{localappdata}\Programs\PcX Control`, saída `PcXControl-Setup-X.Y.Z.exe`, idioma português do Brasil. Desinstalar mantém os dados do usuário.
 - Versão `1.0.0` igual em `pcx_agent/__init__.py`, `agent/pyproject.toml` e `mobile/app.json`; a tag `vX.Y.Z` precisa bater com elas.
 - Textos da interface em português do Brasil. Commits em português, no padrão Conventional Commits.
+- Interface da bandeja: cores, fontes e tamanhos só em `tray/theme.py`; textos só em `tray/texts.py`; regras só no `AgentController`.
 - Cobertura mínima de 80% fora de `sensors/windows`, `tray` e `winsys` (os dois últimos entram no `omit`).
 
 ## Revisão de riscos (entradas que o spec não detalha)
@@ -49,6 +50,8 @@ agent/
 │  ├─ winsys/autostart.py        # AutoStart, RunStore, launch_command
 │  ├─ winsys/dialogs.py          # show_message (MessageBoxW / stderr)
 │  └─ tray/
+│     ├─ theme.py, texts.py      # cores, fontes, tamanhos e textos (um lugar só)
+│     ├─ widgets.py              # BaseWindow e peças reutilizáveis
 │     ├─ dispatcher.py           # fila thread-safe para o tkinter
 │     ├─ qr.py                   # QR como imagem Tk
 │     ├─ first_run.py, pairing.py, devices.py, password.py   # janelas
@@ -61,7 +64,7 @@ agent/
 ├─ tools/make_icons.py, tools/release_notes.py
 └─ tests/  test_config_file.py, test_logs.py, test_server.py, test_controller.py,
            test_instance.py, test_autostart.py, test_selftest.py, test_release_notes.py,
-           test_assets.py, test_tray_windows.py
+           test_assets.py, test_tray_theme.py, test_tray_windows.py
 .github/workflows/windows-package.yml, release.yml
 ```
 
@@ -166,23 +169,28 @@ agent/
 
 ### Tarefa 6: janelas (tkinter)
 
-**Arquivos:** criar `tray/__init__.py`, `tray/dispatcher.py`, `tray/qr.py`, `tray/first_run.py`, `tray/pairing.py`, `tray/devices.py`, `tray/password.py`, `tests/test_tray_windows.py`.
+O visual segue o mockup aprovado em 01/11/2026 (seis telas: menu da bandeja, primeira execução, pareamento, estados do pareamento, celulares pareados e trocar senha), com as cores do tema escuro do app. A organização é pensada para manutenção: cores, fontes e espaçamentos ficam num arquivo, textos em outro, e cada janela só monta a tela e chama o `AgentController`.
+
+**Arquivos:** criar `tray/__init__.py`, `tray/theme.py`, `tray/texts.py`, `tray/widgets.py`, `tray/dispatcher.py`, `tray/qr.py`, `tray/first_run.py`, `tray/pairing.py`, `tray/devices.py`, `tray/password.py`, `tests/test_tray_theme.py`, `tests/test_tray_windows.py`.
 
 **Interfaces:**
 - Consome `AgentController`, `PairingInfo`, `DeviceRow`, `PasswordInputError` (Tarefa 4).
+- `tray/theme.py` (sem importar `tkinter`, testável no Linux): `COLORS` com `background #0F172A`, `titlebar #0B1220`, `surface #1E293B`, `border #334155`, `border_strong #475569`, `text #F8FAFC`, `text_muted #CBD5E1`, `accent #38BDF8`, `on_accent #0F172A`, `danger #FDA4AF`, `selected #12304A` (as mesmas do tema escuro de `mobile/src/theme/themes.ts`); `FONTS` (`body ("Segoe UI", 10)`, `small ("Segoe UI", 9)`, `title ("Segoe UI Semibold", 15)`, `mono ("Cascadia Mono", 11)`); `SPACE = (4, 8, 16, 24, 32)`; `WINDOW_SIZES` (`first_run 460×520`, `pairing 460×640`, `devices 640×460`, `password 460×460`); `QR_SIZE = 264`; `contrast_ratio(a: str, b: str) -> float` (mesma fórmula WCAG do app).
+- `tray/texts.py`: todo texto visível das janelas e do menu como constantes (títulos, rótulos, botões, avisos, contagem "Vale por {tempo}", "Celular {nome} pareado!"). As mensagens de erro de regra continuam vindo do `AgentController`. Mudar um texto é mexer só aqui.
+- `tray/widgets.py`: `apply_style(root: tk.Tk) -> None` configura o `ttk.Style` uma vez a partir do `theme`. `BaseWindow(tk.Toplevel)`, que toda janela herda: título, `icon.ico`, tamanho de `WINDOW_SIZES`, centralizada, sem redimensionar, Esc fecha, Enter aciona `primary_action()`, barra de título escura nativa do Windows (`DwmSetWindowAttribute`, atributo 20; sem barra desenhada à mão, para manter Alt+Tab, encaixe e barra de tarefas). `BaseWindow.show(root, controller)` abre uma janela por classe: chamar de novo traz a existente para a frente. Peças reutilizáveis: `heading(parent, title, subtitle)`, `primary_button`, `secondary_button`, `danger_button`, `PasswordField(parent, label)` (com `show_error(text)` e `clear_error()`), `InfoPanel(parent, pairs: list[tuple[str, str]])`.
 - `Dispatcher(root: tk.Tk)`: `call(fn: Callable[[], None]) -> None` pode ser chamado de qualquer thread; uma `queue.SimpleQueue` é esvaziada por `root.after(50, ...)`.
-- `qr_photo(uri: str, size: int = 320) -> ImageTk.PhotoImage` (`qrcode` com Pillow, borda 2).
-- `PairingFrame(parent, controller)`: QR, código em texto, `IP:porta`, contagem regressiva `m:ss` e botão "Gerar outro código". Ao expirar, o QR some e aparece "Código expirado. Gere outro." Com `warning`, mostra o aviso no lugar do QR. `show_paired(name: str)` mostra "Celular <nome> pareado!".
-- `open_pairing_window(root, controller) -> PairingWindow` (uma por vez: chamar de novo traz a existente para a frente e gera outro código). Fecha sozinha 2 s depois de `show_paired`.
-- `open_first_run(root, controller, on_done: Callable[[], None])`: passo 1 "Crie a senha deste PC" (senha, confirmação, botão "Continuar", erro de `PasswordInputError` em vermelho embaixo); passo 2 o `PairingFrame` e o botão "Concluir".
-- `open_devices_window(root, controller)`: `ttk.Treeview` com Nome, Último uso e Status ("Conectado agora"); botões "Desconectar" (do selecionado) e "Desconectar todos" (com `messagebox.askyesno`); atualiza a cada 2 s.
-- `open_password_window(root, controller)`: nova senha e confirmação; depois de salvar, `askyesno("Desconectar também todos os celulares pareados?")`.
-- Todas as janelas usam o `icon.ico`, não redimensionam e respondem a Esc (fechar) e Enter (ação principal).
+- `qr_photo(uri: str, size: int = QR_SIZE) -> ImageTk.PhotoImage` (`qrcode` com Pillow, módulos na cor `background`, fundo branco com margem).
+- `PairingFrame(parent, controller)`: título "Escaneie com o app", QR num quadro branco, "Vale por m:ss", `InfoPanel` com o endereço `IP:porta` e "Sem câmera? Use IP e senha no app", botões "Gerar outro código" e "Fechar". Três estados no lugar do QR: expirado ("Código expirado. Gere outro."), sem rede (o `warning`, borda `danger`) e pareado ("Celular <nome> pareado!", borda `accent`).
+- `PairingWindow(BaseWindow)`: contém o `PairingFrame`; ao abrir, gera outro código; fecha sozinha 2 s depois de pareado.
+- `FirstRunWindow(BaseWindow, on_done: Callable[[], None])`: indicador "1 Senha — 2 Parear celular"; passo 1 com dois `PasswordField`, "Depois" e "Continuar" (erro do `PasswordInputError` embaixo do campo); passo 2 com o `PairingFrame` e "Concluir".
+- `DevicesWindow(BaseWindow)`: `ttk.Treeview` com Nome, Último uso e Status; o celular ativo com fundo `selected` e "Conectado agora" em `accent`; "Desconectar todos" (`danger_button`, com `messagebox.askyesno`), "Desconectar" (do selecionado) e "Fechar"; atualiza a cada 2 s.
+- `PasswordWindow(BaseWindow)`: "Nova senha do PC", dois `PasswordField`, "Cancelar" e "Salvar"; depois de salvar, `askyesno` "Senha trocada. Desconectar também todos os celulares pareados?".
+- Regra para as próximas janelas (escrita no topo de `widgets.py`): herdar de `BaseWindow`, usar só cores de `theme`, textos de `texts` e regras do `AgentController`; nenhum arquivo de janela passa de ~150 linhas.
 
-- [ ] **Passo 1: teste** `test_tray_windows.py` (`@pytest.mark.windows`, `tk.Tk()` escondido, controlador com `FakeSensorProvider` e `tmp_path`): `test_windows_open_and_close` (cada `open_*` cria a janela, `root.update()` e destrói sem exceção); `test_first_run_shows_mismatch_error` (preenche campos diferentes, aciona "Continuar", o rótulo de erro mostra "As senhas não são iguais."); `test_dispatcher_runs_calls_from_other_thread` (uma thread chama `call`, `root.update()` em laço por até 1 s executa a função).
-- [ ] **Passo 2:** no Windows, `pytest -m windows tests/test_tray_windows.py`. Esperado: FAIL.
-- [ ] **Passo 3:** implementar.
-- [ ] **Passo 4:** PASS no Windows; `ruff check .` verde. Atualizar o mínimo em `agent.yml` de 6 para 9.
+- [ ] **Passo 1: testes.** `test_tray_theme.py` (Linux): `test_colors_match_app_dark_theme` (lê `mobile/src/theme/themes.ts` e compara `background`, `surface`, `text`, `accent`, `danger` e `border`); `test_text_contrast_is_readable` (`text` e `text_muted` sobre `background` e `surface`, `on_accent` sobre `accent` e `danger` sobre `background`, todos ≥ 4,5); `test_texts_are_plain_strings` (toda constante pública de `texts` é `str` não vazia; os modelos com `{tempo}` e `{nome}` formatam sem erro). `test_tray_windows.py` (`@pytest.mark.windows`, `tk.Tk()` escondido, controlador com `FakeSensorProvider` e `tmp_path`): `test_windows_open_and_close` (cada janela abre com `show`, `root.update()` e fecha sem exceção); `test_show_twice_reuses_window`; `test_first_run_shows_mismatch_error` (campos diferentes + "Continuar" → "As senhas não são iguais." no campo); `test_dispatcher_runs_calls_from_other_thread`.
+- [ ] **Passo 2:** `pytest tests/test_tray_theme.py` no Linux e `pytest -m windows tests/test_tray_windows.py` no Windows. Esperado: FAIL.
+- [ ] **Passo 3:** implementar `theme`, `texts` e `widgets` primeiro; depois as janelas, comparando com o mockup.
+- [ ] **Passo 4:** PASS nos dois; `ruff check .` verde. Atualizar o mínimo em `agent.yml` de 6 para 10.
 - [ ] **Passo 5:** commit `feat(agent): adiciona janelas de pareamento, aparelhos e senha`.
 
 ---
@@ -193,7 +201,7 @@ agent/
 
 **Interfaces:**
 - Consome `AgentServer`, `PortInUseError` (Tarefa 2), `acquire_single_instance`, `AutoStart`, `show_message` (Tarefa 3), `AgentController` (Tarefa 4), janelas (Tarefa 6), `setup_logging` (Tarefa 1).
-- `build_tray_icon(controller, actions: TrayActions) -> pystray.Icon`; `TrayActions` com `pair`, `devices`, `password`, `toggle_autostart`, `autostart_checked: Callable[[], bool]`, `open_logs`, `quit`. Itens e ordem das Restrições globais; "Parear celular" é `default=True`.
+- `build_tray_icon(controller, actions: TrayActions) -> pystray.Icon`; `TrayActions` com `pair`, `devices`, `password`, `toggle_autostart`, `autostart_checked: Callable[[], bool]`, `open_logs`, `quit`. Itens e ordem das Restrições globais, com os rótulos de `tray/texts.py`; "Parear celular" é `default=True`.
 - `TrayApp(settings, ctx, server, controller, autostart)`, `run() -> int`: cria o `tk.Tk()` escondido e o `Dispatcher`, inicia o ícone com `run_detached()`, abre o assistente se `needs_first_run()`, atualiza o `title` do ícone com `status_text()` a cada 2 s, avisa por `icon.notify` quando `on_paired` dispara e roda `root.mainloop()`. "Parear celular" sem senha abre o assistente. "Abrir pasta de logs" usa `os.startfile(settings.log_dir)`. "Sair": `server.stop()`, `icon.stop()`, `root.quit()`.
 - `main`: Windows sem flags → bandeja; `--console` → terminal no Windows (comportamento atual, com `AgentServer` no lugar de `uvicorn.run`); `--demo` → terminal com sensores simulados em qualquer sistema; `--self-test SAÍDA` → `run_self_test`. Ordem na bandeja: `setup_logging(log_dir)` → `acquire_single_instance` (`None` → `show_message("PcX Control", "O PcX Control já está rodando.")`, sai com 0) → contexto → `server.start()` (`PortInUseError` → `show_message` com o texto do risco 1, sai com 1) → `TrayApp.run()`. No terminal, o aviso de rede da Tarefa 4 também é impresso.
 - `run_self_test(out: Path, *, demo: bool) -> int`: pasta temporária, provedor real (ou o simulado com `demo`), `AgentServer` na porta 0, `GET /v1/info`, um `provider.read()`, e grava `{"ok": true, "version": ..., "capabilities": [...], "port": ...}` em `out`. Qualquer exceção grava `{"ok": false, "error": "<tipo>: <mensagem>"}` e devolve 1. Serve para provar que o executável congelado tem todos os módulos.
