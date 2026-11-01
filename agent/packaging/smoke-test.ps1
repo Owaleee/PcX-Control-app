@@ -21,7 +21,13 @@ $Exe = Join-Path $Dir "PcXControl.exe"
 if (-not (Test-Path $Exe)) { Fail "PcXControl.exe nao foi instalado" }
 
 $rule = Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue
-if (-not $rule) { Fail "regra de firewall ausente" }
+if (-not $rule) {
+    Write-Host "Diagnostico: rodando firewall.cmd direto"
+    & cmd /c "`"$Dir\firewall.cmd`" add `"$Exe`"" 2>&1 | ForEach-Object { Write-Host "  $_" }
+    Write-Host "  saida: $LASTEXITCODE"
+    Get-Content "$Dir\firewall.cmd" | ForEach-Object { Write-Host "  | $_" }
+    Fail "regra de firewall ausente"
+}
 if ($rule.Profile -ne "Private") { Fail "regra fora do perfil Private: $($rule.Profile)" }
 
 $run = (Get-ItemProperty -Path $RunKey -Name PcXControl -ErrorAction SilentlyContinue).PcXControl
