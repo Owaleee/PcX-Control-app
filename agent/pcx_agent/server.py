@@ -13,6 +13,7 @@ from pcx_agent.api.app import AppContext, create_app
 WS_MAX_SIZE = 16_384
 LIMIT_CONCURRENCY = 64
 TIMEOUT_KEEP_ALIVE = 5
+TIMEOUT_GRACEFUL_SHUTDOWN = 3  # Sair encerra em poucos segundos mesmo com celular conectado
 # Ping do protocolo WebSocket: fecha conexoes mortas (celular sem sinal, Wi-Fi caiu).
 WS_PING_INTERVAL = 5.0
 WS_PING_TIMEOUT = 10.0
@@ -40,6 +41,7 @@ def uvicorn_config(app, host: str, port: int) -> uvicorn.Config:
         ws_max_size=WS_MAX_SIZE,
         limit_concurrency=LIMIT_CONCURRENCY,
         timeout_keep_alive=TIMEOUT_KEEP_ALIVE,
+        timeout_graceful_shutdown=TIMEOUT_GRACEFUL_SHUTDOWN,
     )
 
 
@@ -55,7 +57,18 @@ def _ensure_port_free(host: str, port: int) -> None:
         try:
             probe.bind((host, port))
         except OSError:
+            if sys.platform == "win32" and not _someone_listening(host, port):
+                return  # so restos em TIME_WAIT de uma execucao anterior: o Uvicorn consegue usar
             raise PortInUseError(port) from None
+
+
+def _someone_listening(host: str, port: int) -> bool:
+    target = "127.0.0.1" if host in ("0.0.0.0", "") else ("::1" if host == "::" else host)
+    try:
+        with socket.create_connection((target, port), timeout=0.5):
+            return True
+    except OSError:
+        return False
 
 
 class AgentServer:
@@ -92,7 +105,7 @@ class AgentServer:
     def running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
-    def stop(self, timeout: float = 5.0) -> None:
+    def stop(self, timeout: float = 4.0) -> None:
         if self._server is None or self._thread is None:
             return
         self._server.should_exit = True

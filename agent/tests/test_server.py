@@ -93,3 +93,37 @@ def test_rejects_oversized_websocket_message(ctx):
         assert _info(server.bound_port)["protocol"] == 1
     finally:
         server.stop()
+
+
+def _free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def test_reopen_right_after_quit_with_phone_connected(ctx):
+    """Sair com o celular conectado deixa conexoes em TIME_WAIT; reabrir na hora tem que funcionar
+    (no Windows a checagem de porta usa SO_EXCLUSIVEADDRUSE)."""
+    port = _free_port()
+    token = ctx.pairing.pair("Poco", code=ctx.pairing.new_code(), client_ip="10.0.0.1").token
+    server = AgentServer(ctx, "127.0.0.1", port)
+    server.start()
+    with connect(f"ws://127.0.0.1:{port}/v1/stream", open_timeout=5) as ws:
+        ws.send(json.dumps({"type": "auth", "token": token}))
+        assert json.loads(ws.recv(timeout=5))["type"] == "hello"
+        server.stop()
+        with pytest.raises(ConnectionClosed):
+            for _ in range(50):
+                ws.recv(timeout=5)
+    again = AgentServer(ctx, "127.0.0.1", port)
+    again.start()
+    try:
+        assert _info(port)["protocol"] == 1
+    finally:
+        again.stop()
+
+
+def test_server_shutdown_is_bounded():
+    from pcx_agent.server import uvicorn_config
+
+    assert uvicorn_config(object(), "127.0.0.1", 0).timeout_graceful_shutdown <= 3
