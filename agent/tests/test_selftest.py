@@ -33,3 +33,25 @@ def test_self_test_closes_sensors_once(tmp_path, monkeypatch):
     monkeypatch.setattr(FakeSensorProvider, "close", lambda _self: closed.append(1))
     assert main(["--demo", "--self-test", str(tmp_path / "r.json")]) == 0
     assert closed == [1]
+
+
+def test_self_test_reports_tray_check(tmp_path):
+    out = tmp_path / "r.json"
+    assert main(["--demo", "--self-test", str(out)]) == 0
+    result = json.loads(out.read_text(encoding="utf-8"))
+    import sys
+
+    assert result["tray"] == ("ok" if sys.platform == "win32" else "pulado")
+
+
+def test_tray_check_failure_fails_self_test(tmp_path, monkeypatch):
+    from pcx_agent import selftest
+
+    def broken():
+        raise ImportError("pystray._win32")
+
+    monkeypatch.setattr(selftest, "_check_tray", broken)
+    monkeypatch.setattr(selftest, "IS_WINDOWS", True)
+    out = tmp_path / "r.json"
+    assert main(["--demo", "--self-test", str(out)]) == 1
+    assert "pystray._win32" in json.loads(out.read_text(encoding="utf-8"))["error"]
