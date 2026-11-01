@@ -45,12 +45,46 @@ Name: "{autodesktop}\PcX Control"; Filename: "{app}\PcXControl.exe"; Tasks: desk
 
 [Registry]
 ; Mesmo valor que o agente grava em "Iniciar com o Windows" (pcx_agent/winsys/autostart.py).
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "PcXControl"; ValueData: """{app}\PcXControl.exe"""; Flags: uninsdeletevalue; Tasks: autostart
+; Numa atualizacao nao regrava: vale o que a pessoa escolheu na bandeja.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "PcXControl"; ValueData: """{app}\PcXControl.exe"""; Tasks: autostart; Check: not IsUpgrade
 
 [Run]
-; Um unico pedido de administrador, so para a regra de firewall. Se for negado, a instalacao segue.
-Filename: "{cmd}"; Parameters: "/c """"{app}\firewall.cmd"" add ""{app}\PcXControl.exe"""""; Verb: runas; Flags: shellexec runhidden waituntilterminated; StatusMsg: "Liberando o PcX Control na rede privada..."
 Filename: "{app}\PcXControl.exe"; Description: "Abrir o PcX Control"; Flags: postinstall nowait skipifsilent
 
-[UninstallRun]
-Filename: "{cmd}"; Parameters: "/c """"{app}\firewall.cmd"" remove"""; Verb: runas; Flags: shellexec runhidden waituntilterminated; RunOnceId: "RemoveFirewall"
+[Code]
+const
+  UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E0B7C4A-2F1D-4B8E-9C3A-5D7F1E2A9B60}_is1';
+  RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
+
+function IsUpgrade: Boolean;
+begin
+  Result := RegValueExists(HKCU, UninstallKey, 'UninstallString');
+end;
+
+{ Um unico pedido de administrador, so para a regra de firewall. Se a pessoa negar,
+  a instalacao termina normalmente, sem caixa de erro (o README traz o plano B). }
+procedure RunFirewall(const Args: String);
+var
+  ResultCode: Integer;
+begin
+  if not ShellExec('runas', ExpandConstant('{cmd}'),
+      '/c ""' + ExpandConstant('{app}\firewall.cmd') + '" ' + Args + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('Regra de firewall nao aplicada: ' + SysErrorMessage(ResultCode));
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    RunFirewall('add "' + ExpandConstant('{app}\PcXControl.exe') + '"');
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    RunFirewall('remove');
+    { Remove sempre: a pessoa pode ter ligado o inicio pela bandeja depois de instalar. }
+    RegDeleteValue(HKCU, RunKey, 'PcXControl');
+  end;
+end;

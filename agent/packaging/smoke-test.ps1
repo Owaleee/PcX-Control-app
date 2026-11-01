@@ -45,7 +45,18 @@ if (-not (Test-Path $Out)) { Fail "autoteste nao gravou o resultado" }
 $result = Get-Content $Out -Raw | ConvertFrom-Json
 Write-Host "Autoteste: $(Get-Content $Out -Raw)"
 if (-not $result.ok) { Fail "autoteste falhou: $($result.error)" }
+if ($result.tray -ne "ok") { Fail "autoteste nao carregou a bandeja: $($result.tray)" }
 
+Write-Host "Atualizando depois de desligar o inicio com o Windows pela bandeja"
+Remove-ItemProperty -Path $RunKey -Name PcXControl
+$p = Start-Process -FilePath $Installer -Wait -PassThru -ArgumentList @(
+    "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=autostart", "/DIR=`"$Dir`"")
+if ($p.ExitCode -ne 0) { Fail "reinstalacao saiu com $($p.ExitCode)" }
+$run = (Get-ItemProperty -Path $RunKey -Name PcXControl -ErrorAction SilentlyContinue).PcXControl
+if ($run) { Fail "a atualizacao religou o inicio com o Windows: $run" }
+
+Write-Host "Ligando o inicio pela bandeja e desinstalando"
+Set-ItemProperty -Path $RunKey -Name PcXControl -Value "`"$Exe`""
 Write-Host "Desinstalando"
 $p = Start-Process -FilePath (Join-Path $Dir "unins000.exe") -Wait -PassThru -ArgumentList @(
     "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")

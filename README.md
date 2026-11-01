@@ -16,6 +16,8 @@ Android **0.2.0**.
 
 1. Baixe o `PcXControl-Setup-X.Y.Z.exe` na [última release do agente](https://github.com/Owaleee/PcX-Control-app/releases).
 2. Instale e aceite o pedido de administrador (só para liberar o agente na rede **Privada**).
+   Se recusar, a instalação termina normalmente, mas o celular só alcança o PC depois de criar
+   a regra (plano B em [docs/teste-manual-app.md](docs/teste-manual-app.md)).
 3. Crie a senha do PC no assistente que abre.
 4. No celular, abra o app, toque em **Adicionar PC** e escaneie o QR code.
 
