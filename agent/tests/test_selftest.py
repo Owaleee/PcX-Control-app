@@ -25,3 +25,11 @@ def test_self_test_reports_failure(tmp_path, monkeypatch):
     assert main(["--demo", "--self-test", str(out)]) == 1
     result = json.loads(out.read_text(encoding="utf-8"))
     assert result == {"ok": False, "error": "RuntimeError: sensor quebrado"}
+
+
+def test_self_test_closes_sensors_once(tmp_path, monkeypatch):
+    """O servidor fecha os sensores ao parar; fechar de novo quebra a consulta PDH do Windows."""
+    closed = []
+    monkeypatch.setattr(FakeSensorProvider, "close", lambda _self: closed.append(1))
+    assert main(["--demo", "--self-test", str(tmp_path / "r.json")]) == 0
+    assert closed == [1]

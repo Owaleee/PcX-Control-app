@@ -31,8 +31,10 @@ def run_self_test(out: Path, *, demo: bool) -> int:
             provider = _provider(demo)
             ctx = build_context(load_settings(data_dir=Path(folder)), provider)
             server = AgentServer(ctx, "127.0.0.1", 0)
+            started = False
             try:
                 server.start()
+                started = True
                 url = f"http://127.0.0.1:{server.bound_port}/v1/info"
                 with urllib.request.urlopen(url, timeout=10) as response:
                     info = json.loads(response.read())
@@ -44,9 +46,10 @@ def run_self_test(out: Path, *, demo: bool) -> int:
                     "port": server.bound_port,
                 }
             finally:
-                server.stop()
+                server.stop()  # ao parar, o servidor ja fecha os sensores
                 ctx.db.close()
-                provider.close()
+                if not started:
+                    provider.close()
     except Exception as exc:  # noqa: BLE001 - o autoteste relata qualquer falha
         result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     out.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
