@@ -61,3 +61,4 @@ Anote o modelo do celular, a versão do Android e a versão do Windows junto com
 | Data | Aparelho | Sistema | Como | Resultado |
 | --- | --- | --- | --- | --- |
 | 01/11/2026 | Poco X7 Pro | Android 16, HyperOS 3.0.302 | Expo Go + agente no Windows (RTX 3070) | Itens 1 a 16 aprovados, sem erros. Pedido: percentuais inteiros por padrão e RAM livre (itens 18 e 19, adicionados depois) |
+| 01/11/2026 | Poco X7 Pro | Android 16, HyperOS 3.0.302 | Expo Go + agente no Windows (RTX 3070) | Itens 18 e 19 aprovados (números precisos e RAM livre) |
