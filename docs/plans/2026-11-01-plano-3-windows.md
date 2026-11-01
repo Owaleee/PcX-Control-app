@@ -1,6 +1,6 @@
-# PcX Control — Plano 3: agente no Windows e release 1.0.0
+# PcX Control — Plano 3: agente no Windows (agente 0.3.0)
 
-**Objetivo:** transformar o agente num programa de Windows para qualquer pessoa: ícone na bandeja, assistente da primeira execução, janelas de pareamento e de aparelhos, instância única, início com o Windows, logs em arquivo, executável PyInstaller, instalador Inno Setup com regra de firewall e release `v1.0.0` montada pela CI.
+**Objetivo:** transformar o agente num programa de Windows para qualquer pessoa: ícone na bandeja, assistente da primeira execução, janelas de pareamento e de aparelhos, instância única, início com o Windows, logs em arquivo, executável PyInstaller, instalador Inno Setup com regra de firewall e release do agente `0.3.0` montada pela CI.
 
 **Arquitetura:** a lógica nova fica em módulos puros e testáveis no Linux (`config.py`, `logs.py`, `server.py`, `controller.py`, `winsys/`). A interface (`tray/`) só chama o `AgentController` e não tem regra própria. O servidor Uvicorn roda numa thread (`AgentServer`); a thread principal roda o `tkinter`; o `pystray` roda destacado (`run_detached`) e entrega os cliques ao `tkinter` por uma fila. O instalador e a release são verificados na CI do Windows por um teste de fumaça que instala, roda `--self-test` e desinstala.
 
@@ -19,7 +19,7 @@
 - Logs em JSON por linha, rotação de 5 arquivos × 1 MiB (`maxBytes=1_048_576`, `backupCount=4`). Senha, código e token nunca são registrados.
 - Firewall: só perfil **Privado**, só `LocalSubnet`, TCP, regra `PcX Control - agente`. O instalador pede administrador uma vez; o desinstalador remove a regra.
 - Instalador: usuário atual (`PrivilegesRequired=lowest`), pasta `{localappdata}\Programs\PcX Control`, saída `PcXControl-Setup-X.Y.Z.exe`, idioma português do Brasil. Desinstalar mantém os dados do usuário.
-- Versão `1.0.0` igual em `pcx_agent/__init__.py`, `agent/pyproject.toml` e `mobile/app.json`; a tag `vX.Y.Z` precisa bater com elas.
+- **Versões separadas** a partir daqui: o agente tem a sua (`pcx_agent/__init__.py` e `agent/pyproject.toml`, que vão para `0.3.0` neste plano) e o app a dele (`mobile/app.json`, continua `0.2.0`). Tags `agente-vX.Y.Z` e `app-vX.Y.Z`; as tags `v0.1.0` e `v0.2.0` ficam como histórico. A compatibilidade entre os dois é dada pelo `protocol` (hoje 1). No `CHANGELOG.md`, as seções novas são `## [agente X.Y.Z] - AAAA-MM-DD` e `## [app X.Y.Z] - AAAA-MM-DD`.
 - Textos da interface em português do Brasil. Commits em português, no padrão Conventional Commits.
 - Interface da bandeja: cores, fontes e tamanhos só em `tray/theme.py`; textos só em `tray/texts.py`; regras só no `AgentController`.
 - Cobertura mínima de 80% fora de `sensors/windows`, `tray` e `winsys` (os dois últimos entram no `omit`).
@@ -237,37 +237,40 @@ O visual segue o mockup aprovado em 01/11/2026 (seis telas: menu da bandeja, pri
 
 ### Tarefa 9: release automática na tag
 
-**Arquivos:** criar `tools/release_notes.py`, `tests/test_release_notes.py`, `.github/workflows/release.yml`.
+**Arquivos:** criar `tools/release_notes.py`, `tests/test_release_notes.py`, `.github/workflows/release-agente.yml`.
 
 **Interfaces:**
-- `changelog_section(text: str, version: str) -> str`: devolve o corpo da seção `## [X.Y.Z] - AAAA-MM-DD` até a próxima `## [`, sem o título; versão ausente → `ValueError`.
-- `check_versions(tag: str, agent: str, pyproject: str, app: str) -> None`: `tag` sem o `v` precisa ser igual às três; senão `ValueError` com as versões encontradas.
-- CLI: `python tools/release_notes.py <tag> --out notes.md` lê `CHANGELOG.md`, `pcx_agent/__init__.py`, `pyproject.toml` e `mobile/app.json`, valida e grava as notas.
+- `parse_tag(tag: str) -> tuple[str, str]`: `agente-v0.3.0` → `("agente", "0.3.0")`, `app-v0.2.1` → `("app", "0.2.1")`; qualquer outro formato → `ValueError`.
+- `changelog_section(text: str, component: str, version: str) -> str`: devolve o corpo da seção `## [<component> X.Y.Z] - AAAA-MM-DD` até a próxima `## [`, sem o título; ausente → `ValueError`.
+- `check_versions(component: str, version: str, found: dict[str, str]) -> None`: para `agente`, `found` traz `pcx_agent/__init__.py` e `agent/pyproject.toml`; para `app`, `mobile/app.json`. Todas precisam ser iguais a `version`; senão `ValueError` com o arquivo e a versão encontrada.
+- CLI: `python tools/release_notes.py <tag> --out notes.md` lê o `CHANGELOG.md` e os arquivos de versão do componente, valida e grava as notas.
 - Os testes carregam o arquivo com `importlib.util.spec_from_file_location` (fica fora do pacote instalado).
-- `release.yml`: `on: push: tags: ["v*"]`, `permissions: contents: write`. Job `notes` (Ubuntu): roda a CLI e envia `notes.md` como artefato. Job `package`: `uses: ./.github/workflows/windows-package.yml`. Job `release` (precisa dos dois): baixa os artefatos e roda `gh release create "$TAG" --draft --title "PcX Control $VERSION" --notes-file notes.md PcXControl-Setup-$VERSION.exe`. A release nasce como rascunho para você anexar o APK e publicar.
+- `release-agente.yml`: `on: push: tags: ["agente-v*"]`, `permissions: contents: write`. Job `notes` (Ubuntu): roda a CLI e envia `notes.md` como artefato. Job `package`: `uses: ./.github/workflows/windows-package.yml`. Job `release` (precisa dos dois): baixa os artefatos e roda `gh release create "$TAG" --draft --title "PcX Control Agente $VERSION" --notes-file notes.md PcXControl-Setup-$VERSION.exe`. A release nasce como rascunho para você revisar e publicar. As releases do app (`app-v*`) continuam manuais, com o APK do EAS.
 
-- [ ] **Passo 1: testes:** `test_extracts_only_requested_section` (com o `CHANGELOG.md` real e a `0.2.0`: começa em "Primeira versão do **app Android**" e não contém "## [0.1.0]"); `test_missing_version_raises`; `test_versions_must_match_tag` (uma diferente → `ValueError` com o nome do arquivo); `test_tag_without_v_prefix_is_rejected`.
+- [ ] **Passo 1: testes:** `test_parse_tag_accepts_agent_and_app` e `test_parse_tag_rejects_old_and_unknown_formats[v0.3.0, agente-0.3.0, cli-v1.0.0]`; `test_extracts_only_requested_section` (texto com `## [agente 0.3.0]`, `## [app 0.2.1]` e `## [0.2.0]`: devolve só o corpo do agente); `test_missing_section_raises`; `test_versions_must_match_tag` (uma diferente → `ValueError` com o nome do arquivo).
 - [ ] **Passo 2:** FAIL → implementar → PASS; `ruff check .` verde.
 - [ ] **Passo 3:** commit `ci: gera rascunho da release com o instalador na tag`.
 
 ---
 
-### Tarefa 10: versão 1.0.0 e documentação de lançamento
+### Tarefa 10: agente 0.3.0 e documentação
 
-**Arquivos:** modificar `pcx_agent/__init__.py`, `agent/pyproject.toml`, `mobile/app.json` e `mobile/package.json` (versão `1.0.0`), `mobile/eas.json` (perfil `production-apk`: `android.buildType = "apk"`), `CHANGELOG.md` (`[1.0.0]`), `README.md`, `docs/teste-manual-app.md`, `docs/decisoes-e-pendencias.md`; criar `docs/media/` (GIF do modo painel, gravado por você).
+**Arquivos:** modificar `pcx_agent/__init__.py` e `agent/pyproject.toml` (versão `0.3.0`), `CHANGELOG.md` (`[agente 0.3.0]` e uma nota no topo explicando as versões separadas), `README.md`, `docs/teste-manual-app.md`, `docs/decisoes-e-pendencias.md`.
 
-- [ ] **Passo 1:** versões em `1.0.0`; `python tools/release_notes.py v1.0.0 --out /tmp/notes.md` passa.
-- [ ] **Passo 2:** `CHANGELOG.md`: seção `[1.0.0]` com o que entrou nas Tarefas 1 a 9 (bandeja, assistente, instalador, firewall, início com o Windows, logs, `config.json`, limites e teto global).
-- [ ] **Passo 3:** `README.md`: resumo em inglês no topo; GIF do modo painel; "Como instalar" em 4 passos (baixar o instalador da release, instalar, criar a senha, escanear o QR com o APK); diagrama de arquitetura em Mermaid (celular ↔ WebSocket ↔ agente ↔ sensores e SQLite); aviso de HTTP em rede doméstica confiável; aviso sobre antivírus e PyInstaller; link para o Plano 3; status `1.0.0`.
+- [ ] **Passo 1:** versão do agente em `0.3.0`; `python tools/release_notes.py agente-v0.3.0 --out /tmp/notes.md` passa.
+- [ ] **Passo 2:** `CHANGELOG.md`: seção `[agente 0.3.0]` com o que entrou nas Tarefas 1 a 9 (bandeja, assistente, instalador, firewall, início com o Windows, logs, `config.json`, limites e teto global) e a linha "Compatível com o app 0.2.0 (protocolo 1)".
+- [ ] **Passo 3:** `README.md`: status com as duas versões; tabela de compatibilidade (agente, app, protocolo); "Como instalar" em 4 passos (baixar o instalador da release do agente, instalar, criar a senha, escanear o QR com o APK); diagrama de arquitetura em Mermaid (celular ↔ WebSocket ↔ agente ↔ sensores e SQLite); aviso de HTTP em rede doméstica confiável; aviso sobre antivírus e PyInstaller; link para o Plano 3.
 - [ ] **Passo 4:** `docs/teste-manual-app.md`: seção "Instalador" no lugar da preparação manual (o comando `New-NetFirewallRule` vira plano B) e os itens do spec §8 que faltavam: revogar na bandeja, modo painel por 1 h, troca de IP do PC, CPU média do agente ocioso abaixo de 1% (Gerenciador de Tarefas, 5 min) e instalação até o primeiro dado em menos de 2 minutos.
-- [ ] **Passo 5:** `docs/decisoes-e-pendencias.md`: seção "Agente no Windows v1.0.0 (Plano 3)" com as decisões (regra de firewall por programa e sem porta fixa; `AppMutex` igual ao mutex do agente; dados mantidos ao desinstalar; teto global de 30 falhas por minuto e o risco de alguém na rede travar o pareamento por 60 s) e retirar das pendências o que foi resolvido (`config.json`, limites do Uvicorn, teto global, aviso de `127.0.0.1`).
-- [ ] **Passo 6:** suíte inteira dos dois lados e CI verdes. Commit `chore: prepara a versao 1.0.0`.
-- [ ] **Passo 7 (manual):** roteiro completo de `docs/teste-manual-app.md` com o instalador do artefato da CI e o APK `eas build -p android --profile production-apk`; gravar o GIF do modo painel.
-- [ ] **Passo 8 (manual):** PR com merge commit; `git tag -a v1.0.0 -m "PcX Control 1.0.0"` e `git push origin v1.0.0`; esperar o rascunho da release, anexar o APK e publicar.
+- [ ] **Passo 5:** `docs/decisoes-e-pendencias.md`: seção "Agente 0.3.0 no Windows (Plano 3)" com as decisões (versões separadas e por quê; regra de firewall por programa e sem porta fixa; `AppMutex` igual ao mutex do agente; dados mantidos ao desinstalar; teto global de 30 falhas por minuto e o risco de alguém na rede travar o pareamento por 60 s) e retirar das pendências o que foi resolvido (`config.json`, limites do Uvicorn, teto global, aviso de `127.0.0.1`).
+- [ ] **Passo 6:** suíte inteira dos dois lados e CI verdes. Commit `chore(agent): prepara a versao 0.3.0`.
+- [ ] **Passo 7 (manual):** roteiro completo de `docs/teste-manual-app.md` com o instalador do artefato da CI e o APK 0.2.0 que você já tem.
+- [ ] **Passo 8 (manual):** PR com merge commit; `git tag -a agente-v0.3.0 -m "PcX Control Agente 0.3.0"` e `git push origin agente-v0.3.0`; revisar o rascunho da release e publicar.
 
 ---
 
 ## Depois deste plano
+
+- **Lançamento público (`1.0.0`):** agente e app juntos em `1.0.0` (critério 5 do spec): perfil `production-apk` no `eas.json`, README com GIF do modo painel e as duas releases publicadas.
 
 - Tornar o repositório antigo (`PcX_Control`) privado e atualizar os links do portfólio e do LinkedIn.
 - v1.1: HTTPS com certificado autoassinado (impressão digital no QR, campo `v`), pré-requisito do Deck.

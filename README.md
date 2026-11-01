@@ -29,7 +29,7 @@ Veja [mobile/README.md](mobile/README.md) para rodar no Expo Go ou gerar o APK, 
 | [Especificação v1](docs/specs/2026-10-30-pcx-control-v1-design.md) | O que será construído e por quê |
 | [Plano 1: agente](docs/plans/2026-10-30-plano-1-agente.md) | Tarefas, testes e ordem de implementação |
 | [Plano 2: app](docs/plans/2026-11-01-plano-2-app.md) | Tarefas e testes do app Android |
-| [Plano 3: Windows](docs/plans/2026-11-01-plano-3-windows.md) | Bandeja, instalador e release 1.0.0 |
+| [Plano 3: Windows](docs/plans/2026-11-01-plano-3-windows.md) | Bandeja e instalador (agente 0.3.0) |
 | [Protocolo](docs/protocolo.md) | Rotas, mensagens e códigos de fechamento |
 | [Decisões e pendências](docs/decisoes-e-pendencias.md) | O que mudou no caminho e o que falta |
 | [Changelog](CHANGELOG.md) | Histórico de versões |
