@@ -1,0 +1,42 @@
+{
+  "type": "snapshot",
+  "seq": 42,
+  "t": "2026-11-01T03:02:24.088941+00:00",
+  "data": {
+    "t": "2026-11-01T03:02:24.088941Z",
+    "cpu_total": 13.0,
+    "ram_percent": 43.8,
+    "ram_used_bytes": 15017385984,
+    "ram_total_bytes": 34266001408,
+    "disks": [
+      {
+        "mount": "C:\\",
+        "percent": 81.3,
+        "used_bytes": 811909726208,
+        "total_bytes": 999243640832
+      },
+      {
+        "mount": "E:\\",
+        "percent": 55.0,
+        "used_bytes": 140781154304,
+        "total_bytes": 255936425984
+      }
+    ],
+    "disk_read_bps": 2965907.8,
+    "disk_write_bps": 3423685.9,
+    "net_down_bps": 4099.7,
+    "net_up_bps": 447.9,
+    "gpus": [
+      {
+        "id": "luid_0x00000000_0x0000d38e_phys_0",
+        "name": "NVIDIA GeForce RTX 3070",
+        "usage_percent": 17.98,
+        "vram_used_bytes": 2721603584,
+        "vram_total_bytes": 8406433792,
+        "temp_c": 49.0
+      }
+    ],
+    "host_name": "PC-DEMO",
+    "uptime_s": 29186.8
+  }
+}

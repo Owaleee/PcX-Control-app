@@ -14,6 +14,7 @@ dependencies = [
   "pydantic>=2.8",
   "psutil>=6.0",
   "websockets>=13",  # o Uvicorn precisa dele para servir WebSocket
+  "qrcode>=7",  # QR de pareamento no terminal
 ]
 
 [project.optional-dependencies]

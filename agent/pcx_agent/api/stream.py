@@ -24,6 +24,32 @@ CLOSE_BUSY = 4423
 CLOSE_GOING_AWAY = 1001
 
 
+MAX_REASON_BYTES = 123  # limite do protocolo WebSocket para o motivo do fechamento
+
+
+def truncate_reason(text: str, limit: int = MAX_REASON_BYTES) -> str:
+    """Corta o texto em `limit` bytes UTF-8 sem partir um caractere ao meio."""
+    return text.encode("utf-8")[:limit].decode("utf-8", errors="ignore")
+
+
+def build_hello(agent_id: str, name: str, version: str, capabilities: set[str]) -> dict:
+    return {
+        "type": "hello",
+        "protocol": PROTOCOL,
+        "agent": {"id": agent_id, "name": name, "version": version},
+        "capabilities": sorted(capabilities),
+    }
+
+
+def build_snapshot_message(seq: int, snapshot: Snapshot) -> dict:
+    return {
+        "type": "snapshot",
+        "seq": seq,
+        "t": snapshot.t.isoformat(),
+        "data": snapshot.model_dump(mode="json"),
+    }
+
+
 class _Slot:
     """Fila de 1 item: a leitura mais nova substitui a anterior."""
 
@@ -82,7 +108,7 @@ async def _drain(ws: WebSocket, ctx, device_id: str) -> None:
 
 async def _close(ws: WebSocket, code: int, reason: str = "") -> None:
     with contextlib.suppress(Exception):  # o cliente pode ja ter ido embora
-        await ws.close(code=code, reason=reason)
+        await ws.close(code=code, reason=truncate_reason(reason))
 
 
 def register_stream(app: FastAPI, ctx, hub: StreamHub, auth_timeout_s: float) -> None:
@@ -133,12 +159,7 @@ async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: b
     try:
         agent_id, agent_name = await asyncio.to_thread(lambda: (ctx.db.agent_id, ctx.db.agent_name))
         await ws.send_json(
-            {
-                "type": "hello",
-                "protocol": PROTOCOL,
-                "agent": {"id": agent_id, "name": agent_name, "version": ctx.settings.version},
-                "capabilities": sorted(ctx.provider.capabilities()),
-            }
+            build_hello(agent_id, agent_name, ctx.settings.version, ctx.provider.capabilities())
         )
         ctx.sessions.touch(device.id)
         ctx.sampler.nudge()
@@ -151,14 +172,7 @@ async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: b
             )
             if get_task in done:
                 seq, snapshot = get_task.result()
-                await ws.send_json(
-                    {
-                        "type": "snapshot",
-                        "seq": seq,
-                        "t": snapshot.t.isoformat(),
-                        "data": snapshot.model_dump(mode="json"),
-                    }
-                )
+                await ws.send_json(build_snapshot_message(seq, snapshot))
                 ctx.sessions.touch(device.id)  # enviar com sucesso prova que o celular esta la
                 continue
             get_task.cancel()

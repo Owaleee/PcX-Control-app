@@ -122,3 +122,44 @@ def test_main_configures_websocket_ping_to_detect_dead_connections(tmp_path, mon
     assert captured["ws_ping_interval"] <= 10
     assert captured["ws_ping_timeout"] <= 15
     assert captured["access_log"] is False
+
+
+def test_busy_close_code_survives_long_device_name(tmp_path):
+    """No Uvicorn real o motivo do fechamento e limitado a 123 bytes; o codigo 4423 deve chegar."""
+    import json
+    import threading
+
+    import uvicorn
+    from websockets.exceptions import ConnectionClosed
+    from websockets.sync.client import connect
+
+    ctx = build_context(load_settings(data_dir=tmp_path), FakeSensorProvider(seed=5))
+    long_name = "ç" * 62  # 124 bytes em UTF-8
+    first = ctx.pairing.pair(long_name, code=ctx.pairing.new_code(), client_ip="10.0.0.1").token
+    second = ctx.pairing.pair("Pixel", code=ctx.pairing.new_code(), client_ip="10.0.0.2").token
+    server = uvicorn.Server(
+        uvicorn.Config(create_app(ctx), host="127.0.0.1", port=0, log_level="warning")
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    try:
+        for _ in range(200):
+            if server.started:
+                break
+            time.sleep(0.02)
+        port = server.servers[0].sockets[0].getsockname()[1]
+        url = f"ws://127.0.0.1:{port}/v1/stream"
+        with connect(url, open_timeout=5) as active:
+            active.send(json.dumps({"type": "auth", "token": first}))
+            assert json.loads(active.recv(timeout=5))["type"] == "hello"
+            with connect(url, open_timeout=5) as other:
+                other.send(json.dumps({"type": "auth", "token": second}))
+                with pytest.raises(ConnectionClosed) as info:
+                    other.recv(timeout=5)
+                assert info.value.rcvd is not None
+                assert info.value.rcvd.code == 4423
+                assert info.value.rcvd.reason.startswith("ç")
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
+        ctx.db.close()
