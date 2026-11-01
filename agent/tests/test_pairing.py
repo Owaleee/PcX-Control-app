@@ -301,3 +301,20 @@ def test_global_block_does_not_spend_the_ip_attempts(env):
         assert error_of(lambda: pair_pw(service, ip="10.9.9.9")).kind == "rate_limited"
     mono.now += 61
     assert pair_pw(service, ip="10.9.9.9").token
+
+
+def test_global_cap_does_not_block_qr_code(env):
+    """Os codigos tem 128 bits: o teto da rede so vale para senha, e o dono ainda pareia pelo QR."""
+    service, _db, _mono, _wall = env
+    for i in range(30):
+        error_of(lambda i=i: service.pair("X", password="errada", client_ip=f"10.1.0.{i}"))
+    assert error_of(lambda: pair_pw(service, ip="10.2.0.1")).kind == "rate_limited"
+    assert service.pair("Dono", code=service.new_code(), client_ip="10.2.0.2").token
+
+
+def test_wrong_codes_do_not_count_toward_global_cap(env):
+    service, _db, _mono, _wall = env
+    for i in range(40):
+        err = error_of(lambda i=i: service.pair("X", code="errado", client_ip=f"10.4.0.{i}"))
+        assert err.kind == "code_invalid_or_expired"
+    assert pair_pw(service, ip="10.2.0.1").token

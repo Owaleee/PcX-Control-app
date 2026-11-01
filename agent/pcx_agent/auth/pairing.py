@@ -121,17 +121,18 @@ class PairingService:
         client_ip: str,
     ) -> PairResult:
         name = _clean_name(device_name)
+        if code is None:
+            # Teto da rede so para senha: os codigos tem 128 bits e o dono ainda pareia pelo QR.
+            # Conferido antes do limite do IP, para nao gastar as tentativas deste IP.
+            global_wait = self._global.blocked_for(GLOBAL_KEY)
+            if global_wait is not None:
+                raise PairError("rate_limited", retry_after=global_wait)
         retry_after, left = self._limiter.begin_attempt(client_ip)
         if retry_after is not None:
             raise PairError("rate_limited", retry_after=retry_after)
-        global_wait = self._global.blocked_for(GLOBAL_KEY)
-        if global_wait is not None:
-            self._limiter.undo_attempt(client_ip)  # culpa da rede, nao deste IP
-            raise PairError("rate_limited", retry_after=global_wait)
 
         if code is not None:
             if not self._consume_code(code):
-                self._global.record_failure(GLOBAL_KEY)
                 raise PairError("code_invalid_or_expired")
         elif password is not None and self._passwords.verify(password):
             pass

@@ -66,13 +66,6 @@ class RateLimiter:
                 del self._blocked_until[key]
             return None, self._record_locked(key, now)
 
-    def undo_attempt(self, key: str) -> None:
-        """Desfaz a tentativa provisoria mais recente de `begin_attempt` (ela deu certo)."""
-        with self._lock:
-            window = self._failures.get(key)
-            if window:
-                window.pop()
-
     def reset(self, key: str) -> None:
         with self._lock:
             self._failures.pop(key, None)

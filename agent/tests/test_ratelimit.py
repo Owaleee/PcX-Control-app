@@ -83,16 +83,3 @@ def test_begin_attempt_success_reset_clears_the_reservation():
     limiter.reset("a")
     assert limiter.begin_attempt("a") == (None, 4)
 
-
-def test_undo_attempt_gives_the_slot_back():
-    limiter, _ = make()
-    for _ in range(4):
-        limiter.begin_attempt("a")
-    limiter.undo_attempt("a")
-    assert limiter.begin_attempt("a") == (None, 1)
-
-
-def test_undo_attempt_without_attempts_is_harmless():
-    limiter, _ = make()
-    limiter.undo_attempt("nada")
-    assert limiter.blocked_for("nada") is None
