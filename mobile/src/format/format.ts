@@ -50,3 +50,16 @@ export function formatAttempts(left: number): string {
   if (left <= 0) return 'Nenhuma tentativa restante.';
   return left === 1 ? 'Resta 1 tentativa.' : `Restam ${left} tentativas.`;
 }
+
+/** "usado / total" na unidade do total, por exemplo "14,0 / 31,9 GiB". */
+export function formatUsage(used: number, total: number): string {
+  if (!ok(used) || !ok(total)) return DASH;
+  const units = ['MiB', 'GiB', 'TiB'];
+  let divisor = 1024 ** 2;
+  let unit = 0;
+  while (total / divisor >= 1024 && unit < units.length - 1) {
+    divisor *= 1024;
+    unit += 1;
+  }
+  return `${comma(used / divisor)} / ${comma(total / divisor)} ${units[unit]}`;
+}

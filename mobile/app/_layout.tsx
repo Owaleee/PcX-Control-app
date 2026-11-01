@@ -15,7 +15,9 @@ function ThemedStack() {
           headerShadowVisible: false,
           contentStyle: { backgroundColor: theme.background },
         }}
-      />
+      >
+        <Stack.Screen name="pc/[id]" options={{ headerShown: false }} />
+      </Stack>
     </>
   );
 }

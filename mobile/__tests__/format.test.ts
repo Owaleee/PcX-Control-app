@@ -5,6 +5,7 @@ import {
   formatRate,
   formatTemp,
   formatUptime,
+  formatUsage,
 } from '../src/format/format';
 
 test.each([
@@ -63,4 +64,13 @@ test('valores invalidos nao quebram a tela', () => {
   expect(formatPercent(Number.NaN)).toBe('—');
   expect(formatBytes(-1)).toBe('—');
   expect(formatRate(Number.POSITIVE_INFINITY)).toBe('—');
+});
+
+test.each([
+  [15017385984, 34266001408, '14,0 / 31,9 GiB'],
+  [2721603584, 8406433792, '2,5 / 7,8 GiB'],
+  [512 * 1024 ** 2, 2 * 1024 ** 3, '0,5 / 2,0 GiB'],
+  [100 * 1024 ** 2, 900 * 1024 ** 2, '100,0 / 900,0 MiB'],
+])('formatUsage(%p, %p) = %p', (used, total, text) => {
+  expect(formatUsage(used, total)).toBe(text);
 });
