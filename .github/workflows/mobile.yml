@@ -1,0 +1,30 @@
+name: mobile
+
+on:
+  push:
+    paths: ["mobile/**", "docs/protocol/**", ".github/workflows/mobile.yml"]
+  pull_request:
+    paths: ["mobile/**", "docs/protocol/**", ".github/workflows/mobile.yml"]
+
+defaults:
+  run:
+    working-directory: mobile
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Testes
+        run: npx jest --ci
