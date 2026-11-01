@@ -1,0 +1,8 @@
+[
+  {"InstanceName": "pid_100_luid_0x00000000_0x0000D1A5_phys_0_eng_0_engtype_3D", "CookedValue": 40.0},
+  {"InstanceName": "pid_200_luid_0x00000000_0x0000D1A5_phys_0_eng_0_engtype_3D", "CookedValue": 30.0},
+  {"InstanceName": "pid_100_luid_0x00000000_0x0000D1A5_phys_0_eng_1_engtype_Copy", "CookedValue": 10.0},
+  {"InstanceName": "pid_100_luid_0x00000000_0x0000D1A5_phys_0_eng_3_engtype_VideoDecode", "CookedValue": 5.0},
+  {"InstanceName": "pid_300_luid_0x00000000_0x0000BEEF_phys_0_eng_0_engtype_3D", "CookedValue": 99.0},
+  {"InstanceName": "pid_400_luid_0x00000000_0x0000C0DE_phys_0_eng_0_engtype_3D", "CookedValue": 12.5}
+]
