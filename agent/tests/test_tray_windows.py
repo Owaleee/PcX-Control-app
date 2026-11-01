@@ -126,3 +126,40 @@ def test_dispatcher_runs_calls_from_other_thread(root):
         root.update()
         time.sleep(0.01)
     assert ran == [1]
+
+
+def test_dispatcher_survives_a_failing_call(root, caplog):
+    """Uma acao do menu que falha nao pode travar as proximas (nem o Sair)."""
+    import logging
+
+    from pcx_agent.tray.dispatcher import Dispatcher
+
+    dispatcher = Dispatcher(root)
+    ran = []
+
+    def broken():
+        raise OSError("pasta de logs sumiu")
+
+    with caplog.at_level(logging.ERROR, logger="pcx_agent.tray"):
+        dispatcher.call(broken)
+        dispatcher.call(lambda: ran.append(1))
+        deadline = time.monotonic() + 1
+        while not ran and time.monotonic() < deadline:
+            root.update()
+            time.sleep(0.01)
+    assert ran == [1]
+    assert any("pasta de logs sumiu" in (r.exc_text or "") or r.exc_info for r in caplog.records)
+
+
+def test_tk_callback_errors_go_to_the_log(root, caplog):
+    import logging
+
+    from pcx_agent.tray.dispatcher import Dispatcher
+
+    Dispatcher(root)
+    with caplog.at_level(logging.ERROR, logger="pcx_agent.tray"):
+        try:
+            raise ValueError("botao quebrado")
+        except ValueError as exc:
+            root.report_callback_exception(type(exc), exc, exc.__traceback__)
+    assert any(r.exc_info and r.exc_info[0] is ValueError for r in caplog.records)
