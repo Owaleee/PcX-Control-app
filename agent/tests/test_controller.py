@@ -169,3 +169,28 @@ def test_default_address_lookup_ignores_vpn(ctx, monkeypatch):
     info = AgentController(ctx, 8765, now=lambda: NOW).start_pairing()
     assert info.host == "192.168.18.22"
     assert info.interface == "Ethernet"
+
+
+def test_public_network_warning_when_qr_adapter_is_public(ctx):
+    from pcx_agent.controller import PUBLIC_NETWORK_WARNING
+
+    controller = make(ctx, category="public")
+    info = controller.start_pairing()
+    assert controller.public_network_warning(info) == PUBLIC_NETWORK_WARNING
+    assert "Pública" in PUBLIC_NETWORK_WARNING and "Privada" in PUBLIC_NETWORK_WARNING
+
+
+@pytest.mark.parametrize("category", ["private", "domain", None])
+def test_no_warning_for_private_domain_or_unknown(ctx, category):
+    controller = make(ctx, category=category)
+    assert controller.public_network_warning(controller.start_pairing()) is None
+
+
+def test_no_warning_without_adapter_name(ctx):
+    asked = []
+    controller = AgentController(
+        ctx, 8765, address_lookup=lambda: ("192.168.0.10", None),
+        category_lookup=lambda name: asked.append(name) or "public", now=lambda: NOW,
+    )
+    assert controller.public_network_warning(controller.start_pairing()) is None
+    assert asked == []

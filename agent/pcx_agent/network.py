@@ -116,10 +116,10 @@ def parse_profiles(text: str) -> dict[str, str]:
     return profiles
 
 
-def network_category(interface: str | None) -> str | None:
-    """Tipo da rede da placa no Windows (public, private, domain), ou None se nao souber."""
-    if sys.platform != "win32" or interface is None:
-        return None
+def read_profiles() -> dict[str, str]:
+    """{placa: public|private|domain} lido do Windows; vazio fora dele ou se algo falhar."""
+    if sys.platform != "win32":
+        return {}
     command = [
         "powershell", "-NoProfile", "-NonInteractive", "-Command",
         "Get-NetConnectionProfile | Select-Object InterfaceAlias,NetworkCategory | ConvertTo-Json",
@@ -135,5 +135,12 @@ def network_category(interface: str | None) -> str | None:
         ).stdout
     except (OSError, subprocess.SubprocessError):
         logger.debug("Não consegui ler o tipo de rede", exc_info=True)
+        return {}
+    return parse_profiles(output or "")
+
+
+def network_category(interface: str | None) -> str | None:
+    """Tipo da rede da placa no Windows (public, private, domain), ou None se nao souber."""
+    if interface is None:
         return None
-    return parse_profiles(output).get(interface)
+    return read_profiles().get(interface)

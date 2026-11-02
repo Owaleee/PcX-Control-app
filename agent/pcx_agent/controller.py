@@ -14,6 +14,10 @@ LOOPBACK = "127.0.0.1"
 NO_NETWORK_WARNING = (
     "Não encontrei a rede deste PC. Conecte-o ao Wi-Fi ou ao cabo e gere outro código."
 )
+PUBLIC_NETWORK_WARNING = (
+    "A rede deste PC está como Pública: o celular não vai conseguir conectar. "
+    "Mude para Privada nas configurações de rede do Windows."
+)
 MISMATCH_MESSAGE = "As senhas não são iguais."
 SHORT_MESSAGE = f"A senha precisa ter pelo menos {MIN_LENGTH} caracteres."
 
@@ -104,6 +108,14 @@ class AgentController:
             warning=NO_NETWORK_WARNING if host == LOOPBACK else None,
             interface=interface,
         )
+
+    def public_network_warning(self, info: PairingInfo) -> str | None:
+        """Aviso quando a placa do QR esta numa rede Publica. Pode demorar: chame fora da UI."""
+        if info.interface is None:
+            return None
+        if self._category_lookup(info.interface) == "public":
+            return PUBLIC_NETWORK_WARNING
+        return None
 
     def devices(self) -> list[DeviceRow]:
         active = self._ctx.sessions.active()

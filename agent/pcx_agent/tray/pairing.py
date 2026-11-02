@@ -6,8 +6,17 @@ from collections.abc import Callable
 from typing import ClassVar
 
 from pcx_agent.tray import texts
+from pcx_agent.tray.network_banner import NetworkWarningSlot
 from pcx_agent.tray.qr import qr_photo
-from pcx_agent.tray.theme import COLORS, GAP, QR_PANEL, SPACE
+from pcx_agent.tray.theme import (
+    COLORS,
+    GAP,
+    QR_PANEL,
+    QR_PANEL_COMPACT,
+    QR_SIZE,
+    QR_SIZE_COMPACT,
+    SPACE,
+)
 from pcx_agent.tray.widgets import (
     BaseWindow,
     InfoPanel,
@@ -45,7 +54,11 @@ class PairingFrame(tk.Frame):
         self._expires_at = 0.0
         self._timer: str | None = None
         self._photo = None
+        self._uri: str | None = None  # QR na tela (None quando mostra um estado)
+        self._qr_size = QR_SIZE
         heading(self, texts.PAIRING_HEADING, texts.PAIRING_SUBTITLE).pack(fill="x")
+        self._banner = NetworkWarningSlot(self, on_change=self._fit_qr)
+        self._banner.pack(fill="x")
         self._panel = tk.Frame(self, bg=COLORS["qr_background"], width=QR_PANEL, height=QR_PANEL)
         self._panel.pack(pady=(GAP + 2, GAP))
         self._panel.pack_propagate(False)
@@ -71,18 +84,31 @@ class PairingFrame(tk.Frame):
     def refresh(self) -> None:
         info = self._controller.start_pairing()
         self._info.set_value(0, f"{info.host}:{info.port}")
+        self._banner.check(self._controller, info)
         if info.warning:
             self._show_state(info.warning, COLORS["danger"])
             self._countdown.configure(text="")
             self._stop_timer()
             return
-        self._photo = qr_photo(info.uri)
+        self._uri = info.uri
+        self._photo = qr_photo(info.uri, self._qr_size)
         self._panel.configure(bg=COLORS["qr_background"], highlightthickness=0)
         self._content.configure(image=self._photo, text="", bg=COLORS["qr_background"])
         self._expires_at = info.expires_at
         self._tick()
 
+    def _fit_qr(self, warning: str | None) -> None:
+        """Com a faixa de rede Publica, o QR encolhe para tudo caber na janela."""
+        panel, qr = (QR_PANEL_COMPACT, QR_SIZE_COMPACT) if warning else (QR_PANEL, QR_SIZE)
+        self._panel.configure(width=panel, height=panel)
+        if qr != self._qr_size:
+            self._qr_size = qr
+            if self._uri is not None:
+                self._photo = qr_photo(self._uri, qr)
+                self._content.configure(image=self._photo)
+
     def _show_state(self, text: str, border: str) -> None:
+        self._uri = None
         self._panel.configure(bg=COLORS["surface"], highlightthickness=1,
                               highlightbackground=border)
         self._content.configure(image="", text=text, bg=COLORS["surface"], fg=COLORS["text"],
