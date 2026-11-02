@@ -63,6 +63,8 @@ cd agent
 
 | 18 | Configurações → "Números precisos" desligado (padrão) e ligado | Percentuais inteiros (51%) e, ligado, com uma casa (50,5%), no painel, no detalhe e no modo painel |
 | 19 | Cartão de memória | Mostra usado / total e quanto está livre ("· 17,9 GiB livres") |
+| 20 | Modo painel: cartão da GPU | Um cartão só com uso, "VRAM x / y GiB · z%" e "Temperatura" (sem cartão de temperatura separado) |
+| 21 | Tocar no cartão da GPU (modo painel e retrato) | Abre o histórico com Uso da GPU, VRAM e Temperatura; as abas 15 min, 1 h e 24 h mudam os três |
 
 Anote o modelo do celular, a versão do Android e a versão do Windows junto com o resultado.
 
