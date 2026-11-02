@@ -203,3 +203,24 @@ firewall existia, mas o celular não chegava ao PC, e nem o log nem a janela aju
 | Uma linha de log por tentativa de pareamento e por evento de conexão | Responde na hora "o celular chegou ao PC?". O nome do aparelho vai com `repr`, então nunca quebra a linha. |
 | Mensagem de "PC não encontrado" estendida | O spec fixava o texto; a nova versão acrescenta a dica de rede Privada, a causa mais comum no Windows. |
 | Pontos automáticos no IP, com separador para blocos curtos | Um IP só com dígitos é ambíguo (`1921681822`); o ponto automático entra quando o bloco não aceita mais dígitos, e `.`, `,` ou espaço fecham blocos curtos. |
+
+## Achados da revisão independente
+
+Corrigidos, cada um com um teste que falhava antes:
+1. Editar um bloco no meio do IP juntava ou embaralhava os blocos; agora, com os 4 blocos na tela,
+   a edição não redistribui os dígitos.
+2. Colar um IP mais curto por cima do atual virava um IP inválido.
+3. Um bloco do IP podia passar de 255 enquanto se digitava.
+4. Nomes de placa com acento (`Conexão Local`) não batiam com a saída do PowerShell em pt-BR, e o
+   aviso de rede Pública nunca aparecia: a leitura agora é em UTF-8.
+5. Vários cliques em "Gerar outro código" enfileiravam checagens de rede e faziam a faixa piscar.
+6. Um nome de aparelho gigante ia inteiro para o log em cada tentativa.
+
+## Pendências (Plano 4)
+
+- VPN com nome que o agente não reconhece (um WireGuard chamado "casa", um adaptador TAP
+  "Ethernet 3") ainda pode ir para o QR. O caminho robusto é ler o tipo e a descrição da placa no
+  Windows (`GetAdaptersAddresses` ou `Get-NetAdapter`).
+- No modo painel, um toque no cartão da GPU abre o histórico mesmo quando a ideia era só mostrar
+  os controles; avaliar toque longo se incomodar no uso.
+- `tray/pairing.py` (163 linhas) e `panel.tsx` (177) passaram um pouco das ~150 linhas.

@@ -63,8 +63,10 @@ O celular não conseguiu chegar ao PC. Na ordem do mais comum:
    (Wi-Fi ou Ethernet) e marque **Privada**. A janela de pareamento mostra esse aviso.
 2. **Redes diferentes.** O celular precisa estar no mesmo Wi-Fi do roteador do PC, não no 4G nem
    numa rede de convidados (que costuma isolar os aparelhos).
-3. **VPN no PC** (Radmin, Hamachi, ZeroTier). O agente escolhe o IP da rede local, mas confira se
-   o endereço na janela de pareamento é o do Wi-Fi ou Ethernet (geralmente `192.168.x.x`).
+3. **VPN no PC** (Radmin, Hamachi, ZeroTier, WireGuard). O agente reconhece as VPNs mais comuns
+   pelo nome da placa ou pela faixa de IP e escolhe o IP da rede local, mas confira se o endereço
+   na janela de pareamento é o do Wi-Fi ou Ethernet (geralmente `192.168.x.x`). Se não for, use
+   **Digitar IP e senha** no app com o IP certo.
 4. **Antivírus com firewall próprio** (Avast, Kaspersky e outros) pode ignorar a regra do Windows.
 
 **Diagnóstico em um comando.** No PC, abra o **Prompt de Comando (cmd)** e cole:
@@ -75,8 +77,9 @@ echo === 1) Porta 8765 escutando === & netstat -ano | findstr ":8765" & echo ===
 
 - **1 e 2** mostram se o agente está aberto e respondendo.
 - **3** mostra o perfil de rede ativo: se aparecer *Perfil Público*, é a causa mais provável.
-- **4** mostra a regra de firewall do instalador. Se não existir, crie como administrador:
-  `netsh advfirewall firewall add rule name="PcX Control - agente" dir=in action=allow protocol=TCP localport=8765 profile=private remoteip=localsubnet`
+- **4** mostra a regra de firewall do instalador. Se não existir, crie no cmd **como
+  administrador** (a mesma regra do instalador, presa ao programa e não à porta):
+  `netsh advfirewall firewall add rule name="PcX Control - agente" dir=in action=allow protocol=TCP profile=private remoteip=localsubnet program="%LOCALAPPDATA%\Programs\PcX Control\PcXControl.exe"`
 - **5** lista os IPs: use o do Wi-Fi ou Ethernet.
 
 No celular, abra o navegador em `http://<IP-do-PC>:8765/v1/info`. Se aparecer um texto com

@@ -27,8 +27,10 @@ novo (protocolo 1).
 
 ### Corrigido
 - O QR podia levar o IP de uma VPN (como a Radmin) ou de uma placa virtual, que o celular nunca
-  alcança. Agora o agente escolhe a placa da rede local e ignora VPNs (Radmin, Hamachi, ZeroTier,
-  Tailscale, WireGuard, OpenVPN) e placas virtuais (Hyper-V, WSL, VirtualBox, VMware).
+  alcança. Agora o agente escolhe a placa da rede local e ignora as VPNs e placas virtuais que
+  reconhece pelo nome ou pela faixa de IP (Radmin, Hamachi, ZeroTier, Tailscale, WireGuard,
+  OpenVPN, Hyper-V, WSL, VirtualBox, VMware). Uma VPN renomeada pode passar; o endereço aparece
+  na janela de pareamento para conferir.
 
 ## [app 0.3.0] - 2026-11-02
 
