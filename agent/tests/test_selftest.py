@@ -62,8 +62,13 @@ def test_self_test_reports_network(tmp_path, monkeypatch):
     from pcx_agent import selftest
 
     monkeypatch.setattr(selftest, "lan_address", lambda: ("192.168.0.9", "Ethernet"))
-    monkeypatch.setattr(selftest, "read_profiles", lambda: {"Ethernet": "private"})
+    monkeypatch.setattr(
+        selftest, "run_profile_script",
+        lambda: '{"InterfaceAlias":"Ethernet","NetworkCategory":1}',
+    )
     out = tmp_path / "r.json"
     assert main(["--demo", "--self-test", str(out)]) == 0
     result = json.loads(out.read_text(encoding="utf-8"))
-    assert result["network"] == {"ip": "192.168.0.9", "interface": "Ethernet", "profiles": 1}
+    assert result["network"] == {
+        "ip": "192.168.0.9", "interface": "Ethernet", "profiles": 1, "profile_output": "ok",
+    }

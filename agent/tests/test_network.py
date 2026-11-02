@@ -112,21 +112,27 @@ def test_parse_profiles_domain_and_garbage():
 @pytest.mark.windows
 @pytest.mark.skipif(__import__("sys").platform != "win32", reason="Get-NetConnectionProfile")
 def test_network_category_runs_on_windows():
+    """Leitura real: quando o Windows devolve redes, o agente tem que conseguir le-las. Uma VM
+    recem-criada pode ainda nao ter rede identificada (saida vazia), e isso nao e erro."""
     import time
 
-    from pcx_agent.network import PROFILE_TIMEOUT_S, network_category, read_profiles
-
-    def network_timeout():
-        return PROFILE_TIMEOUT_S
+    from pcx_agent.network import (
+        PROFILE_TIMEOUT_S,
+        network_category,
+        parse_profiles,
+        profile_output_status,
+        run_profile_script,
+    )
 
     started = time.monotonic()
-    profiles = read_profiles()
-    assert time.monotonic() - started < network_timeout() + 1
-    # O runner do GitHub sempre tem uma rede: vazio aqui quer dizer leitura quebrada (ex.: BOM).
-    assert profiles, "Get-NetConnectionProfile nao devolveu nenhuma rede"
+    raw = run_profile_script()
+    assert time.monotonic() - started < PROFILE_TIMEOUT_S + 1
+    assert profile_output_status(raw) != "ilegivel", repr(raw[:200])
+    profiles = parse_profiles(raw)
     assert all(value in ("public", "private", "domain") for value in profiles.values())
-    name = next(iter(profiles))
-    assert network_category(name) == profiles[name]
+    if profiles:
+        name = next(iter(profiles))
+        assert network_category(name) == profiles[name]
 
 
 def test_read_profiles_asks_powershell_for_utf8_and_keeps_accents(monkeypatch):
@@ -209,3 +215,14 @@ def test_read_profiles_timeout_is_generous_and_logged(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING, logger="pcx_agent.network"):
         assert network.read_profiles() == {}
     assert any("tipo de rede" in r.getMessage() for r in caplog.records)
+
+
+def test_profile_output_status(monkeypatch):
+    """Classifica a saida bruta do PowerShell: vazia (Windows ainda identificando a rede),
+    ok, ou ilegivel (tinha redes mas o agente nao conseguiu ler: o bug do BOM)."""
+    from pcx_agent import network
+
+    assert network.profile_output_status("") == "vazio"
+    assert network.profile_output_status('{"InterfaceAlias":"Wi-Fi","NetworkCategory":1}') == "ok"
+    assert network.profile_output_status('﻿{"InterfaceAlias":"Wi-Fi","NetworkCategory":1}') == "ok"
+    assert network.profile_output_status('{"InterfaceAlias":"Wi-Fi","NetworkCategory":"???"} lixo') == "ilegivel"

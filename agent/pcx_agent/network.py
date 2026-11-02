@@ -131,13 +131,13 @@ def parse_profiles(text: str) -> dict[str, str]:
     return profiles
 
 
-def read_profiles() -> dict[str, str]:
-    """{placa: public|private|domain} lido do Windows; vazio fora dele ou se algo falhar."""
+def run_profile_script() -> str:
+    """Saida bruta do `Get-NetConnectionProfile`; vazia fora do Windows ou se algo falhar."""
     if not IS_WINDOWS:
-        return {}
+        return ""
     command = ["powershell", "-NoProfile", "-NonInteractive", "-Command", PROFILE_SCRIPT]
     try:
-        output = subprocess.run(
+        return subprocess.run(
             command,
             capture_output=True,
             stdin=subprocess.DEVNULL,  # o .exe nao tem console: sem isso o PowerShell pode esperar
@@ -146,11 +146,22 @@ def read_profiles() -> dict[str, str]:
             timeout=PROFILE_TIMEOUT_S,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             check=False,
-        ).stdout
+        ).stdout or ""
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning("Não consegui ler o tipo de rede do Windows: %s", exc)
-        return {}
-    return parse_profiles(output or "")
+        return ""
+
+
+def read_profiles() -> dict[str, str]:
+    """{placa: public|private|domain} lido do Windows; vazio fora dele ou se algo falhar."""
+    return parse_profiles(run_profile_script())
+
+
+def profile_output_status(raw: str) -> str:
+    """"vazio" (sem redes ainda), "ok" ou "ilegivel" (havia redes e o agente nao leu)."""
+    if "InterfaceAlias" not in raw:
+        return "vazio"
+    return "ok" if parse_profiles(raw) else "ilegivel"
 
 
 def network_category(interface: str | None) -> str | None:

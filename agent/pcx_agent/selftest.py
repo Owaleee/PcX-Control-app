@@ -12,7 +12,7 @@ from pathlib import Path
 from pcx_agent import __version__
 from pcx_agent.api.app import build_context
 from pcx_agent.config import load_settings
-from pcx_agent.network import lan_address, read_profiles
+from pcx_agent.network import lan_address, parse_profiles, profile_output_status, run_profile_script
 from pcx_agent.server import AgentServer
 
 IS_WINDOWS = sys.platform == "win32"
@@ -46,7 +46,13 @@ def _provider(demo: bool):
 def _network() -> dict:
     """Prova no .exe a escolha do IP (psutil) e a leitura do tipo de rede (PowerShell)."""
     ip, interface = lan_address()
-    return {"ip": ip, "interface": interface, "profiles": len(read_profiles())}
+    raw = run_profile_script()
+    return {
+        "ip": ip,
+        "interface": interface,
+        "profiles": len(parse_profiles(raw)),
+        "profile_output": profile_output_status(raw),
+    }
 
 
 def run_self_test(out: Path, *, demo: bool) -> int:
