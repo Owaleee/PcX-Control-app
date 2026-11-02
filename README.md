@@ -5,10 +5,11 @@
 Transforme o celular Android em um painel de sensores do seu PC Windows, na rede local, com pareamento por QR code.
 
 **Status:** em desenvolvimento. Agente **0.3.0** (instalador do Windows e ícone na bandeja) e app
-Android **0.2.0**.
+Android **0.3.0** (cartão único da GPU no modo painel).
 
 | Agente | App | Protocolo |
 | --- | --- | --- |
+| 0.3.0 | 0.3.0 | 1 |
 | 0.3.0 | 0.2.0 | 1 |
 | 0.2.0 | 0.2.0 | 1 |
 
