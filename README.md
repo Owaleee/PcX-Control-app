@@ -9,11 +9,18 @@ pareamento por QR code.
 **Versões atuais:** agente **0.4.0** (Windows) e app **0.3.0** (Android). Os dois conversam pelo
 protocolo **1**.
 
+Qualquer app conversa com qualquer agente do protocolo 1. As novidades do agente (aviso de
+rede, IP do QR, log) valem para qualquer app; as do app aparecem só no app novo.
+
 | Agente | App | Protocolo |
 | --- | --- | --- |
 | 0.4.0 | 0.3.0 | 1 |
+| 0.4.0 | 0.2.0 | 1 |
 | 0.3.0 | 0.3.0 | 1 |
 | 0.3.0 | 0.2.0 | 1 |
+
+O agente foi pensado para ficar estável: as funções novas entram pelo app, e o protocolo só
+recebe acréscimos ([regras](docs/protocolo.md#como-o-protocolo-evolui)).
 
 ## O que ele faz
 

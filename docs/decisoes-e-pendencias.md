@@ -224,3 +224,34 @@ Corrigidos, cada um com um teste que falhava antes:
 - No modo painel, um toque no cartão da GPU abre o histórico mesmo quando a ideia era só mostrar
   os controles; avaliar toque longo se incomodar no uso.
 - `tray/pairing.py` (163 linhas) e `panel.tsx` (177) passaram um pouco das ~150 linhas.
+
+---
+
+# Estratégia: agente estável, app evolui
+
+Decisão de 02/11/2026: o agente deve chegar a um ponto em que não precise mais de atualizações
+para ajustar bugs ou inconsistências. Funções novas entram principalmente pelo app, que é mais
+fácil de atualizar. As regras do protocolo que sustentam isso estão em
+[`protocolo.md`](protocolo.md#como-o-protocolo-evolui).
+
+## O que isso pede do agente
+
+- **Expor dados, não telas:** o agente entrega métricas, histórico e capacidades de forma
+  genérica; o que o app faz com eles (cartões, gráficos, alertas) muda sem tocar no agente.
+- **Capacidades anunciadas no `hello`** para tudo que for opcional, para o app se adaptar a
+  agentes mais antigos.
+- **Diagnóstico embutido:** log de atividade e avisos de rede (agente 0.4.0) reduzem os casos em
+  que é preciso atualizar o agente só para descobrir um problema.
+- **Antes de declarar o agente estável:** fechar as pendências que afetam o uso (VPN com nome
+  desconhecido no QR, teste em placas AMD e Intel) e rodar o roteiro manual completo num PC
+  que não seja o de desenvolvimento.
+
+## Pendências de compatibilidade
+
+- **Protocolo novo sem quebrar apps antigos:** hoje o app só aceita `protocol: 1` no `hello` e,
+  com outro número, falha ao conectar sem explicar. Antes de um protocolo 2 (por exemplo, com o
+  HTTPS planejado), o app precisa mostrar "Atualize o app para usar este PC", e o agente precisa
+  continuar aceitando o protocolo 1 por pelo menos uma versão.
+- **Agente antigo com app novo:** quando o app ganhar uma função que dependa de algo novo no
+  agente, ele deve checar a capacidade no `hello` e mostrar "Atualize o PcX Control no PC para
+  usar isto" em vez de um cartão vazio.

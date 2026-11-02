@@ -61,3 +61,18 @@ Nomes e regra de cálculo em [`metrics.json`](protocol/fixtures/metrics.json): `
 | `4423` | sessão ocupada; o motivo traz o nome do aparelho ativo (até 123 bytes) | pergunta se quer assumir (`takeover: true`) |
 | `1001` | sessão encerrada (por exemplo, o mesmo celular reconectou) | reconecta |
 | outros | queda de rede | reconecta com espera de 1, 2, 4, 8 s, até 15 s |
+
+## Como o protocolo evolui
+
+O agente deve ficar **estável**: depois de instalado, só precisa de atualização para corrigir
+algo sério. As funções novas entram pelo **app**. Para isso, o protocolo segue estas regras:
+
+1. **Só acréscimos na versão 1.** Campos, métricas, rotas e capacidades novas podem entrar;
+   nada existente muda de nome, tipo ou significado, e nada é removido.
+2. **O app tolera o que não conhece.** Campos extras no JSON são ignorados, e o app usa a
+   lista `capabilities` do `hello` para mostrar só o que o agente oferece.
+3. **Função nova no agente vira capacidade nova.** Por exemplo, um agente que passe a ler a
+   temperatura da CPU anuncia `cpu.temp`; o app esconde o cartão em agentes que não anunciam.
+4. **Quebra de compatibilidade só com protocolo 2**, e o agente continua aceitando o 1 por pelo
+   menos uma versão. O app que não reconhece o protocolo mostra "Atualize o app" em vez de só
+   falhar (pendência registrada em `decisoes-e-pendencias.md`).
