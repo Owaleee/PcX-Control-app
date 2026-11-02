@@ -123,3 +123,35 @@ def test_network_category_runs_on_windows():
     if profiles:
         name = next(iter(profiles))
         assert network_category(name) == profiles[name]
+
+
+def test_read_profiles_asks_powershell_for_utf8_and_keeps_accents(monkeypatch):
+    """No Windows em portugues a placa pode se chamar "Conexao Local" com til; sem UTF-8 o nome
+    nao bate e o aviso de rede Publica nunca aparece."""
+    import subprocess
+
+    from pcx_agent import network
+
+    calls = {}
+
+    class Done:
+        stdout = '[{"InterfaceAlias":"Conexão Local","NetworkCategory":0}]'
+
+    def fake_run(command, **kwargs):
+        calls["command"] = command
+        calls.update(kwargs)
+        return Done()
+
+    monkeypatch.setattr(network, "IS_WINDOWS", True)
+    monkeypatch.setattr(network.subprocess, "run", fake_run)
+    assert network.read_profiles() == {"Conexão Local": "public"}
+    assert "[Console]::OutputEncoding" in calls["command"][-1]
+    assert calls["encoding"] == "utf-8"
+    assert calls["stdin"] == subprocess.DEVNULL
+
+
+def test_read_profiles_outside_windows_is_empty(monkeypatch):
+    from pcx_agent import network
+
+    monkeypatch.setattr(network, "IS_WINDOWS", False)
+    assert network.read_profiles() == {}

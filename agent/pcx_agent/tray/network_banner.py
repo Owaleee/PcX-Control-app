@@ -43,17 +43,26 @@ class NetworkWarningSlot(tk.Frame):
         super().__init__(parent, bg=parent["bg"])
         self._on_change = on_change
         self._check: Future | None = None
+        self._pending: tuple | None = None
 
     def check(self, controller, info) -> None:
-        self.show(None)
+        """Checa de novo. Com uma checagem em andamento, so guarda a mais recente: varios
+        cliques nao enfileiram PowerShell, e a faixa atual fica ate o novo resultado chegar."""
+        if self._check is not None and not self._check.done():
+            self._pending = (controller, info)
+            return
+        self._pending = None
         self._check = _CHECKS.submit(controller.public_network_warning, info)
         self.after(CHECK_POLL_MS, self._poll, self._check)
 
     def _poll(self, check: Future) -> None:
         if check is not self._check or not self.winfo_exists():
-            return  # janela fechada ou outro codigo gerado nesse meio-tempo
+            return  # janela fechada
         if not check.done():
             self.after(CHECK_POLL_MS, self._poll, check)
+            return
+        if self._pending is not None:
+            self.check(*self._pending)  # resultado antigo: vale o pedido mais novo
             return
         try:
             warning = check.result()

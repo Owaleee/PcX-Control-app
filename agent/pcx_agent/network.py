@@ -33,6 +33,13 @@ LAN_NETWORKS = tuple(
 )
 CATEGORIES = {0: "public", 1: "private", 2: "domain"}
 PROFILE_TIMEOUT_S = 5.0
+IS_WINDOWS = sys.platform == "win32"
+# O PowerShell 5.1 escreve na pagina de codigo do console (cp850 em pt-BR): forca UTF-8 para
+# nomes com acento ("Conexao Local" com til) baterem com os do psutil.
+PROFILE_SCRIPT = (
+    "[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
+    "Get-NetConnectionProfile | Select-Object InterfaceAlias,NetworkCategory | ConvertTo-Json"
+)
 
 
 @dataclass(frozen=True)
@@ -109,7 +116,7 @@ def parse_profiles(text: str) -> dict[str, str]:
         category = item.get("NetworkCategory")
         if isinstance(category, int) and category in CATEGORIES:
             profiles[item["InterfaceAlias"]] = CATEGORIES[category]
-        elif isinstance(category, str):  # PowerShell 7 escreve "Public", "Private"...
+        elif isinstance(category, str):  # "Public", "Private" (ex.: com -EnumsAsStrings)
             for name in CATEGORIES.values():
                 if category.lower().startswith(name):  # "DomainAuthenticated" -> domain
                     profiles[item["InterfaceAlias"]] = name
@@ -118,17 +125,16 @@ def parse_profiles(text: str) -> dict[str, str]:
 
 def read_profiles() -> dict[str, str]:
     """{placa: public|private|domain} lido do Windows; vazio fora dele ou se algo falhar."""
-    if sys.platform != "win32":
+    if not IS_WINDOWS:
         return {}
-    command = [
-        "powershell", "-NoProfile", "-NonInteractive", "-Command",
-        "Get-NetConnectionProfile | Select-Object InterfaceAlias,NetworkCategory | ConvertTo-Json",
-    ]
+    command = ["powershell", "-NoProfile", "-NonInteractive", "-Command", PROFILE_SCRIPT]
     try:
         output = subprocess.run(
             command,
             capture_output=True,
-            text=True,
+            stdin=subprocess.DEVNULL,  # o .exe nao tem console: sem isso o PowerShell pode esperar
+            encoding="utf-8",
+            errors="replace",
             timeout=PROFILE_TIMEOUT_S,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             check=False,

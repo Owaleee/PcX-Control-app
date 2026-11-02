@@ -284,3 +284,37 @@ def test_private_network_has_no_banner(root, tmp_path):
         window.close()
     finally:
         ctx.db.close()
+
+
+def test_repeated_network_checks_do_not_pile_up(root):
+    """Varios cliques em "Gerar outro codigo" nao enfileiram PowerShell nem piscam a faixa."""
+    import threading
+
+    from pcx_agent.tray.network_banner import NetworkWarningSlot
+
+    calls, running, peak = [], [0], [0]
+    lock = threading.Lock()
+
+    class SlowController:
+        def public_network_warning(self, info):
+            with lock:
+                running[0] += 1
+                peak[0] = max(peak[0], running[0])
+            time.sleep(0.3)
+            calls.append(info)
+            with lock:
+                running[0] -= 1
+            return f"aviso {info}"
+
+    changes = []
+    slot = NetworkWarningSlot(root, on_change=changes.append)
+    slot.pack()
+    for info in range(5):
+        slot.check(SlowController(), info)
+        root.update()
+    _settle(root, 1.5)
+    assert len(calls) <= 2
+    assert calls[-1] == 4
+    assert changes[-1] == "aviso 4"
+    assert None not in changes  # sem piscar: a faixa nao some entre uma checagem e outra
+    slot.destroy()

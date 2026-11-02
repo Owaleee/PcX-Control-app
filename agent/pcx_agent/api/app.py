@@ -74,6 +74,14 @@ _RESULTS = {
 }
 
 
+MAX_LOGGED_NAME = 64
+
+
+def _logged_name(name: str) -> str:
+    """Nome do aparelho para o log: curto, para ninguem encher o arquivo com nomes gigantes."""
+    return name if len(name) <= MAX_LOGGED_NAME else name[:MAX_LOGGED_NAME] + "…"
+
+
 class ApiError(Exception):
     def __init__(
         self,
@@ -206,12 +214,12 @@ def create_app(
         except PairError as err:
             pairing_log.info(
                 "Pareamento ip=%s metodo=%s resultado=%s aparelho=%r",
-                client_ip, method, _RESULTS[err.kind], body.device_name,
+                client_ip, method, _RESULTS.get(err.kind, err.kind), _logged_name(body.device_name),
             )
             raise _pair_error(err) from None
         pairing_log.info(
             "Pareamento ip=%s metodo=%s resultado=pareado aparelho=%r",
-            client_ip, method, body.device_name,
+            client_ip, method, _logged_name(body.device_name),
         )
         return {
             "device_id": result.device_id,

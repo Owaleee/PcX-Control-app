@@ -122,3 +122,11 @@ def test_stream_busy_and_takeover_are_logged(live, caplog):
     lines = _lines(caplog, "pcx_agent.stream")
     assert any("ocupado" in line and "'Moto'" in line and "'Poco'" in line for line in lines)
     assert any("assumiu" in line and "'Moto'" in line for line in lines)
+
+
+async def test_huge_device_name_is_truncated_in_the_log(client, caplog):
+    name = "x y " * 2000
+    with caplog.at_level(logging.INFO, logger="pcx_agent.pairing"):
+        await client.post("/v1/pair", json={"device_name": name, "password": "errada"})
+    line = _lines(caplog, "pcx_agent.pairing")[0]
+    assert len(line) < 250
