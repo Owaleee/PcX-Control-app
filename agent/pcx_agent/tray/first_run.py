@@ -78,6 +78,7 @@ class FirstRunWindow(BaseWindow):
             field.show_error(err.message)
             return
         self.step = 2
+        self.resize_to("first_run_pair")
         self._draw_steps()
         for child in self._content.winfo_children():
             child.destroy()

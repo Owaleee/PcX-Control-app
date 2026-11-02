@@ -59,6 +59,7 @@ def test_contrast_ratio_extremes():
 def test_window_sizes_follow_the_mockup():
     assert WINDOW_SIZES == {
         "first_run": (460, 520),
+        "first_run_pair": (460, 720),
         "pairing": (460, 640),
         "devices": (640, 460),
         "password": (460, 460),

@@ -12,6 +12,8 @@ conversam pelo **protocolo**, versionado à parte (hoje: `protocol: 1`).
 ## [Não lançado]
 
 ### Planejado
+- App, modo painel: um cartão de GPU só, com uso, VRAM e temperatura (hoje a VRAM não aparece
+  no modo painel). Tocar no cartão abre o gráfico com as três métricas.
 - Versão `1.0.0` (agente e app): lançamento público, com README e GIF do modo painel.
 
 ## [agente 0.3.0] - 2026-11-02
@@ -25,7 +27,8 @@ janelas. Compatível com o app 0.2.0 (protocolo 1).
   administrador). O desinstalador remove a regra e mantém os dados.
 - Ícone na bandeja com Parear celular, Celulares pareados, Trocar senha, Iniciar com o Windows,
   Abrir pasta de logs e Sair. A dica do ícone mostra se há celular conectado.
-- Assistente da primeira execução: cria a senha e mostra o QR code.
+- Assistente da primeira execução: cria a senha e mostra o QR code, o endereço do PC (para
+  parear por IP e senha) e o botão Concluir.
 - Janela de pareamento com contagem regressiva, "Gerar outro código", aviso de PC sem rede e
   "Celular pareado!", seguida de notificação do Windows.
 - Janela de celulares pareados, com quem está conectado agora e a opção de desconectar.

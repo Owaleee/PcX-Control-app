@@ -94,11 +94,7 @@ class BaseWindow(tk.Toplevel):
         super().__init__(root, bg=COLORS["background"])
         self.controller = controller
         self.title(self.title_text)
-        width, height = WINDOW_SIZES[self.size_key]
-        x = (self.winfo_screenwidth() - width) // 2
-        y = (self.winfo_screenheight() - height) // 3
-        self.geometry(f"{width}x{height}+{x}+{y}")
-        self.resizable(False, False)
+        self.resize_to(self.size_key)
         _set_icon(self)
         _dark_title_bar(self)
         self.body = tk.Frame(self, bg=COLORS["background"], padx=PADDING, pady=SPACE[3])
@@ -107,6 +103,15 @@ class BaseWindow(tk.Toplevel):
         self.bind("<Return>", lambda _e: self.primary_action())
         self.protocol("WM_DELETE_WINDOW", self.close)
         self.focus_force()
+
+    def resize_to(self, size_key: str) -> None:
+        """Ajusta a janela a um tamanho de `theme.WINDOW_SIZES`, centralizada."""
+        width, height = WINDOW_SIZES[size_key]
+        x = (self.winfo_screenwidth() - width) // 2
+        y = max(0, (self.winfo_screenheight() - height) // 3)
+        self.resizable(True, True)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.resizable(False, False)
 
     def primary_action(self) -> None:
         """Acao do Enter. As janelas sobrescrevem."""

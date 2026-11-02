@@ -35,6 +35,7 @@ GAP = SPACE[2]  # espaco entre blocos
 
 WINDOW_SIZES = {
     "first_run": (460, 520),
+    "first_run_pair": (460, 720),  # passo 2: o pareamento inteiro mais o indicador de passos
     "pairing": (460, 640),
     "devices": (640, 460),
     "password": (460, 460),

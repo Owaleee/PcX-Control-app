@@ -176,3 +176,45 @@ def test_tk_callback_errors_go_to_the_log(root, caplog):
         except ValueError as exc:
             root.report_callback_exception(type(exc), exc, exc.__traceback__)
     assert any(r.exc_info and r.exc_info[0] is ValueError for r in caplog.records)
+
+
+def _fully_visible(window, widget) -> bool:
+    window.update_idletasks()
+    bottom = widget.winfo_rooty() + widget.winfo_height()
+    return widget.winfo_ismapped() and bottom <= window.winfo_rooty() + window.winfo_height()
+
+
+def _find(widget, text):
+    if str(widget.cget("text") if "text" in widget.keys() else "") == text:  # noqa: SIM118 - opcoes do Tk
+        return widget
+    for child in widget.winfo_children():
+        found = _find(child, text)
+        if found is not None:
+            return found
+    return None
+
+
+def test_first_run_step_two_shows_ip_and_finish(root, controller):
+    """Print do Alexandre: no passo 2 o endereco do PC e o "Concluir" ficavam cortados."""
+    from pcx_agent.tray.first_run import FirstRunWindow
+
+    window = FirstRunWindow.show(root, controller)
+    window.password_field.set_value("senha-boa-1")
+    window.confirm_field.set_value("senha-boa-1")
+    window.primary_action()
+    for _ in range(5):
+        root.update()
+    assert _fully_visible(window, _find(window, "192.168.0.15:8765"))
+    assert _fully_visible(window, _find(window, "Concluir"))
+    window.close()
+
+
+def test_pairing_window_shows_ip_and_close(root, controller):
+    from pcx_agent.tray.pairing import PairingWindow
+
+    window = PairingWindow.show(root, controller)
+    for _ in range(5):
+        root.update()
+    assert _fully_visible(window, _find(window, "192.168.0.15:8765"))
+    assert _fully_visible(window, _find(window, "Fechar"))
+    window.close()
