@@ -1,15 +1,25 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
 
-type Props = { label: string; value: string; percent?: number; detail?: string };
+type Props = {
+  label: string;
+  value: string;
+  percent?: number;
+  /** Uma linha ou varias (ex.: VRAM e temperatura no cartao da GPU). */
+  detail?: string | string[];
+  onPress?: () => void;
+  testID?: string;
+};
 
-/** Indicador grande do modo painel. */
-export function Gauge({ label, value, percent, detail }: Props) {
+/** Indicador grande do modo painel. Com `onPress`, o cartao abre um detalhe. */
+export function Gauge({ label, value, percent, detail, onPress, testID }: Props) {
   const { theme } = useTheme();
   const safe = percent === undefined ? undefined : Math.min(100, Math.max(0, percent));
-  return (
-    <View style={[styles.box, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+  const lines = detail === undefined ? [] : Array.isArray(detail) ? detail : [detail];
+  const box = [styles.box, { backgroundColor: theme.surface, borderColor: theme.border }];
+  const content = (
+    <>
       <Text style={[styles.label, { color: theme.textMuted }]}>{label}</Text>
       <Text style={[styles.value, { color: theme.text }]} adjustsFontSizeToFit numberOfLines={1}>
         {value}
@@ -19,7 +29,23 @@ export function Gauge({ label, value, percent, detail }: Props) {
           <View style={[styles.fill, { width: `${safe}%`, backgroundColor: theme.accent }]} />
         </View>
       ) : null}
-      {detail ? <Text style={[styles.detail, { color: theme.textMuted }]}>{detail}</Text> : null}
+      {lines.map((line) => (
+        <Text key={line} style={[styles.detail, { color: theme.textMuted }]} numberOfLines={1}>
+          {line}
+        </Text>
+      ))}
+    </>
+  );
+  if (onPress) {
+    return (
+      <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} onPress={onPress} style={box}>
+        {content}
+      </Pressable>
+    );
+  }
+  return (
+    <View testID={testID} style={box}>
+      {content}
     </View>
   );
 }
