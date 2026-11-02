@@ -1,6 +1,7 @@
 """API HTTP /v1 do agente."""
 
 import asyncio
+import logging
 import math
 import time
 from contextlib import asynccontextmanager
@@ -62,6 +63,15 @@ def build_context(
         sampler=Sampler(provider, history, sessions.has_active, **sampler_options),
         provider=provider,
     )
+
+
+pairing_log = logging.getLogger("pcx_agent.pairing")
+_RESULTS = {
+    "rate_limited": "bloqueado",
+    "bad_credentials": "senha_errada",
+    "code_invalid_or_expired": "codigo_invalido",
+    "invalid_name": "nome_invalido",
+}
 
 
 class ApiError(Exception):
@@ -188,12 +198,21 @@ def create_app(
     @app.post("/v1/pair")
     def pair(body: PairRequest, request: Request) -> dict:
         client_ip = request.client.host if request.client else "desconhecido"
+        method = "qr" if body.code is not None else "senha"
         try:
             result = ctx.pairing.pair(
                 body.device_name, code=body.code, password=body.password, client_ip=client_ip
             )
         except PairError as err:
+            pairing_log.info(
+                "Pareamento ip=%s metodo=%s resultado=%s aparelho=%r",
+                client_ip, method, _RESULTS[err.kind], body.device_name,
+            )
             raise _pair_error(err) from None
+        pairing_log.info(
+            "Pareamento ip=%s metodo=%s resultado=pareado aparelho=%r",
+            client_ip, method, body.device_name,
+        )
         return {
             "device_id": result.device_id,
             "token": result.token,

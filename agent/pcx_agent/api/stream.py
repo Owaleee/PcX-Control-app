@@ -124,13 +124,17 @@ def register_stream(app: FastAPI, ctx, hub: StreamHub, auth_timeout_s: float) ->
             return
         parsed = _parse_auth(first)
         device = await asyncio.to_thread(ctx.pairing.authenticate, parsed[0]) if parsed else None
+        ip = ws.client.host if ws.client else "desconhecido"
         if parsed is None or device is None:
+            logger.info("Celular com token inválido ip=%s (precisa parear de novo)", ip)
             await _close(ws, CLOSE_INVALID_TOKEN, "Token inválido")
             return
-        await _serve(ws, ctx, hub, device, takeover=parsed[1])
+        await _serve(ws, ctx, hub, device, takeover=parsed[1], ip=ip)
 
 
-async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: bool) -> None:
+async def _serve(
+    ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: bool, ip: str = "desconhecido"
+) -> None:
     loop = asyncio.get_running_loop()
     evicted = asyncio.Event()
     revoked = asyncio.Event()
@@ -147,10 +151,20 @@ async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: b
         device.id, device.name, evict=notify(evicted), on_revoke=notify(revoked)
     )
     slot = _Slot()
+    previous = ctx.sessions.active()
     result = ctx.sessions.acquire(session, takeover)
     if result.status == "busy":
+        logger.info(
+            "Celular recusado: PC ocupado por %r ip=%s aparelho=%r",
+            result.active_device_name, ip, device.name,
+        )
         await _close(ws, CLOSE_BUSY, result.active_device_name or "")
         return
+    if previous is not None and previous.device_id != device.id:
+        logger.info("Celular assumiu a sessão de %r ip=%s aparelho=%r", previous.device_name, ip,
+                    device.name)
+    logger.info("Celular conectado ip=%s aparelho=%r", ip, device.name)
+    reason = "conexão encerrada"
 
     hub.slot = slot
     recv_task = asyncio.create_task(_drain(ws, ctx, device.id))
@@ -177,14 +191,18 @@ async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: b
                 continue
             get_task.cancel()
             if revoke_task in done:
+                reason = "desconectado no PC"
                 await _close(ws, CLOSE_INVALID_TOKEN, "Aparelho desconectado no PC")
                 break
             if evict_task in done:
+                reason = "sessão assumida por outro aparelho"
                 await _close(ws, CLOSE_TAKEN_OVER, "Sessão assumida por outro aparelho")
                 break
             if recv_task in done:
+                reason = "o celular fechou a conexão"
                 break
             if ctx.sessions.active() is not session:
+                reason = "sessão expirou"
                 await _close(ws, CLOSE_GOING_AWAY, "Sessão encerrada")
                 break
     except (WebSocketDisconnect, RuntimeError):
@@ -198,3 +216,4 @@ async def _serve(ws: WebSocket, ctx, hub: StreamHub, device: Device, takeover: b
         if hub.slot is slot:
             hub.slot = None
         ctx.sessions.release(device.id, session=session)
+        logger.info("Celular desconectado ip=%s aparelho=%r motivo=%s", ip, device.name, reason)
