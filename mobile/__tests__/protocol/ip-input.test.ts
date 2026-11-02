@@ -3,7 +3,7 @@ import { formatIpInput } from '../../src/protocol/ip';
 /** Simula a digitacao caractere por caractere, como no teclado. */
 function type(text: string, start = ''): string {
   let value = start;
-  for (const char of text) value = formatIpInput(value + char, false);
+  for (const char of text) value = formatIpInput(value + char, value);
   return value;
 }
 
@@ -39,12 +39,32 @@ describe('formatIpInput (pontos automaticos)', () => {
   });
 
   test('colar um IP sujo vira um IP limpo', () => {
-    expect(formatIpInput(' 192,168,018,22 ', false)).toBe('192.168.18.22');
-    expect(formatIpInput('ip: 192.168.0.10', false)).toBe('192.168.0.10');
+    expect(formatIpInput(' 192,168,018,22 ', '')).toBe('192.168.18.22');
+    expect(formatIpInput('ip: 192.168.0.10', '')).toBe('192.168.0.10');
   });
 
   test('apagando, o ponto nao volta sozinho', () => {
-    expect(formatIpInput('192', true)).toBe('192');
-    expect(formatIpInput('192.168.0', true)).toBe('192.168.0');
+    expect(formatIpInput('192', '192.')).toBe('192');
+    expect(formatIpInput('192.168.0', '192.168.0.')).toBe('192.168.0');
+  });
+
+  test('apagar um bloco no meio nao junta os outros', () => {
+    expect(formatIpInput('192.168..10', '192.168.0.10')).toBe('192.168..10');
+    expect(formatIpInput('192.168.1.10', '192.168..10')).toBe('192.168.1.10');
+  });
+
+  test('digitar no meio de um IP completo nao embaralha os blocos', () => {
+    expect(formatIpInput('192.1681.0.10', '192.168.0.10')).toBe('192.168.0.10');
+    expect(formatIpInput('192.168.0.150', '192.168.0.15')).toBe('192.168.0.150');
+    expect(formatIpInput('192.168.0.1x0', '192.168.0.10')).toBe('192.168.0.10');
+  });
+
+  test('colar um IP mais curto por cima do atual', () => {
+    expect(formatIpInput(' 10,0,0,5 ', '192.168.100.100')).toBe('10.0.0.5');
+  });
+
+  test('um bloco nunca passa de 255', () => {
+    expect(type('259')).toBe('25');
+    expect(type('192.168.18.256')).toBe('192.168.18.25');
   });
 });

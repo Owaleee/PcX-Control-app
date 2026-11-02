@@ -131,7 +131,7 @@ export default function AddPc() {
           <Field
             label="IP do PC"
             value={host}
-            onChangeText={(text) => setHost((previous) => formatIpInput(text, text.length < previous.length))}
+            onChangeText={(text) => setHost((previous) => formatIpInput(text, previous))}
             placeholder="192.168.0.10"
             keyboardType="decimal-pad"
           />

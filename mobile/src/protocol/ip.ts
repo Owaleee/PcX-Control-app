@@ -13,18 +13,28 @@ export function normalizeIpv4(input: string): string | null {
 }
 
 const SEPARATORS = /[.,\s]/;
+const dots = (text: string) => (text.match(/\./g) ?? []).length;
+const validBlock = (block: string) => /^\d{0,3}$/.test(block) && (block === '' || Number(block) <= 255);
 
 /**
- * Formata o IP enquanto a pessoa digita: o ponto entra sozinho quando o bloco nao aceita
- * mais digitos (3 digitos, um "0" ou valor x 10 > 255). Ponto, virgula ou espaco fecham um
- * bloco curto. Apagando (`deleting`), so limpa: o ponto automatico nao volta.
+ * Formata o IP enquanto a pessoa digita, comparando com o valor anterior do campo:
+ * - colar (ou completar) um IP valido normaliza de uma vez (zeros a esquerda, virgulas);
+ * - apagando, so limpa: os pontos ficam onde estao e o ponto automatico nao volta;
+ * - com os 4 blocos ja na tela, edicoes no meio nao redistribuem os digitos: uma edicao que
+ *   deixaria um bloco invalido e recusada;
+ * - digitando, o ponto entra sozinho quando o bloco nao aceita mais digitos (3 digitos, um "0"
+ *   ou valor x 10 > 255), e ponto, virgula ou espaco fecham um bloco curto.
  */
-export function formatIpInput(text: string, deleting: boolean): string {
+export function formatIpInput(text: string, previous: string): string {
   const cleaned = text.replace(/[^\d.,\s]/g, '');
-  if (deleting) return cleaned.replace(/[,\s]/g, '.').replace(/\.{2,}/g, '.').replace(/^\./, '');
-  // Colou um IP inteiro (talvez com zeros a esquerda ou virgulas): normaliza de uma vez.
+  const asDots = cleaned.replace(/[,\s]/g, '.');
   const pasted = normalizeIpv4(cleaned.replace(/^[.,\s]+|[.,\s]+$/g, ''));
   if (pasted) return pasted;
+  if (asDots.length < previous.length) return asDots.replace(/^\./, '');
+  if (dots(previous) === 3 && dots(asDots) >= 3) {
+    const blocks = asDots.split('.');
+    return blocks.length === 4 && blocks.every(validBlock) ? asDots : previous;
+  }
 
   const blocks: string[] = [''];
   const full = (block: string) => block.length === 3 || block === '0' || Number(block) * 10 > 255;
@@ -34,7 +44,7 @@ export function formatIpInput(text: string, deleting: boolean): string {
       if (current !== '' && blocks.length < 4) blocks.push('');
       continue;
     }
-    if (full(current)) continue; // so acontece no quarto bloco
+    if (full(current) || Number(current + char) > 255) continue;
     blocks[blocks.length - 1] = current + char;
     if (full(current + char) && blocks.length < 4) blocks.push('');
   }
