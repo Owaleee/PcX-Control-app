@@ -30,11 +30,41 @@ curl http://localhost:8765/v1/snapshot -H "Authorization: Bearer <token>"
 
 ```powershell
 pip install -e ".[windows]"
-python -m pcx_agent
+pythonw -m pcx_agent            # bandeja (padrão)
+python -m pcx_agent --console   # no terminal, sem bandeja
 ```
 
-Na primeira execução o terminal pede para criar a senha do PC. Para capturar amostras
-reais da GPU (útil para novos testes): `python tools/capture_gpu_samples.py > amostras.json`.
+Na bandeja, a primeira execução abre o assistente para criar a senha e mostrar o QR code.
+Clique com o botão direito no ícone para parear, ver os celulares, trocar a senha, ligar o
+início com o Windows ou abrir os logs. Se o agente já estiver aberto, uma segunda cópia avisa
+e sai.
+
+Para capturar amostras reais da GPU (útil para novos testes):
+`python tools/capture_gpu_samples.py > amostras.json`.
+
+## Modos de execução
+
+| Comando | O que faz |
+| --- | --- |
+| `pythonw -m pcx_agent` | Bandeja do Windows (padrão) |
+| `python -m pcx_agent --console` | Terminal, com o QR em texto |
+| `python -m pcx_agent --demo` | Sensores simulados, em qualquer sistema |
+| `python -m pcx_agent --self-test saida.json` | Sobe o servidor, lê os sensores e grava o resultado (usado pela CI) |
+
+## Pasta de dados
+
+`%LOCALAPPDATA%\PcXControl\` (no Linux, `~/.local/share/pcx-control/`):
+
+- `pcx.db`: senha (só o hash), celulares pareados e 24 h de histórico.
+- `config.json`: `{"port": 8765}`. Porta inválida ou arquivo quebrado: o agente usa 8765.
+- `logs\agent.log`: JSON por linha, 5 arquivos de até 1 MiB. Senha, código e token nunca
+  aparecem.
+
+## Interface da bandeja
+
+Cores, fontes e tamanhos ficam em `pcx_agent/tray/theme.py` (as mesmas do tema escuro do app);
+todos os textos em `pcx_agent/tray/texts.py`. Janelas novas herdam de `BaseWindow`
+(`tray/widgets.py`) e só chamam o `AgentController`, onde ficam as regras.
 
 ## Testes
 

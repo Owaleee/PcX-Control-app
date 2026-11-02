@@ -82,3 +82,4 @@ def test_begin_attempt_success_reset_clears_the_reservation():
         limiter.begin_attempt("a")
     limiter.reset("a")
     assert limiter.begin_attempt("a") == (None, 4)
+

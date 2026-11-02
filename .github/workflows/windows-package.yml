@@ -1,0 +1,58 @@
+name: windows-package
+
+on:
+  push:
+    paths: ["agent/packaging/**", ".github/workflows/windows-package.yml"]
+  pull_request:
+    paths: ["agent/**", ".github/workflows/windows-package.yml"]
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      installer:
+        description: Nome do instalador gerado
+        value: ${{ jobs.package.outputs.installer }}
+
+defaults:
+  run:
+    working-directory: agent
+
+jobs:
+  package:
+    runs-on: windows-latest
+    outputs:
+      installer: ${{ steps.build.outputs.installer }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: agent/pyproject.toml
+      - name: Instalar dependencias
+        run: pip install ".[windows,build]"
+      - name: Executavel (PyInstaller)
+        run: pyinstaller --noconfirm packaging/PcXControl.spec
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            $default = "${env:ProgramFiles(x86)}\Inno Setup 6"
+            if (-not (Test-Path "$default\ISCC.exe")) { choco install innosetup -y --no-progress }
+            "$default" | Out-File -FilePath $env:GITHUB_PATH -Append
+          }
+      - name: Instalador
+        id: build
+        shell: pwsh
+        run: |
+          $version = python -c "import pcx_agent; print(pcx_agent.__version__)"
+          iscc "/DAppVersion=$version" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "installer=PcXControl-Setup-$version.exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      - name: Teste de fumaca
+        shell: pwsh
+        run: ./packaging/smoke-test.ps1 -Installer "packaging/Output/${{ steps.build.outputs.installer }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador-windows
+          path: agent/packaging/Output/${{ steps.build.outputs.installer }}
+          if-no-files-found: error

@@ -5,14 +5,46 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 [Versionamento Semântico](https://semver.org/lang/pt-BR/). Os commits seguem o padrão
 [Conventional Commits](https://www.conventionalcommits.org/pt-br/).
 
-A versão do **protocolo** é independente da versão do app (hoje: `protocol: 1`).
+Até a `0.2.0`, agente e app tinham a mesma versão. Daqui em diante cada um tem a sua: as
+seções são `[agente X.Y.Z]` e `[app X.Y.Z]`, com as tags `agente-vX.Y.Z` e `app-vX.Y.Z`. Os dois
+conversam pelo **protocolo**, versionado à parte (hoje: `protocol: 1`).
 
 ## [Não lançado]
 
 ### Planejado
-- Agente no Windows: ícone na bandeja, assistente da primeira execução, instalador e regra de
-  firewall (Plano 3).
-- Versão `1.0.0`: instalador do agente + APK + notas de lançamento.
+- App, modo painel: um cartão de GPU só, com uso, VRAM e temperatura (hoje a VRAM não aparece
+  no modo painel). Tocar no cartão abre o gráfico com as três métricas.
+- Versão `1.0.0` (agente e app): lançamento público, com README e GIF do modo painel.
+
+## [agente 0.3.0] - 2026-11-02
+
+Primeira versão do agente para **qualquer pessoa no Windows**: instalador, ícone na bandeja e
+janelas. Compatível com o app 0.2.0 (protocolo 1).
+
+### Adicionado
+- Instalador (`PcXControl-Setup-0.3.0.exe`) para o usuário atual, com a opção "Iniciar com o
+  Windows" e a regra de firewall só para a rede **Privada** e a rede local (um único pedido de
+  administrador). O desinstalador remove a regra e mantém os dados.
+- Ícone na bandeja com Parear celular, Celulares pareados, Trocar senha, Iniciar com o Windows,
+  Abrir pasta de logs e Sair. A dica do ícone mostra se há celular conectado.
+- Assistente da primeira execução: cria a senha e mostra o QR code, o endereço do PC (para
+  parear por IP e senha) e o botão Concluir.
+- Janela de pareamento com contagem regressiva, "Gerar outro código", aviso de PC sem rede e
+  "Celular pareado!", seguida de notificação do Windows.
+- Janela de celulares pareados, com quem está conectado agora e a opção de desconectar.
+- Trocar a senha sem a antiga, com a pergunta se desconecta todos os celulares.
+- `config.json` na pasta de dados para mudar a porta; arquivo quebrado não impede o agente de
+  abrir.
+- Logs em `logs\agent.log` (JSON por linha, 5 arquivos de 1 MiB), sem senha, código ou token.
+- Instância única: abrir de novo mostra "O PcX Control já está rodando."
+- Modos `--console` (terminal) e `--self-test` (autoteste usado pela CI no executável).
+
+### Segurança
+- Teto global de 30 tentativas de pareamento erradas por minuto, somando todos os IPs.
+- Limites no servidor: mensagens de WebSocket de até 16 KiB e até 64 conexões simultâneas.
+
+### Corrigido
+- A porta ocupada por outro programa agora gera uma mensagem clara em vez de o agente fechar.
 
 ## [0.2.0] - 2026-11-01
 

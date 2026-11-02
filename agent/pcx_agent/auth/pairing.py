@@ -18,6 +18,8 @@ from pcx_agent.storage.db import Database
 ErrorKind = Literal["rate_limited", "bad_credentials", "code_invalid_or_expired", "invalid_name"]
 MAX_NAME_LENGTH = 64
 RENEW_AFTER_S = 3600.0
+GLOBAL_KEY = "*"
+GLOBAL_MAX_FAILURES = 30
 
 
 @dataclass(frozen=True)
@@ -69,10 +71,15 @@ class PairingService:
         token_ttl_s: float = 30 * 86400.0,
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], float] = time.time,
+        global_limiter: RateLimiter | None = None,
     ) -> None:
         self._db = db
         self._passwords = passwords
         self._limiter = limiter
+        # Teto para a rede toda: impede varrer senhas trocando de IP.
+        self._global = global_limiter or RateLimiter(
+            max_failures=GLOBAL_MAX_FAILURES, window_s=60.0, block_s=60.0, clock=clock
+        )
         self._code_ttl = code_ttl_s
         self._token_ttl = token_ttl_s
         self._clock = clock
@@ -80,6 +87,11 @@ class PairingService:
         self._code: tuple[str, float] | None = None
         self._lock = threading.Lock()
         self.on_revoke: Callable[[str | None], None] | None = None
+        self.on_pair: Callable[[Device], None] | None = None
+
+    @property
+    def code_ttl_s(self) -> float:
+        return self._code_ttl
 
     def new_code(self) -> str:
         code = secrets.token_urlsafe(16)
@@ -109,6 +121,12 @@ class PairingService:
         client_ip: str,
     ) -> PairResult:
         name = _clean_name(device_name)
+        if code is None:
+            # Teto da rede so para senha: os codigos tem 128 bits e o dono ainda pareia pelo QR.
+            # Conferido antes do limite do IP, para nao gastar as tentativas deste IP.
+            global_wait = self._global.blocked_for(GLOBAL_KEY)
+            if global_wait is not None:
+                raise PairError("rate_limited", retry_after=global_wait)
         retry_after, left = self._limiter.begin_attempt(client_ip)
         if retry_after is not None:
             raise PairError("rate_limited", retry_after=retry_after)
@@ -119,10 +137,16 @@ class PairingService:
         elif password is not None and self._passwords.verify(password):
             pass
         else:
+            self._global.record_failure(GLOBAL_KEY)
             raise PairError("bad_credentials", attempts_left=left)
 
         self._limiter.reset(client_ip)
-        return self._create_device(name)
+        result = self._create_device(name)
+        if self.on_pair is not None:
+            rows = self._db.query("SELECT * FROM devices WHERE id = ?", (result.device_id,))
+            row = rows[0]
+            self.on_pair(Device(row["id"], row["name"], row["created_at"], row["last_used_at"]))
+        return result
 
     def _create_device(self, name: str) -> PairResult:
         device_id = str(uuid.uuid4())

@@ -24,7 +24,7 @@ revisão independente encontrou e o que ficou para depois. Os documentos de orig
 | `Sampler.nudge()` acorda o laço quando a sessão começa | Sem isso, o primeiro dado levaria até 5 s. |
 | Código nativo do Windows separado do parser puro de GPU | O pacote importa e é testado no Linux. |
 | `websockets` é dependência obrigatória | O Uvicorn sem ela não serve WebSocket; os testes em memória não pegavam isso. |
-| Sem `--demo` e sem senha, o terminal pede a senha | Provisório até a bandeja existir (Plano 3). |
+| Sem `--demo` e sem senha, o terminal pede a senha | Continua no modo `--console`; na bandeja, o assistente cria a senha (agente 0.3.0). |
 | `--demo` usa pasta temporária | Não grava a senha de demonstração no banco real. |
 | O celular não precisa enviar nada depois do `auth` | O agente envia pings do protocolo WebSocket (5 s) e cada envio bem-sucedido renova a sessão. |
 | Agente na versão `0.1.0` | O `1.0.0` fica para a release com app e instalador. |
@@ -53,8 +53,6 @@ revisão independente encontrou e o que ficou para depois. Os documentos de orig
 - Uma leitura de sensor travada deixa o dado antigo sem aviso e pode atrasar o desligamento.
 - Pendrives (unidades removíveis) podem aparecer na lista de discos.
 - Duas placas iguais recebem a mesma temperatura (a ligação é pelo nome).
-- O `config.json` do spec (§7) não existe; há apenas `--port`.
-- Endurecer o Uvicorn (`ws_max_size`, `limit_concurrency`) e criar um teto global de tentativas.
 
 ## Validação em hardware real
 
@@ -121,7 +119,6 @@ propósito, voltar do segundo plano a reabria.
 - Gráfico de 24 h sem redução de pontos (até ~17 mil pontos redesenhados).
 - O tema salvo aparece um instante depois da abertura (começa no escuro).
 - Estado "ocupado" sem botão "Tentar de novo".
-- Agente: aviso quando não encontra o IP da rede e o QR sai com `127.0.0.1`.
 - Testes de navegação real (`renderRouter`) e do `AppState` integrado ao `PcProvider`.
 - Rodar `npx expo install --check` numa máquina com acesso ao servidor do Expo antes do build.
 
@@ -137,3 +134,52 @@ propósito, voltar do segundo plano a reabria.
 
 - 243 testes no app (Jest) e 189 no agente (pytest); typecheck, lint e CI verdes.
 - Falta o teste manual no celular e no PC: [roteiro](teste-manual-app.md).
+
+---
+
+# Agente 0.3.0 no Windows (Plano 3)
+
+Documentos de origem: o [spec](specs/2026-10-30-pcx-control-v1-design.md) (§3, §7 e §9) e o
+[plano 3](plans/2026-11-01-plano-3-windows.md). O visual das janelas segue o mockup aprovado em
+01/11/2026, com as cores do tema escuro do app.
+
+## Decisões que divergem ou completam o plano
+
+| Decisão | Por quê |
+| --- | --- |
+| **Versões separadas** para agente e app, com tags `agente-v*` e `app-v*` | Os dois mudam em ritmos diferentes; não faz sentido subir a versão do app quando só o agente mudou. A compatibilidade é dada pelo `protocol`. |
+| Regra de firewall **pelo programa**, sem porta fixa | Mudar a porta no `config.json` continua funcionando sem refazer a regra. Continua só no perfil Privado e só na rede local. |
+| `AppMutex` do instalador igual ao mutex do agente | O instalador pede para fechar o agente antes de atualizar. |
+| Desinstalar mantém `%LOCALAPPDATA%\PcXControl` | Reinstalar não exige parear os celulares de novo. |
+| Teto global: 30 senhas erradas por minuto somando todos os IPs | Impede varrer senhas trocando de IP. Vale só para senha: os códigos do QR têm 128 bits, então o dono continua pareando pelo QR mesmo se alguém na rede travar o pareamento por senha por 60 s. Só falhas reais contam, e o teto é conferido antes do limite do IP. |
+| Logs escondem qualquer palavra base64url de 22+ caracteres | Pega tokens e códigos sem depender de quem escreve o log. Também esconde o `agent_id` e nomes longos em tracebacks. |
+| `setup_logging` assume os loggers do Uvicorn | A configuração padrão do Uvicorn corta a propagação, e os erros dele sumiriam do arquivo. |
+| Checagem de porta com `SO_EXCLUSIVEADDRUSE` no Windows | Com `SO_REUSEADDR`, o Windows deixaria dois programas na mesma porta. |
+| Ícone recortado em volta do monitor | O ícone do app tem a margem do ícone adaptativo do Android e ficaria minúsculo a 16 px. |
+| Interface: cores e tamanhos em `tray/theme.py`, textos em `tray/texts.py`, regras no `AgentController` | Manutenção: mudar uma cor ou frase é mexer num arquivo só; janelas novas herdam de `BaseWindow`. |
+| `--self-test` no executável | A CI prova que o `.exe` congelado tem todos os módulos (PyInstaller costuma esquecer importações dinâmicas). |
+
+## Achados da revisão independente (corrigidos)
+
+1. **Uma ação do menu que falhasse travava a bandeja inteira**, inclusive o Sair, sem nada no
+   log: agora cada ação é isolada e os erros da interface vão para o `agent.log`.
+2. **Erro inesperado ao iniciar** aparecia como o traceback cru do PyInstaller: agora vai para o
+   log e vira uma mensagem.
+3. **O autoteste não carregava a bandeja**: agora carrega o pystray, o tkinter e o QR no
+   executável, e o teste de fumaça exige isso.
+4. **Desinstalar podia deixar o início com o Windows apontando para um .exe apagado**, e uma
+   atualização religava o início desligado na bandeja: agora o desinstalador sempre remove o
+   valor e a atualização não mexe nele.
+5. **Reabrir logo depois de Sair** com celular conectado podia dar "porta em uso" no Windows:
+   restos em `TIME_WAIT` não contam mais, e Sair termina em poucos segundos.
+6. `config.json` salvo com BOM (Bloco de Notas) era ignorado.
+7. O teto global bloqueava também o pareamento por QR.
+8. Recusar o pedido de administrador mostrava uma caixa de erro no instalador.
+
+## Validação
+
+- Testes no Linux (pytest, cobertura acima de 80%) e na CI do Windows, inclusive as janelas
+  (tkinter) e o registro.
+- Teste de fumaça na CI do Windows: instala em silêncio, confere a regra de firewall e o início
+  com o Windows, roda o `--self-test` no executável e desinstala.
+- Falta o roteiro manual "Instalador e bandeja" no PC: [teste manual](teste-manual-app.md).

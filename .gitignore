@@ -12,3 +12,6 @@ node_modules/
 *.log
 .env
 .env.*
+agent/build/
+agent/dist/
+agent/packaging/Output/

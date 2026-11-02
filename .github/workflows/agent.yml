@@ -42,4 +42,5 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           pytest -m windows --junitxml=windows-tests.xml
-          python -c "import xml.etree.ElementTree as E; r = E.parse('windows-tests.xml').getroot(); s = r if r.tag == 'testsuite' else r[0]; assert int(s.get('tests')) >= 4 and int(s.get('skipped')) == 0, dict(s.attrib)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -c "import xml.etree.ElementTree as E; r = E.parse('windows-tests.xml').getroot(); s = r if r.tag == 'testsuite' else r[0]; assert int(s.get('tests')) >= 10 and int(s.get('skipped')) == 0 and int(s.get('failures')) == 0 and int(s.get('errors')) == 0, dict(s.attrib)"
