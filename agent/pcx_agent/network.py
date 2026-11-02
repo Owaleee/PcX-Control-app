@@ -39,7 +39,7 @@ LAN_NETWORKS = tuple(
     ipaddress.ip_network(n) for n in ("192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12")
 )
 CATEGORIES = {0: "public", 1: "private", 2: "domain"}
-PROFILE_TIMEOUT_S = 5.0
+PROFILE_TIMEOUT_S = 15.0  # a 1a consulta ao WMI pode ser lenta; roda em segundo plano
 IS_WINDOWS = sys.platform == "win32"
 # O PowerShell 5.1 escreve na pagina de codigo do console (cp850 em pt-BR): forca UTF-8 para
 # nomes com acento ("Conexao Local" com til) baterem com os do psutil.
@@ -147,8 +147,8 @@ def read_profiles() -> dict[str, str]:
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             check=False,
         ).stdout
-    except (OSError, subprocess.SubprocessError):
-        logger.debug("Não consegui ler o tipo de rede", exc_info=True)
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("Não consegui ler o tipo de rede do Windows: %s", exc)
         return {}
     return parse_profiles(output or "")
 

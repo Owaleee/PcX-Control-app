@@ -114,11 +114,14 @@ def test_parse_profiles_domain_and_garbage():
 def test_network_category_runs_on_windows():
     import time
 
-    from pcx_agent.network import network_category, read_profiles
+    from pcx_agent.network import PROFILE_TIMEOUT_S, network_category, read_profiles
+
+    def network_timeout():
+        return PROFILE_TIMEOUT_S
 
     started = time.monotonic()
     profiles = read_profiles()
-    assert time.monotonic() - started < 6
+    assert time.monotonic() - started < network_timeout() + 1
     # O runner do GitHub sempre tem uma rede: vazio aqui quer dizer leitura quebrada (ex.: BOM).
     assert profiles, "Get-NetConnectionProfile nao devolveu nenhuma rede"
     assert all(value in ("public", "private", "domain") for value in profiles.values())
@@ -186,3 +189,23 @@ def test_windows_mobile_hotspot_adapter_is_ignored():
     lan = NetInterface("Ethernet", "10.0.0.20", True)
     assert is_virtual(hotspot.name, hotspot.ipv4)
     assert choose_lan([hotspot, lan], preferred="26.1.2.3") == lan
+
+
+def test_read_profiles_timeout_is_generous_and_logged(monkeypatch, caplog):
+    """A primeira consulta ao WMI pode passar de 5 s num PC recem-ligado: o prazo e folgado
+    (a checagem roda em segundo plano) e, se estourar, fica registrado no log."""
+    import logging
+    import subprocess
+
+    from pcx_agent import network
+
+    assert network.PROFILE_TIMEOUT_S >= 15
+
+    def slow(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(network, "IS_WINDOWS", True)
+    monkeypatch.setattr(network.subprocess, "run", slow)
+    with caplog.at_level(logging.WARNING, logger="pcx_agent.network"):
+        assert network.read_profiles() == {}
+    assert any("tipo de rede" in r.getMessage() for r in caplog.records)
