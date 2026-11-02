@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { Alert, StyleSheet } from 'react-native';
 
 import Panel from '../../app/pc/[id]/index';
+import GpuDetail from '../../app/pc/[id]/gpu';
 import MetricDetail from '../../app/pc/[id]/metric/[metric]';
 import PcSettings from '../../app/pc/[id]/settings';
 import type { ConnState } from '../../src/connection/ConnectionManager';
@@ -155,6 +156,8 @@ describe('painel', () => {
     expect(routerMock.push).toHaveBeenCalledWith('/pc/a1/panel');
     await fireEvent.press(screen.getByText('CPU'));
     expect(routerMock.push).toHaveBeenCalledWith('/pc/a1/metric/cpu.total');
+    await fireEvent.press(screen.getByText('NVIDIA GeForce RTX 3070'));
+    expect(routerMock.push).toHaveBeenCalledWith('/pc/a1/gpu');
   });
 });
 
@@ -173,6 +176,33 @@ describe('detalhe da metrica', () => {
     paramsMock.current = { id: 'a1', metric: 'nada' };
     await renderWith(<MetricDetail />);
     expect(screen.getByText('Métrica desconhecida.')).toBeTruthy();
+  });
+});
+
+describe('detalhe da GPU', () => {
+  test('mostra uso, VRAM e temperatura no mesmo intervalo', async () => {
+    paramsMock.current = { id: 'a1' };
+    history.useMetricHistory.mockReturnValue({ points: fx.clone(fx.history).points, loading: false, error: null });
+    await renderWith(<GpuDetail />);
+    expect(screen.getByText('Uso da GPU')).toBeTruthy();
+    expect(screen.getByText('VRAM')).toBeTruthy();
+    expect(screen.getByText('Temperatura')).toBeTruthy();
+    const metrics = history.useMetricHistory.mock.calls.map((call) => call[1]);
+    expect(metrics).toEqual(expect.arrayContaining(['gpu.usage', 'gpu.vram_percent', 'gpu.temp']));
+    await fireEvent.press(screen.getByText('24 h'));
+    for (const metric of ['gpu.usage', 'gpu.vram_percent', 'gpu.temp']) {
+      expect(history.useMetricHistory).toHaveBeenCalledWith(PC, metric, '24h', expect.anything(), 1);
+    }
+  });
+
+  test('sem a capacidade gpu.temp nao ha grafico de temperatura', async () => {
+    paramsMock.current = { id: 'a1' };
+    const hello = fx.clone(fx.hello);
+    hello.capabilities = ['cpu', 'ram', 'disk', 'net', 'gpu'];
+    setConnection({ kind: 'connected', hello });
+    await renderWith(<GpuDetail />);
+    expect(screen.getByText('Uso da GPU')).toBeTruthy();
+    expect(screen.queryByText('Temperatura')).toBeNull();
   });
 });
 

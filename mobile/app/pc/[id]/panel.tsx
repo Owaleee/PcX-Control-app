@@ -22,7 +22,7 @@ export default function PanelMode() {
   useKeepAwake();
   const { theme, name, setName, precise } = useTheme();
   const percent = (value: number) => formatPercent(value, { precise });
-  const { snapshot, capabilities, state } = usePc();
+  const { pc, snapshot, capabilities, state } = usePc();
   const insets = useSafeAreaInsets();
   const stale = state.kind !== 'connected';
   const [controlsAt, setControlsAt] = useState<number | null>(null);
@@ -53,6 +53,12 @@ export default function PanelMode() {
   const data = snapshot?.data;
   const gpu = data?.gpus[0];
   const temp = capabilities.includes('gpu.temp') ? gpu?.temp_c ?? null : null;
+  const gpuDetail: string[] = [];
+  if (gpu && gpu.vram_used_bytes !== null && gpu.vram_total_bytes) {
+    const vramPercent = (100 * gpu.vram_used_bytes) / gpu.vram_total_bytes;
+    gpuDetail.push(`VRAM ${formatUsage(gpu.vram_used_bytes, gpu.vram_total_bytes)} · ${percent(vramPercent)}`);
+  }
+  if (temp !== null) gpuDetail.push(`Temperatura ${formatTemp(temp)}`);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -80,8 +86,16 @@ export default function PanelMode() {
             <View testID="panel-gauges" style={[styles.gauges, { opacity: stale ? 0.5 : 1 }]}>
               <View style={styles.row}>
                 <Gauge label="CPU" value={percent(data.cpu_total)} percent={data.cpu_total} />
-                {gpu ? <Gauge label="GPU" value={percent(gpu.usage_percent)} percent={gpu.usage_percent} /> : null}
-                {temp !== null ? <Gauge label="Temperatura GPU" value={formatTemp(temp)} percent={temp} /> : null}
+                {gpu ? (
+                  <Gauge
+                    testID="gpu-card"
+                    label="GPU"
+                    value={percent(gpu.usage_percent)}
+                    percent={gpu.usage_percent}
+                    detail={gpuDetail}
+                    onPress={() => router.push(`/pc/${pc.agentId}/gpu`)}
+                  />
+                ) : null}
               </View>
               <View style={styles.row}>
                 <Gauge

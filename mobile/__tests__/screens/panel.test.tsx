@@ -63,23 +63,54 @@ test('mostra os medidores principais', async () => {
   expect(screen.getByText('13%')).toBeTruthy();
   expect(screen.getByText('14,0 / 31,9 GiB · 17,9 GiB livres')).toBeTruthy();
   expect(screen.getByText('GPU')).toBeTruthy();
-  expect(screen.getByText('Temperatura GPU')).toBeTruthy();
-  expect(screen.getByText('49 °C')).toBeTruthy();
+  expect(screen.getByText('RAM')).toBeTruthy();
   expect(screen.getByText('RAM')).toBeTruthy();
   expect(screen.getByText('↓ 4,0 KB/s')).toBeTruthy();
   expect(screen.getByText('↑ 0,4 KB/s')).toBeTruthy();
 });
 
-test('sem a capacidade gpu.temp nao ha medidor de temperatura', async () => {
+test('um cartao so de GPU com uso, VRAM e temperatura', async () => {
+  await render(<PanelMode />);
+  const card = screen.getByTestId('gpu-card');
+  expect(screen.queryByText('Temperatura GPU')).toBeNull();
+  expect(card).toBeTruthy();
+  expect(screen.getByText('18%')).toBeTruthy();
+  expect(screen.getByText('VRAM 2,5 / 7,8 GiB · 32%')).toBeTruthy();
+  expect(screen.getByText('Temperatura 49 °C')).toBeTruthy();
+});
+
+test('tocar no cartao da GPU abre o grafico com uso, VRAM e temperatura', async () => {
+  await render(<PanelMode />);
+  await fireEvent.press(screen.getByTestId('gpu-card'));
+  expect(routerMock.push).toHaveBeenCalledWith('/pc/a1/gpu');
+  expect(screen.queryByText('Sair')).toBeNull();
+});
+
+test('sem a capacidade gpu.temp o cartao da GPU nao mostra temperatura', async () => {
   setup({ capabilities: ['cpu', 'ram', 'disk', 'net', 'gpu'] });
   await render(<PanelMode />);
-  expect(screen.queryByText('Temperatura GPU')).toBeNull();
+  expect(screen.queryByText(/Temperatura/)).toBeNull();
+  expect(screen.getByText('VRAM 2,5 / 7,8 GiB · 32%')).toBeTruthy();
+});
+
+test('sem VRAM informada o cartao mostra so o que existe', async () => {
+  const snapshot = fx.clone(fx.snapshotMessage);
+  snapshot.data.gpus[0].vram_used_bytes = null;
+  (usePc as jest.Mock).mockReturnValue({
+    pc: { agentId: 'a1', name: 'PC' },
+    state: { kind: 'connected', hello: fx.clone(fx.hello) },
+    snapshot,
+    capabilities: fx.hello.capabilities,
+  });
+  await render(<PanelMode />);
+  expect(screen.queryByText(/VRAM/)).toBeNull();
+  expect(screen.getByText('Temperatura 49 °C')).toBeTruthy();
 });
 
 test('temperatura nula tambem esconde o medidor', async () => {
   setup({ temp: null });
   await render(<PanelMode />);
-  expect(screen.queryByText('Temperatura GPU')).toBeNull();
+  expect(screen.queryByText(/Temperatura/)).toBeNull();
 });
 
 test('um toque mostra os controles por 3 s', async () => {
