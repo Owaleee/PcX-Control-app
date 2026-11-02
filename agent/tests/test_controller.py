@@ -27,8 +27,14 @@ def ctx(tmp_path):
     context.db.close()
 
 
-def make(ctx, host="192.168.0.10"):
-    return AgentController(ctx, 8765, host_lookup=lambda: host, now=lambda: NOW)
+def make(ctx, host="192.168.0.10", interface="Ethernet", category=None):
+    return AgentController(
+        ctx,
+        8765,
+        address_lookup=lambda: (host, interface),
+        category_lookup=lambda _name: category,
+        now=lambda: NOW,
+    )
 
 
 def test_set_password_rejects_mismatch(ctx):
@@ -60,7 +66,7 @@ def test_start_pairing_builds_uri_with_lan_host(ctx):
     assert query["p"] == ["8765"]
     assert query["c"] == [info.code]
     assert query["id"] == [ctx.db.agent_id]
-    assert (info.host, info.port) == ("192.168.0.10", 8765)
+    assert (info.host, info.port, info.interface) == ("192.168.0.10", 8765, "Ethernet")
     assert info.warning is None
     assert info.expires_at == NOW + ctx.pairing.code_ttl_s == NOW + 300
 
@@ -153,3 +159,13 @@ def test_format_last_used(ts, expected):
 def test_format_last_used_future_is_now():
     now = _local(2026, 11, 1, 18, 0)
     assert format_last_used(now + 5, now) == "agora"
+
+
+def test_default_address_lookup_ignores_vpn(ctx, monkeypatch):
+    """Sem injecao, o controlador usa network.lan_address (que ignora VPNs)."""
+    import pcx_agent.controller as controller_module
+
+    monkeypatch.setattr(controller_module, "lan_address", lambda: ("192.168.18.22", "Ethernet"))
+    info = AgentController(ctx, 8765, now=lambda: NOW).start_pairing()
+    assert info.host == "192.168.18.22"
+    assert info.interface == "Ethernet"

@@ -49,7 +49,10 @@ def controller(tmp_path):
     from pcx_agent.sensors.fake import FakeSensorProvider
 
     ctx = build_context(load_settings(data_dir=tmp_path), FakeSensorProvider(seed=2))
-    yield AgentController(ctx, 8765, host_lookup=lambda: "192.168.0.15")
+    yield AgentController(
+        ctx, 8765, address_lookup=lambda: ("192.168.0.15", "Ethernet"),
+        category_lookup=lambda _name: None,
+    )
     ctx.db.close()
 
 

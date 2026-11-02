@@ -160,7 +160,7 @@ def test_console_reports_port_in_use(tmp_path, capsys):
 def test_console_warns_without_network(tmp_path, monkeypatch, capsys):
     import pcx_agent.main as cli
 
-    monkeypatch.setattr(cli, "local_ipv4", lambda: "127.0.0.1")
+    monkeypatch.setattr(cli, "lan_address", lambda: ("127.0.0.1", None))
     assert main(["--demo", "--data-dir", str(tmp_path), "--port", "0", "--dry-run"]) == 0
     assert "Não encontrei a rede deste PC" in capsys.readouterr().out
 

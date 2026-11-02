@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from pcx_agent.api.app import AppContext
 from pcx_agent.auth.pairing import Device
 from pcx_agent.auth.passwords import MIN_LENGTH
-from pcx_agent.pairing_uri import local_ipv4, pairing_uri
+from pcx_agent.network import lan_address, network_category
+from pcx_agent.pairing_uri import pairing_uri
 
 LOOPBACK = "127.0.0.1"
 NO_NETWORK_WARNING = (
@@ -31,6 +32,7 @@ class PairingInfo:
     port: int
     expires_at: float
     warning: str | None
+    interface: str | None = None
 
 
 @dataclass(frozen=True)
@@ -63,12 +65,15 @@ class AgentController:
         ctx: AppContext,
         port: int,
         *,
-        host_lookup: Callable[[], str] = local_ipv4,
+        address_lookup: Callable[[], tuple[str, str | None]] | None = None,
+        category_lookup: Callable[[str | None], str | None] | None = None,
         now: Callable[[], float] = time.time,
     ) -> None:
         self._ctx = ctx
         self._port = port
-        self._host_lookup = host_lookup
+        # Resolvidos na chamada (e nao no padrao do parametro) para os testes trocarem o modulo.
+        self._address_lookup = address_lookup or (lambda: lan_address())
+        self._category_lookup = category_lookup or (lambda name: network_category(name))
         self._now = now
         self.on_paired: Callable[[str], None] | None = None
         ctx.pairing.on_pair = self._handle_pair
@@ -89,7 +94,7 @@ class AgentController:
 
     def start_pairing(self) -> PairingInfo:
         code = self._ctx.pairing.new_code()
-        host = self._host_lookup()
+        host, interface = self._address_lookup()
         return PairingInfo(
             code=code,
             uri=pairing_uri(self._ctx.db.agent_id, host, self._port, code),
@@ -97,6 +102,7 @@ class AgentController:
             port=self._port,
             expires_at=self._now() + self._ctx.pairing.code_ttl_s,
             warning=NO_NETWORK_WARNING if host == LOOPBACK else None,
+            interface=interface,
         )
 
     def devices(self) -> list[DeviceRow]:
