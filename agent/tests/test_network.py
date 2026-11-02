@@ -107,3 +107,19 @@ def test_parse_profiles_domain_and_garbage():
     assert parse_profiles("") == {}
     assert parse_profiles("isto nao e json") == {}
     assert parse_profiles('[{"NetworkCategory":0}]') == {}
+
+
+@pytest.mark.windows
+@pytest.mark.skipif(__import__("sys").platform != "win32", reason="Get-NetConnectionProfile")
+def test_network_category_runs_on_windows():
+    import time
+
+    from pcx_agent.network import network_category, read_profiles
+
+    started = time.monotonic()
+    profiles = read_profiles()
+    assert time.monotonic() - started < 6
+    assert all(value in ("public", "private", "domain") for value in profiles.values())
+    if profiles:
+        name = next(iter(profiles))
+        assert network_category(name) == profiles[name]
