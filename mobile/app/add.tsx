@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { baseUrl, pair, userMessage } from '../src/api/http';
 import { Body, Button, Field, Message, Screen, Title } from '../src/components/ui';
-import { normalizeIpv4 } from '../src/protocol/ip';
+import { formatIpInput, normalizeIpv4 } from '../src/protocol/ip';
 import { parsePairingUri } from '../src/protocol/qr';
 import { getPc, savePc } from '../src/storage/storage';
 
@@ -128,7 +128,13 @@ export default function AddPc() {
         <>
           <Title>Conectar por IP e senha</Title>
           <Body>O IP aparece no PcX Control do PC. Use a senha criada na instalação.</Body>
-          <Field label="IP do PC" value={host} onChangeText={setHost} placeholder="192.168.0.10" keyboardType="default" />
+          <Field
+            label="IP do PC"
+            value={host}
+            onChangeText={(text) => setHost((previous) => formatIpInput(text, text.length < previous.length))}
+            placeholder="192.168.0.10"
+            keyboardType="decimal-pad"
+          />
           <Field label="Porta" value={port} onChangeText={setPort} keyboardType="number-pad" maxLength={5} />
           <Field label="Senha do PC" value={password} onChangeText={setPassword} secureTextEntry />
           <Field label="Nome deste celular" value={deviceName} onChangeText={setDeviceName} maxLength={64} />

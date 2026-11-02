@@ -12,7 +12,7 @@ import * as fx from '../protocol/fixtures';
 
 const BASE = baseUrl('192.168.0.10', 8765);
 const NOT_FOUND =
-  'PC não encontrado. Confira se o celular e o PC estão na mesma rede Wi-Fi e se o PcX Control está aberto.';
+  'PC não encontrado. Confira se o celular e o PC estão na mesma rede Wi-Fi, se o PcX Control está aberto e se a rede do PC está como Privada no Windows.';
 
 function reply(status: number, body: unknown) {
   return Promise.resolve(
