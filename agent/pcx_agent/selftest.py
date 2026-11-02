@@ -12,6 +12,7 @@ from pathlib import Path
 from pcx_agent import __version__
 from pcx_agent.api.app import build_context
 from pcx_agent.config import load_settings
+from pcx_agent.network import lan_address, read_profiles
 from pcx_agent.server import AgentServer
 
 IS_WINDOWS = sys.platform == "win32"
@@ -42,6 +43,12 @@ def _provider(demo: bool):
     return WindowsSensorProvider()
 
 
+def _network() -> dict:
+    """Prova no .exe a escolha do IP (psutil) e a leitura do tipo de rede (PowerShell)."""
+    ip, interface = lan_address()
+    return {"ip": ip, "interface": interface, "profiles": len(read_profiles())}
+
+
 def run_self_test(out: Path, *, demo: bool) -> int:
     out = Path(out)
     try:
@@ -67,6 +74,7 @@ def run_self_test(out: Path, *, demo: bool) -> int:
                     "capabilities": sorted(provider.capabilities()),
                     "port": server.bound_port,
                     "tray": tray,
+                    "network": _network(),
                 }
             finally:
                 server.stop()  # ao parar, o servidor ja fecha os sensores

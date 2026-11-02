@@ -20,8 +20,8 @@ Rede e diagnóstico, a partir do primeiro teste em outro PC. Compatível com o a
 novo (protocolo 1).
 
 ### Adicionado
-- **Aviso de rede Pública** na janela de pareamento e no assistente, com o botão "Abrir
-  configurações de rede". A checagem roda em segundo plano e não trava a janela.
+- **Aviso de rede Pública** (e de rede de Domínio) na janela de pareamento e no assistente, com
+  o botão "Abrir configurações de rede". A checagem roda em segundo plano e não trava a janela.
 - **Log de atividade:** cada tentativa de pareamento (IP do celular, QR ou senha, resultado) e
   cada conexão, recusa por PC ocupado, sessão assumida e desconexão. Sem senha, código ou token.
 
@@ -43,7 +43,8 @@ Compatível com o agente 0.2.0 ou mais novo (protocolo 1).
   uso, VRAM e temperatura no mesmo intervalo (15 min, 1 h ou 24 h), com média e máximo de cada.
 - Campo de IP com **pontos automáticos** e teclado numérico: o ponto entra sozinho quando o
   bloco está completo; ponto, vírgula ou espaço fecham um bloco curto. Colar um IP com zeros à
-  esquerda ou vírgulas também funciona.
+  esquerda, vírgulas, `IP:porta` ou uma URL também funciona (a porta vai para o campo Porta). O
+  campo de IP dos ajustes do PC funciona do mesmo jeito.
 
 ### Mudado
 - "PC não encontrado" agora também lembra de conferir se a rede do PC está como Privada no

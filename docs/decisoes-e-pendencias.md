@@ -216,6 +216,24 @@ Corrigidos, cada um com um teste que falhava antes:
 5. Vários cliques em "Gerar outro código" enfileiravam checagens de rede e faziam a faixa piscar.
 6. Um nome de aparelho gigante ia inteiro para o log em cada tentativa.
 
+## Bateria de testes de regressão (antes do lançamento)
+
+Um revisor independente testou as funções antigas e as novas de ponta a ponta (agente real em
+modo demo, HTTP, WebSocket, pareamento, sessões, histórico, janelas na tela virtual e o app),
+e rodou os testes do agente 0.3.0 e do app 0.2.0 contra o código novo. Sem regressões de
+comportamento além das mudanças intencionais. Corrigidos, cada um com um teste que falhava antes:
+
+1. Colar `IP:porta` ou uma URL no campo de IP gerava um IP errado (`192.168.0.10:8765` virava
+   `192.168.0.108`). Agora o host e a porta são separados, e o que não é IPv4 fica como está para a
+   validação avisar.
+2. O PowerShell 5.1 pode começar a saída com um BOM e esconder o aviso de rede Pública; o teste do
+   Windows agora exige ler ao menos uma rede, e o autoteste do `.exe` também.
+3. Rede de Domínio também bloqueia o celular (a regra vale só no perfil Privado) e agora avisa.
+4. O hotspot móvel do Windows (`192.168.137.x`) podia ir para o QR.
+5. Pedido de pareamento inválido e celular que não se autentica não apareciam no log.
+6. Digitar `010` num bloco deslocava os blocos seguintes.
+7. O campo de IP dos ajustes do PC não tinha os pontos automáticos.
+
 ## Pendências (Plano 4)
 
 - VPN com nome que o agente não reconhece (um WireGuard chamado "casa", um adaptador TAP
@@ -224,6 +242,13 @@ Corrigidos, cada um com um teste que falhava antes:
 - No modo painel, um toque no cartão da GPU abre o histórico mesmo quando a ideia era só mostrar
   os controles; avaliar toque longo se incomodar no uso.
 - `tray/pairing.py` (163 linhas) e `panel.tsx` (177) passaram um pouco das ~150 linhas.
+- Motivo do log: um celular que se desconecta pelo app aparece como "desconectado no PC", e o
+  mesmo celular reconectando aparece como "sessão expirou" na conexão antiga.
+- Nomes de aparelho com 22 ou mais letras e números seguidos aparecem como `[oculto]` no log
+  (efeito da regra que esconde tokens).
+- Muitos pedidos bloqueados seguidos geram uma linha cada; coalescer por IP se virar problema.
+- A tela de histórico da GPU aberta pelo modo painel herda a tela em paisagem e sempre ligada.
+- `config.json` numa pasta sem permissão de escrita derruba a inicialização.
 
 ---
 

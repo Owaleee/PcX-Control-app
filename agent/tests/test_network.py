@@ -119,10 +119,11 @@ def test_network_category_runs_on_windows():
     started = time.monotonic()
     profiles = read_profiles()
     assert time.monotonic() - started < 6
+    # O runner do GitHub sempre tem uma rede: vazio aqui quer dizer leitura quebrada (ex.: BOM).
+    assert profiles, "Get-NetConnectionProfile nao devolveu nenhuma rede"
     assert all(value in ("public", "private", "domain") for value in profiles.values())
-    if profiles:
-        name = next(iter(profiles))
-        assert network_category(name) == profiles[name]
+    name = next(iter(profiles))
+    assert network_category(name) == profiles[name]
 
 
 def test_read_profiles_asks_powershell_for_utf8_and_keeps_accents(monkeypatch):
@@ -146,7 +147,7 @@ def test_read_profiles_asks_powershell_for_utf8_and_keeps_accents(monkeypatch):
     monkeypatch.setattr(network.subprocess, "run", fake_run)
     assert network.read_profiles() == {"Conexão Local": "public"}
     assert "[Console]::OutputEncoding" in calls["command"][-1]
-    assert calls["encoding"] == "utf-8"
+    assert calls["encoding"] == "utf-8-sig"
     assert calls["stdin"] == subprocess.DEVNULL
 
 
@@ -155,3 +156,33 @@ def test_read_profiles_outside_windows_is_empty(monkeypatch):
 
     monkeypatch.setattr(network, "IS_WINDOWS", False)
     assert network.read_profiles() == {}
+
+
+def test_parse_profiles_ignores_utf8_bom():
+    """Com OutputEncoding UTF-8 o PowerShell 5.1 pode escrever um BOM no inicio da saida."""
+    assert parse_profiles('﻿{"InterfaceAlias":"Wi-Fi","NetworkCategory":0}') == {"Wi-Fi": "public"}
+
+
+def test_read_profiles_decodes_with_bom_tolerance(monkeypatch):
+    from pcx_agent import network
+
+    seen = {}
+
+    class Done:
+        stdout = '﻿[{"InterfaceAlias":"Ethernet","NetworkCategory":1}]'
+
+    def fake_run(command, **kwargs):
+        seen.update(kwargs)
+        return Done()
+
+    monkeypatch.setattr(network, "IS_WINDOWS", True)
+    monkeypatch.setattr(network.subprocess, "run", fake_run)
+    assert network.read_profiles() == {"Ethernet": "private"}
+    assert seen["encoding"] == "utf-8-sig"
+
+
+def test_windows_mobile_hotspot_adapter_is_ignored():
+    hotspot = NetInterface("Conexão Local* 10", "192.168.137.1", True)
+    lan = NetInterface("Ethernet", "10.0.0.20", True)
+    assert is_virtual(hotspot.name, hotspot.ipv4)
+    assert choose_lan([hotspot, lan], preferred="26.1.2.3") == lan

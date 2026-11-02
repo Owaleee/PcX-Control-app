@@ -46,6 +46,7 @@ $result = Get-Content $Out -Raw | ConvertFrom-Json
 Write-Host "Autoteste: $(Get-Content $Out -Raw)"
 if (-not $result.ok) { Fail "autoteste falhou: $($result.error)" }
 if ($result.tray -ne "ok") { Fail "autoteste nao carregou a bandeja: $($result.tray)" }
+if ($result.network.profiles -lt 1) { Fail "autoteste nao leu o tipo de rede (Get-NetConnectionProfile)" }
 
 Write-Host "Atualizando depois de desligar o inicio com o Windows pela bandeja"
 Remove-ItemProperty -Path $RunKey -Name PcXControl

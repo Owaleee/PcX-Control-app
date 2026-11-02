@@ -180,7 +180,7 @@ def test_public_network_warning_when_qr_adapter_is_public(ctx):
     assert "Pública" in PUBLIC_NETWORK_WARNING and "Privada" in PUBLIC_NETWORK_WARNING
 
 
-@pytest.mark.parametrize("category", ["private", "domain", None])
+@pytest.mark.parametrize("category", ["private", None])
 def test_no_warning_for_private_domain_or_unknown(ctx, category):
     controller = make(ctx, category=category)
     assert controller.public_network_warning(controller.start_pairing()) is None
@@ -194,3 +194,12 @@ def test_no_warning_without_adapter_name(ctx):
     )
     assert controller.public_network_warning(controller.start_pairing()) is None
     assert asked == []
+
+
+def test_domain_network_also_warns(ctx):
+    """A regra do firewall vale so no perfil Privado: rede de Dominio tambem bloqueia o celular."""
+    from pcx_agent.controller import DOMAIN_NETWORK_WARNING
+
+    controller = make(ctx, category="domain")
+    assert controller.public_network_warning(controller.start_pairing()) == DOMAIN_NETWORK_WARNING
+    assert "Privada" in DOMAIN_NETWORK_WARNING

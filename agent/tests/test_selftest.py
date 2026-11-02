@@ -55,3 +55,15 @@ def test_tray_check_failure_fails_self_test(tmp_path, monkeypatch):
     out = tmp_path / "r.json"
     assert main(["--demo", "--self-test", str(out)]) == 1
     assert "pystray._win32" in json.loads(out.read_text(encoding="utf-8"))["error"]
+
+
+def test_self_test_reports_network(tmp_path, monkeypatch):
+    """O autoteste do .exe tambem prova a escolha do IP e a leitura do tipo de rede."""
+    from pcx_agent import selftest
+
+    monkeypatch.setattr(selftest, "lan_address", lambda: ("192.168.0.9", "Ethernet"))
+    monkeypatch.setattr(selftest, "read_profiles", lambda: {"Ethernet": "private"})
+    out = tmp_path / "r.json"
+    assert main(["--demo", "--self-test", str(out)]) == 0
+    result = json.loads(out.read_text(encoding="utf-8"))
+    assert result["network"] == {"ip": "192.168.0.9", "interface": "Ethernet", "profiles": 1}

@@ -18,6 +18,10 @@ PUBLIC_NETWORK_WARNING = (
     "A rede deste PC está como Pública: o celular não vai conseguir conectar. "
     "Mude para Privada nas configurações de rede do Windows."
 )
+DOMAIN_NETWORK_WARNING = (
+    "A rede deste PC é de domínio (rede de empresa): a regra do PcX Control vale só para redes "
+    "Privadas, então o celular pode não conseguir conectar."
+)
 MISMATCH_MESSAGE = "As senhas não são iguais."
 SHORT_MESSAGE = f"A senha precisa ter pelo menos {MIN_LENGTH} caracteres."
 
@@ -113,8 +117,12 @@ class AgentController:
         """Aviso quando a placa do QR esta numa rede Publica. Pode demorar: chame fora da UI."""
         if info.interface is None:
             return None
-        if self._category_lookup(info.interface) == "public":
+        # A regra do firewall vale so no perfil Privado: Publica e Dominio bloqueiam o celular.
+        category = self._category_lookup(info.interface)
+        if category == "public":
             return PUBLIC_NETWORK_WARNING
+        if category == "domain":
+            return DOMAIN_NETWORK_WARNING
         return None
 
     def devices(self) -> list[DeviceRow]:

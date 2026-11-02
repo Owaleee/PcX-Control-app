@@ -25,7 +25,14 @@ VIRTUAL_NAMES = (
 )
 VIRTUAL_NETWORKS = tuple(
     ipaddress.ip_network(n)
-    for n in ("26.0.0.0/8", "25.0.0.0/8", "100.64.0.0/10", "169.254.0.0/16", "127.0.0.0/8")
+    for n in (
+        "26.0.0.0/8",  # Radmin VPN
+        "25.0.0.0/8",  # Hamachi
+        "100.64.0.0/10",  # Tailscale (CGNAT)
+        "169.254.0.0/16",  # sem IP do roteador (APIPA)
+        "127.0.0.0/8",
+        "192.168.137.0/24",  # Hotspot movel do Windows (ICS)
+    )
 )
 # Ordem de preferencia entre as faixas privadas quando nao ha dica da rota.
 LAN_NETWORKS = tuple(
@@ -104,6 +111,7 @@ def lan_address() -> tuple[str, str | None]:
 
 def parse_profiles(text: str) -> dict[str, str]:
     """Saida de `Get-NetConnectionProfile | ConvertTo-Json` -> {placa: public|private|domain}."""
+    text = text.lstrip("\ufeff")
     try:
         data = json.loads(text) if text.strip() else []
     except ValueError:
@@ -133,7 +141,7 @@ def read_profiles() -> dict[str, str]:
             command,
             capture_output=True,
             stdin=subprocess.DEVNULL,  # o .exe nao tem console: sem isso o PowerShell pode esperar
-            encoding="utf-8",
+            encoding="utf-8-sig",  # o PowerShell 5.1 pode comecar a saida com um BOM
             errors="replace",
             timeout=PROFILE_TIMEOUT_S,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
