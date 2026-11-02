@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { baseUrl, pair, userMessage } from '../src/api/http';
 import { Body, Button, Field, Message, Screen, Title } from '../src/components/ui';
-import { formatIpInput, normalizeIpv4 } from '../src/protocol/ip';
+import { formatIpInput, normalizeIpv4, portFromAddress } from '../src/protocol/ip';
 import { parsePairingUri } from '../src/protocol/qr';
 import { getPc, savePc } from '../src/storage/storage';
 
@@ -131,7 +131,11 @@ export default function AddPc() {
           <Field
             label="IP do PC"
             value={host}
-            onChangeText={(text) => setHost((previous) => formatIpInput(text, previous))}
+            onChangeText={(text) => {
+              const pastedPort = portFromAddress(text);
+              if (pastedPort) setPort(pastedPort);
+              setHost((previous) => formatIpInput(text, previous));
+            }}
             placeholder="192.168.0.10"
             keyboardType="decimal-pad"
           />

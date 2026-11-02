@@ -120,6 +120,13 @@ test('o campo de IP coloca os pontos sozinho e usa o teclado numerico', async ()
   expect(screen.getByLabelText('IP do PC').props.value).toBe('192.168');
 });
 
+test('colar IP com porta preenche os dois campos', async () => {
+  await openManual();
+  await fireEvent.changeText(screen.getByLabelText('IP do PC'), '192.168.18.22:9000');
+  expect(screen.getByLabelText('IP do PC').props.value).toBe('192.168.18.22');
+  expect(screen.getByLabelText('Porta').props.value).toBe('9000');
+});
+
 test('IP invalido mostra erro sem chamar a rede', async () => {
   await openManual();
   await fillManual('192.168.0');
