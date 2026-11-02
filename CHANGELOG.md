@@ -14,6 +14,22 @@ conversam pelo **protocolo**, versionado à parte (hoje: `protocol: 1`).
 ### Planejado
 - Versão `1.0.0` (agente e app): lançamento público, com README e GIF do modo painel.
 
+## [agente 0.4.0] - 2026-11-02
+
+Rede e diagnóstico, a partir do primeiro teste em outro PC. Compatível com o app 0.2.0 ou mais
+novo (protocolo 1).
+
+### Adicionado
+- **Aviso de rede Pública** na janela de pareamento e no assistente, com o botão "Abrir
+  configurações de rede". A checagem roda em segundo plano e não trava a janela.
+- **Log de atividade:** cada tentativa de pareamento (IP do celular, QR ou senha, resultado) e
+  cada conexão, recusa por PC ocupado, sessão assumida e desconexão. Sem senha, código ou token.
+
+### Corrigido
+- O QR podia levar o IP de uma VPN (como a Radmin) ou de uma placa virtual, que o celular nunca
+  alcança. Agora o agente escolhe a placa da rede local e ignora VPNs (Radmin, Hamachi, ZeroTier,
+  Tailscale, WireGuard, OpenVPN) e placas virtuais (Hyper-V, WSL, VirtualBox, VMware).
+
 ## [app 0.3.0] - 2026-11-02
 
 Compatível com o agente 0.2.0 ou mais novo (protocolo 1).
@@ -23,6 +39,13 @@ Compatível com o agente 0.2.0 ou mais novo (protocolo 1).
   temperatura. Antes a temperatura tinha um cartão próprio e a VRAM não aparecia.
 - Tocar no cartão da GPU (no modo painel ou no painel em retrato) abre o **histórico da GPU**:
   uso, VRAM e temperatura no mesmo intervalo (15 min, 1 h ou 24 h), com média e máximo de cada.
+- Campo de IP com **pontos automáticos** e teclado numérico: o ponto entra sozinho quando o
+  bloco está completo; ponto, vírgula ou espaço fecham um bloco curto. Colar um IP com zeros à
+  esquerda ou vírgulas também funciona.
+
+### Mudado
+- "PC não encontrado" agora também lembra de conferir se a rede do PC está como Privada no
+  Windows.
 
 ## [agente 0.3.0] - 2026-11-02
 

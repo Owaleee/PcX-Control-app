@@ -183,3 +183,23 @@ Documentos de origem: o [spec](specs/2026-10-30-pcx-control-v1-design.md) (§3, 
 - Teste de fumaça na CI do Windows: instala em silêncio, confere a regra de firewall e o início
   com o Windows, roda o `--self-test` no executável e desinstala.
 - Falta o roteiro manual "Instalador e bandeja" no PC: [teste manual](teste-manual-app.md).
+
+---
+
+# Agente 0.4.0 e app 0.3.0 (Plano 4)
+
+Documento de origem: o [plano 4](plans/2026-11-02-plano-4-rede-e-ip.md). Motivo: no primeiro
+teste em outro PC (Windows 10 com Ethernet e Radmin VPN), o agente estava aberto e a regra de
+firewall existia, mas o celular não chegava ao PC, e nem o log nem a janela ajudavam a entender.
+
+## Decisões
+
+| Decisão | Por quê |
+| --- | --- |
+| O IP do QR vem da placa da rede local, não da rota padrão | Uma VPN pode virar a rota padrão; o celular nunca alcança esse IP. Sem placa local, o agente volta a usar a rota padrão, como antes. |
+| VPNs e placas virtuais reconhecidas por nome e por faixa de IP | Radmin usa `26.x`, Hamachi `25.x`, Tailscale `100.64/10`; os nomes cobrem as que usam faixas privadas (ZeroTier, Hyper-V, WSL, VirtualBox). |
+| Tipo da rede lido pelo `Get-NetConnectionProfile`, numa thread | É a fonte oficial do Windows, mas leva cerca de 1 s; a janela abre na hora e o aviso aparece depois. Qualquer falha esconde o aviso em vez de travar. |
+| A faixa de aviso encolhe o QR | Mantém o endereço do PC e os botões visíveis sem aumentar a janela (que já tem 720 px no assistente). |
+| Uma linha de log por tentativa de pareamento e por evento de conexão | Responde na hora "o celular chegou ao PC?". O nome do aparelho vai com `repr`, então nunca quebra a linha. |
+| Mensagem de "PC não encontrado" estendida | O spec fixava o texto; a nova versão acrescenta a dica de rede Privada, a causa mais comum no Windows. |
+| Pontos automáticos no IP, com separador para blocos curtos | Um IP só com dígitos é ambíguo (`1921681822`); o ponto automático entra quando o bloco não aceita mais dígitos, e `.`, `,` ou espaço fecham blocos curtos. |
