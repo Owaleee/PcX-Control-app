@@ -86,19 +86,20 @@ describe('painel', () => {
     expect(screen.getByText('18%')).toBeTruthy();
     expect(screen.getByText('81%')).toBeTruthy();
     expect(screen.getByText('14,0 / 31,9 GiB · 17,9 GiB livres')).toBeTruthy();
-    expect(screen.getByText('NVIDIA GeForce RTX 3070')).toBeTruthy();
-    expect(screen.getByText('VRAM 2,5 / 7,8 GiB · 49 °C')).toBeTruthy();
+    expect(screen.getByText('GPU · NVIDIA GeForce RTX 3070')).toBeTruthy();
+    expect(screen.getByText('VRAM usada 2,5 / 7,8 GiB · Temperatura 49 °C')).toBeTruthy();
     expect(screen.getByText('Disco C:\\')).toBeTruthy();
     expect(screen.getByText('Disco E:\\')).toBeTruthy();
     expect(screen.getByText('↓ 4,0 KB/s  ↑ 0,4 KB/s')).toBeTruthy();
+    expect(screen.getByText('↓ recebendo (download) · ↑ enviando (upload)')).toBeTruthy();
   });
 
-  test('sem temperatura nao mostra graus', async () => {
+  test('sem temperatura mostra indisponivel, sem graus', async () => {
     const snap = fx.clone(fx.snapshotMessage);
     snap.data.gpus[0].temp_c = null;
     setConnection(connected, snap);
     await renderWith(<Panel />);
-    expect(screen.getByText('VRAM 2,5 / 7,8 GiB')).toBeTruthy();
+    expect(screen.getByText('VRAM usada 2,5 / 7,8 GiB · Temperatura indisponível')).toBeTruthy();
     expect(screen.queryByText(/°C/)).toBeNull();
   });
 
@@ -156,7 +157,7 @@ describe('painel', () => {
     expect(routerMock.push).toHaveBeenCalledWith('/pc/a1/panel');
     await fireEvent.press(screen.getByText('CPU'));
     expect(routerMock.push).toHaveBeenCalledWith('/pc/a1/metric/cpu.total');
-    await fireEvent.press(screen.getByText('NVIDIA GeForce RTX 3070'));
+    await fireEvent.press(screen.getByText('GPU · NVIDIA GeForce RTX 3070'));
     expect(routerMock.push).toHaveBeenCalledWith('/pc/a1/gpu');
   });
 });

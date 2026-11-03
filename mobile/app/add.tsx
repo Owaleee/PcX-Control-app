@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { Stack, router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { baseUrl, pair, userMessage } from '../src/api/http';
 import { Body, Button, Field, Message, Screen, Title } from '../src/components/ui';
@@ -16,6 +16,7 @@ type Target = { host: string; port: number };
 type Credentials = { code: string } | { password: string };
 
 export default function AddPc() {
+  const window = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<'qr' | 'manual'>('qr');
   const [host, setHost] = useState('');
@@ -98,6 +99,9 @@ export default function AddPc() {
     void connect({ host: ip, port: portNumber }, { password });
   }
 
+  // Com o celular deitado, um quadrado da largura da tela ficaria maior que a tela.
+  const cameraMax = Math.round(window.height * 0.6);
+
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Adicionar PC' }} />
@@ -106,7 +110,7 @@ export default function AddPc() {
           <Title>Escaneie o QR code</Title>
           <Body>No PC, abra o PcX Control e escolha “Parear celular”. Aponte a câmera para o código.</Body>
           {permission?.granted ? (
-            <View style={styles.camera}>
+            <View testID="camera-box" style={[styles.camera, { maxWidth: cameraMax }]}>
               <CameraView
                 style={StyleSheet.absoluteFill}
                 facing="back"
@@ -152,5 +156,5 @@ export default function AddPc() {
 }
 
 const styles = StyleSheet.create({
-  camera: { width: '100%', aspectRatio: 1, borderRadius: 16, overflow: 'hidden' },
+  camera: { width: '100%', aspectRatio: 1, alignSelf: 'center', borderRadius: 16, overflow: 'hidden' },
 });

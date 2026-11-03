@@ -1,26 +1,44 @@
 // Pecas basicas de interface, sempre no tema atual.
-import type { ReactNode } from 'react';
+import { Children, type ReactNode } from 'react';
 import {
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type TextInputProps,
 } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
 
-export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
+/** A partir desta largura (celular deitado, tablet) cabem duas colunas de cartoes. */
+export const WIDE_MIN_WIDTH = 700;
+
+export function useWide(): boolean {
+  return useWindowDimensions().width >= WIDE_MIN_WIDTH;
+}
+
+export function Screen({
+  children,
+  scroll = true,
+  wide = false,
+}: {
+  children: ReactNode;
+  scroll?: boolean;
+  /** Tela com cartoes em grade: usa mais da largura em telas grandes. */
+  wide?: boolean;
+}) {
   const { theme } = useTheme();
+  const content = [styles.content, wide ? styles.contentWide : null];
   if (!scroll) {
-    return <View style={[styles.screen, styles.content, { backgroundColor: theme.background }]}>{children}</View>;
+    return <View style={[styles.screen, ...content, { backgroundColor: theme.background }]}>{children}</View>;
   }
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: theme.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={content}
       keyboardShouldPersistTaps="handled"
     >
       {children}
@@ -88,6 +106,21 @@ export function Message({ text, tone = 'error' }: { text: string | null; tone?: 
   );
 }
 
+/** Cartoes um embaixo do outro; em tela larga, em duas colunas. */
+export function CardGrid({ children }: { children: ReactNode }) {
+  const wide = useWide();
+  if (!wide) return <>{children}</>;
+  return (
+    <View testID="card-grid" style={styles.grid}>
+      {Children.toArray(children).map((child, index) => (
+        <View key={index} style={styles.cell}>
+          {child}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function Title({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
   return <Text style={[styles.title, { color: theme.text }]}>{children}</Text>;
@@ -101,6 +134,9 @@ export function Body({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: 20, gap: 14, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  contentWide: { maxWidth: 1100 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  cell: { flexBasis: '45%', flexGrow: 1 },
   button: { borderRadius: 12, borderWidth: 1, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' },
   link: { paddingVertical: 8 },
   buttonText: { fontSize: 16, fontWeight: '600' },

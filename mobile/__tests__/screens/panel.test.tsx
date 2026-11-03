@@ -57,26 +57,35 @@ test('trava em paisagem, mantem a tela ligada e libera ao sair', async () => {
   expect(orientation.unlockAsync).toHaveBeenCalled();
 });
 
-test('mostra os medidores principais', async () => {
+test('cada cartao diz o que o numero indica', async () => {
   await render(<PanelMode />);
   expect(screen.getByText('CPU')).toBeTruthy();
+  expect(screen.getByText(' · uso total')).toBeTruthy();
   expect(screen.getByText('13%')).toBeTruthy();
-  expect(screen.getByText('14,0 / 31,9 GiB · 17,9 GiB livres')).toBeTruthy();
-  expect(screen.getByText('GPU')).toBeTruthy();
-  expect(screen.getByText('RAM')).toBeTruthy();
-  expect(screen.getByText('RAM')).toBeTruthy();
+  expect(screen.getByText('Memória RAM')).toBeTruthy();
+  expect(screen.getByText(' · em uso')).toBeTruthy();
+  expect(screen.getByText('Usada / total')).toBeTruthy();
+  expect(screen.getByText('14,0 / 31,9 GiB')).toBeTruthy();
+  expect(screen.getByText('Livre')).toBeTruthy();
+  expect(screen.getByText('17,9 GiB')).toBeTruthy();
+  expect(screen.getByText('Rede')).toBeTruthy();
+  expect(screen.getByText(' · download (recebendo)')).toBeTruthy();
   expect(screen.getByText('↓ 4,0 KB/s')).toBeTruthy();
+  expect(screen.getByText('Upload (enviando)')).toBeTruthy();
   expect(screen.getByText('↑ 0,4 KB/s')).toBeTruthy();
 });
 
-test('um cartao so de GPU com uso, VRAM e temperatura', async () => {
+test('um cartao so de GPU com o nome inteiro da placa, uso, VRAM e temperatura', async () => {
   await render(<PanelMode />);
-  const card = screen.getByTestId('gpu-card');
-  expect(screen.queryByText('Temperatura GPU')).toBeNull();
-  expect(card).toBeTruthy();
+  expect(screen.getByTestId('gpu-card')).toBeTruthy();
+  expect(screen.getByText('GPU')).toBeTruthy();
+  expect(screen.getByText(' · uso')).toBeTruthy();
+  expect(screen.getByTestId('gpu-card-subtitle').props.children).toBe(fx.snapshotMessage.data.gpus[0].name);
   expect(screen.getByText('18%')).toBeTruthy();
-  expect(screen.getByText('VRAM 2,5 / 7,8 GiB · 32%')).toBeTruthy();
-  expect(screen.getByText('Temperatura 49 °C')).toBeTruthy();
+  expect(screen.getByText('VRAM usada')).toBeTruthy();
+  expect(screen.getByText('2,5 / 7,8 GiB · 32%')).toBeTruthy();
+  expect(screen.getByText('Temperatura')).toBeTruthy();
+  expect(screen.getByText('49 °C')).toBeTruthy();
 });
 
 test('tocar no cartao da GPU abre o grafico com uso, VRAM e temperatura', async () => {
@@ -86,11 +95,12 @@ test('tocar no cartao da GPU abre o grafico com uso, VRAM e temperatura', async 
   expect(screen.queryByText('Sair')).toBeNull();
 });
 
-test('sem a capacidade gpu.temp o cartao da GPU nao mostra temperatura', async () => {
+test('sem a capacidade gpu.temp a temperatura aparece como indisponivel', async () => {
   setup({ capabilities: ['cpu', 'ram', 'disk', 'net', 'gpu'] });
   await render(<PanelMode />);
-  expect(screen.queryByText(/Temperatura/)).toBeNull();
-  expect(screen.getByText('VRAM 2,5 / 7,8 GiB · 32%')).toBeTruthy();
+  expect(screen.getByText('Temperatura')).toBeTruthy();
+  expect(screen.getByText('indisponível')).toBeTruthy();
+  expect(screen.getByText('2,5 / 7,8 GiB · 32%')).toBeTruthy();
 });
 
 test('sem VRAM informada o cartao mostra so o que existe', async () => {
@@ -104,13 +114,35 @@ test('sem VRAM informada o cartao mostra so o que existe', async () => {
   });
   await render(<PanelMode />);
   expect(screen.queryByText(/VRAM/)).toBeNull();
-  expect(screen.getByText('Temperatura 49 °C')).toBeTruthy();
+  expect(screen.getByText('49 °C')).toBeTruthy();
 });
 
-test('temperatura nula tambem esconde o medidor', async () => {
+test('temperatura nula tambem aparece como indisponivel', async () => {
   setup({ temp: null });
   await render(<PanelMode />);
-  expect(screen.queryByText(/Temperatura/)).toBeNull();
+  expect(screen.getByText('indisponível')).toBeTruthy();
+});
+
+test('num celular baixo o numero da GPU diminui para caber no cartao', async () => {
+  await render(<PanelMode />);
+  const card = screen.getByTestId('gpu-card');
+  const size = () => StyleSheet.flatten(screen.getByTestId('gpu-card-value').props.style).fontSize;
+  await act(async () => card.props.onLayout({ nativeEvent: { layout: { width: 360, height: 160 } } }));
+  // Com a fonte do sistema no limite (115%), titulo, nome, barra e dados ocupam ~133 px
+  expect(size() * 1.2 + 133).toBeLessThanOrEqual(160);
+  // O nome da placa continua legivel (16 com a fonte do sistema a 115%)
+  expect(StyleSheet.flatten(screen.getByTestId('gpu-card-subtitle').props.style).fontSize).toBe(18);
+});
+
+test('todos os cartoes do painel usam o mesmo tamanho de numero', async () => {
+  await render(<PanelMode />);
+  const ids = ['cpu', 'gpu-card', 'ram', 'net'];
+  for (const id of ids) {
+    const card = screen.getByTestId(id);
+    await act(async () => card.props.onLayout({ nativeEvent: { layout: { width: 380, height: 180 } } }));
+  }
+  const sizes = ids.map((id) => StyleSheet.flatten(screen.getByTestId(`${id}-value`).props.style).fontSize);
+  expect(new Set(sizes).size).toBe(1);
 });
 
 test('um toque mostra os controles por 3 s', async () => {
@@ -174,7 +206,6 @@ test('sem conexao os medidores esmaecem e o aviso anda junto com o painel', asyn
     capabilities: fx.hello.capabilities,
   });
   await render(<PanelMode />);
-  const grid = screen.getByTestId('panel-grid');
   expect(StyleSheet.flatten(screen.getByTestId('panel-gauges').props.style).opacity).toBe(0.5);
   expect(screen.getByText('Reconectando…')).toBeTruthy();
   // O aviso fica dentro do bloco deslocado (protecao contra burn-in).
