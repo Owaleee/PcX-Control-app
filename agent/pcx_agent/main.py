@@ -16,6 +16,7 @@ from pcx_agent import __version__
 from pcx_agent.api.app import build_context
 from pcx_agent.config import DEFAULT_PORT, default_data_dir, load_settings
 from pcx_agent.controller import NO_NETWORK_WARNING
+from pcx_agent.crashlog import install_crash_logging, log_startup
 from pcx_agent.logs import setup_logging
 from pcx_agent.network import lan_address
 from pcx_agent.pairing_uri import pairing_uri, print_pairing
@@ -69,6 +70,8 @@ def run_console(args) -> int:
         data_dir = Path(tempfile.mkdtemp(prefix="pcx-demo-"))
     data_dir = Path(data_dir) if data_dir is not None else default_data_dir()
     setup_logging(data_dir / "logs", console=True)
+    install_crash_logging(data_dir / "logs")
+    log_startup()
     settings = load_settings(data_dir=data_dir, port=args.port)
     ctx = build_context(settings, _provider(args.demo))
     try:
@@ -112,6 +115,8 @@ def run_tray(args) -> int:
 
     data_dir = Path(args.data_dir) if args.data_dir is not None else default_data_dir()
     setup_logging(data_dir / "logs")
+    install_crash_logging(data_dir / "logs")
+    log_startup()
     settings = load_settings(data_dir=data_dir, port=args.port)
     lock = acquire_single_instance(settings.data_dir)
     if lock is None:

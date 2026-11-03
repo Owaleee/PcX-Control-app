@@ -18,6 +18,7 @@ from pcx_agent.auth.pairing import Device, PairError, PairingService
 from pcx_agent.auth.passwords import PasswordService
 from pcx_agent.auth.ratelimit import RateLimiter
 from pcx_agent.config import Settings
+from pcx_agent.crashlog import asyncio_exception_handler
 from pcx_agent.sampler import Sampler
 from pcx_agent.sensors.base import METRIC_NAMES, SensorProvider
 from pcx_agent.session import SessionManager
@@ -137,6 +138,8 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        # Erro que escapa de uma tarefa do servidor vai para o agent.log com o traceback.
+        asyncio.get_running_loop().set_exception_handler(asyncio_exception_handler)
         task = asyncio.create_task(ctx.sampler.run()) if run_sampler else None
         yield
         if task is not None:
