@@ -82,13 +82,13 @@ export default function PcPanel() {
           {data.gpus.map((g, index) => {
             const vram =
               g.vram_used_bytes !== null && g.vram_total_bytes
-                ? `VRAM ${formatUsage(g.vram_used_bytes, g.vram_total_bytes)}`
+                ? `VRAM usada ${formatUsage(g.vram_used_bytes, g.vram_total_bytes)}`
                 : null;
-            const temp = g.temp_c !== null ? formatTemp(g.temp_c) : null;
+            const temp = `Temperatura ${g.temp_c !== null ? formatTemp(g.temp_c) : 'indisponível'}`;
             return (
               <MetricCard
                 key={g.id}
-                title={g.name}
+                title={`GPU · ${g.name}`}
                 value={percent(g.usage_percent)}
                 percent={g.usage_percent}
                 detail={[vram, temp].filter(Boolean).join(' · ') || undefined}
@@ -101,6 +101,7 @@ export default function PcPanel() {
           <MetricCard
             title="Rede"
             value={`↓ ${formatRate(data.net_down_bps)}  ↑ ${formatRate(data.net_up_bps)}`}
+            detail="↓ recebendo (download) · ↑ enviando (upload)"
             history={net}
             historyMax={metricScale('net.down_bps', net.map((p) => p.v))}
             stale={stale}

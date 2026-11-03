@@ -1,7 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { AppState, type AppStateStatus } from 'react-native';
 
-import type { ConnState } from '../../src/connection/ConnectionManager';
 import { usePcConnection } from '../../src/hooks/usePcConnection';
 import { appendWindow, useMetricHistory } from '../../src/hooks/useMetricHistory';
 import type { SavedPc } from '../../src/storage/storage';

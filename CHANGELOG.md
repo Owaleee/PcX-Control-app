@@ -14,6 +14,26 @@ conversam pelo **protocolo**, versionado à parte (hoje: `protocol: 1`).
 ### Planejado
 - Versão `1.0.0` (agente e app): lançamento público, com README e GIF do modo painel.
 
+## [app 0.3.1] - 2026-11-02
+
+Correção do modo painel. Compatível com o agente 0.2.0 ou mais novo (protocolo 1); não precisa
+atualizar o agente.
+
+### Corrigido
+- O cartão da GPU vazava do modo painel em celulares com tela baixa: o título "GPU" e a
+  temperatura ficavam fora do cartão. Agora o número grande se ajusta à altura de cada cartão.
+
+### Mudado
+- Cada cartão do modo painel diz o que o número indica ("CPU · uso total", "GPU · uso",
+  "Memória RAM · em uso", "Rede · download") e os dados de baixo têm nome ("VRAM usada",
+  "Temperatura", "Usada / total", "Livre", "Upload").
+- O cartão da GPU mostra o nome inteiro da placa numa linha própria; num nome longo a letra
+  diminui em vez de cortar.
+- Sem leitura de temperatura, a GPU mostra "Temperatura: indisponível" em vez de esconder o dado,
+  no modo painel e na tela do PC.
+- Na tela do PC, o cartão da GPU começa com "GPU ·" e o da rede explica as setas (↓ recebendo,
+  ↑ enviando).
+
 ## [agente 0.4.0] - 2026-11-02
 
 Rede e diagnóstico, a partir do primeiro teste em outro PC. Compatível com o app 0.2.0 ou mais

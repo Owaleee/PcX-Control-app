@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react-native';
+import { act, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { Gauge } from '../../src/components/Gauge';
+import { Gauge, valueFontSize } from '../../src/components/Gauge';
 import { MetricCard } from '../../src/components/MetricCard';
 import { Sparkline, sparklinePath } from '../../src/components/Sparkline';
 import { StatusPill, statusLabel } from '../../src/components/StatusPill';
@@ -68,11 +68,55 @@ test('MetricCard sem percentual nao mostra barra', async () => {
   expect(screen.queryByRole('progressbar')).toBeNull();
 });
 
-test('Gauge mostra rotulo e valor', async () => {
-  await render(<Gauge label="GPU" value="17,9%" percent={17.98} detail="49 °C" />);
+test('Gauge mostra o nome, o que o numero indica e os dados com rotulo', async () => {
+  await render(
+    <Gauge
+      testID="g"
+      label="GPU"
+      caption="uso"
+      subtitle="NVIDIA GeForce RTX 4070 Ti SUPER"
+      value="17,9%"
+      percent={17.98}
+      stats={[{ label: 'Temperatura', value: '49 °C' }]}
+    />,
+  );
   expect(screen.getByText('GPU')).toBeTruthy();
+  expect(screen.getByText(' · uso')).toBeTruthy();
   expect(screen.getByText('17,9%')).toBeTruthy();
+  expect(screen.getByText('Temperatura')).toBeTruthy();
   expect(screen.getByText('49 °C')).toBeTruthy();
+  // O nome da placa aparece inteiro: a letra diminui, mas nunca vira "..."
+  const name = screen.getByTestId('g-subtitle');
+  expect(name.props.children).toBe('NVIDIA GeForce RTX 4070 Ti SUPER');
+  expect(name.props.adjustsFontSizeToFit).toBe(true);
+  expect(name.props.ellipsizeMode).toBe('clip');
+});
+
+test('Gauge diminui o numero grande para caber num cartao baixo', async () => {
+  await render(<Gauge testID="g" label="GPU" subtitle="RX 7600" value="16%" percent={16} stats={[{ label: 'VRAM', value: '1 GiB' }]} />);
+  const box = screen.getByTestId('g');
+  const size = () => StyleSheet.flatten(screen.getByTestId('g-value').props.style).fontSize;
+  expect(size()).toBe(56);
+  await act(async () => box.props.onLayout({ nativeEvent: { layout: { width: 380, height: 150 } } }));
+  expect(size()).toBeLessThan(56);
+});
+
+test.each([
+  // [altura do cartao, barra, dados, nome] -> o conteudo cabe na altura
+  [160, true, true, true],
+  [150, true, true, true],
+  [150, true, true, false],
+  [110, true, false, false],
+  [300, true, true, true],
+])('valueFontSize: cartao de %ipx com tudo dentro', (height, bar, stats, subtitle) => {
+  const size = valueFontSize(height, { bar, stats, subtitle });
+  // padding 12+12, titulo 22, nome 18, barra 8, dados 32, espaco de 4 entre cada um
+  let used = 24 + 22 + 4 + size * 1.2;
+  if (subtitle) used += 18 + 4;
+  if (bar) used += 8 + 4;
+  if (stats) used += 32 + 4;
+  expect(size).toBeGreaterThanOrEqual(24);
+  expect(used).toBeLessThanOrEqual(height);
 });
 
 const hello = fx.clone(fx.hello);
