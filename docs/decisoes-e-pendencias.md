@@ -234,6 +234,16 @@ comportamento além das mudanças intencionais. Corrigidos, cada um com um teste
 6. Digitar `010` num bloco deslocava os blocos seguintes.
 7. O campo de IP dos ajustes do PC não tinha os pontos automáticos.
 
+## Teste em placa AMD (antes do lançamento)
+
+Num PC com Radeon RX 7600, o app mostrava 70% de uso e o Gerenciador de Tarefas, 2%. A leitura
+do contador `GPU Engine` mostrou a origem: o motor `video codec 0`, usado pelo `AMDRSServ.exe`
+(gravação em segundo plano do Radeon), estava em 70%, e o de computação em 1,9%. O agente pegava
+o motor mais ocupado de todos. Agora os motores de vídeo (codificação e decodificação) ficam de
+fora, e o uso sai do motor mais ocupado entre os que sobram. A amostra real virou teste
+(`tests/data/pdh_rx7600_instant_replay.json`). A temperatura em placas AMD e Intel fica para o
+agente 0.5.0.
+
 ## Pendências (Plano 4)
 
 - VPN com nome que o agente não reconhece (um WireGuard chamado "casa", um adaptador TAP
