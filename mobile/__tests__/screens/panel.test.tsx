@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import PanelMode from '../../app/pc/[id]/panel';
+import { DEFAULT_LIMITS, type AlertLimits } from '../../src/alerts/levels';
 import { usePc } from '../../src/hooks/PcContext';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import * as fx from '../protocol/fixtures';
@@ -28,7 +29,11 @@ const keepAwake = jest.requireMock('expo-keep-awake') as { useKeepAwake: jest.Mo
 const { THEMES } = jest.requireActual('../../src/theme/themes');
 const setName = jest.fn();
 
-function setup({ capabilities = fx.hello.capabilities as string[], temp = 49 as number | null } = {}) {
+function setup({
+  capabilities = fx.hello.capabilities as string[],
+  temp = 49 as number | null,
+  alerts = DEFAULT_LIMITS as AlertLimits,
+} = {}) {
   const snapshot = fx.clone(fx.snapshotMessage);
   snapshot.data.gpus[0].temp_c = temp;
   (usePc as jest.Mock).mockReturnValue({
@@ -37,7 +42,7 @@ function setup({ capabilities = fx.hello.capabilities as string[], temp = 49 as 
     snapshot,
     capabilities,
   });
-  (useTheme as jest.Mock).mockReturnValue({ theme: THEMES.dark, name: 'dark', setName, precise: false });
+  (useTheme as jest.Mock).mockReturnValue({ theme: THEMES.dark, name: 'dark', setName, precise: false, alerts });
 }
 
 beforeEach(() => {
@@ -223,8 +228,83 @@ test('respeita as areas seguras da tela (recorte da camera e barra de navegacao)
 
 
 test('com numeros precisos, uma casa decimal', async () => {
-  (useTheme as jest.Mock).mockReturnValue({ theme: THEMES.dark, name: 'dark', setName, precise: true });
+  (useTheme as jest.Mock).mockReturnValue({ theme: THEMES.dark, name: 'dark', setName, precise: true, alerts: DEFAULT_LIMITS });
   await render(<PanelMode />);
   expect(screen.getByText('13,0%')).toBeTruthy();
   expect(screen.getByText('43,8%')).toBeTruthy();
+});
+
+describe('cores de alerta', () => {
+  const hot = () => {
+    const snapshot = fx.clone(fx.snapshotMessage);
+    snapshot.data.cpu_total = 50;
+    snapshot.data.ram_percent = 96;
+    snapshot.data.gpus[0].usage_percent = 88;
+    snapshot.data.gpus[0].temp_c = 86;
+    return snapshot;
+  };
+  const show = (alerts: AlertLimits) => {
+    (usePc as jest.Mock).mockReturnValue({
+      pc: { agentId: 'a1', name: 'PC' },
+      state: { kind: 'connected', hello: fx.clone(fx.hello) },
+      snapshot: hot(),
+      capabilities: fx.hello.capabilities,
+    });
+    (useTheme as jest.Mock).mockReturnValue({ theme: THEMES.dark, name: 'dark', setName, precise: false, alerts });
+  };
+  const color = (id: string) => StyleSheet.flatten(screen.getByTestId(`${id}-value`).props.style).color;
+  const border = (id: string) => StyleSheet.flatten(screen.getByTestId(id).props.style).borderColor;
+
+  test('GPU com dois selos, cada um com o proprio nivel, e a borda no mais grave', async () => {
+    show(DEFAULT_LIMITS);
+    await render(<PanelMode />);
+    expect(screen.getByTestId('badge-Uso alto')).toBeTruthy();
+    expect(screen.getByTestId('badge-Temperatura crítica')).toBeTruthy();
+    expect(color('gpu-card')).toBe(THEMES.dark.warning);
+    expect(border('gpu-card')).toBe(THEMES.dark.danger);
+    // Os selos ficam empilhados num bloco so, ao lado do titulo
+    const badges = screen.getByTestId('gpu-card-badges');
+    expect(badges).toContainElement(screen.getByTestId('badge-Uso alto'));
+    expect(badges).toContainElement(screen.getByTestId('badge-Temperatura crítica'));
+  });
+
+  test('RAM critica, CPU normal e rede sem alerta', async () => {
+    show(DEFAULT_LIMITS);
+    await render(<PanelMode />);
+    expect(screen.getByTestId('badge-Uso crítico')).toBeTruthy();
+    expect(color('ram')).toBe(THEMES.dark.danger);
+    expect(color('cpu')).toBe(THEMES.dark.text);
+    expect(border('cpu')).toBe(THEMES.dark.border);
+    expect(color('net')).toBe(THEMES.dark.text);
+  });
+
+  test('chave desligada: nenhuma cor, selo ou borda', async () => {
+    show({ ...DEFAULT_LIMITS, enabled: false });
+    await render(<PanelMode />);
+    expect(screen.queryByTestId(/^badge-/)).toBeNull();
+    for (const id of ['cpu', 'gpu-card', 'ram', 'net']) {
+      expect(color(id)).toBe(THEMES.dark.text);
+      expect(border(id)).toBe(THEMES.dark.border);
+    }
+  });
+
+  test('os limites escolhidos valem', async () => {
+    show({ ...DEFAULT_LIMITS, tempHigh: 90, tempCritical: 100, usageHigh: 90, usageCritical: 99 });
+    await render(<PanelMode />);
+    expect(screen.queryByTestId('badge-Temperatura crítica')).toBeNull();
+    expect(screen.queryByTestId('badge-Temperatura alta')).toBeNull();
+    expect(screen.queryByTestId('badge-Uso alto')).toBeTruthy(); // RAM a 96%
+    expect(color('gpu-card')).toBe(THEMES.dark.text); // 88% abaixo de 90
+  });
+
+  test('com dois selos, o nome da placa ainda cabe e o cartao de 160 px nao vaza', async () => {
+    show(DEFAULT_LIMITS);
+    await render(<PanelMode />);
+    const card = screen.getByTestId('gpu-card');
+    await act(async () => card.props.onLayout({ nativeEvent: { layout: { width: 380, height: 160 } } }));
+    const name = StyleSheet.flatten(screen.getByTestId('gpu-card-subtitle').props.style).fontSize;
+    expect(name).toBeGreaterThanOrEqual(11);
+    const size = StyleSheet.flatten(screen.getByTestId('gpu-card-value').props.style).fontSize;
+    expect(size * 1.2 + 133).toBeLessThanOrEqual(160);
+  });
 });

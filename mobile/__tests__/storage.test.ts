@@ -1,15 +1,18 @@
 import {
+  getAlertLimits,
   getPc,
   getPrecise,
   getTheme,
   listPcs,
   removePc,
   savePc,
+  setAlertLimits,
   setPrecise,
   setTheme,
   updatePc,
   type SavedPc,
 } from '../src/storage/storage';
+import { DEFAULT_LIMITS } from '../src/alerts/levels';
 import { THEME_NAMES } from '../src/theme/names';
 
 jest.mock('expo-secure-store', () => {
@@ -109,4 +112,15 @@ test('numeros precisos vem desligado e persiste', async () => {
   expect(await getPrecise()).toBe(false);
   secure.__store.set('pcx.precise', 'lixo');
   expect(await getPrecise()).toBe(false);
+});
+
+test('limites de alerta persistem e lixo volta ao padrao', async () => {
+  const secure = jest.requireMock('expo-secure-store') as { __store: Map<string, string> };
+  secure.__store.delete('pcx.alerts');
+  expect(await getAlertLimits()).toEqual(DEFAULT_LIMITS);
+  const mine = { enabled: false, usageHigh: 70, usageCritical: 90, tempHigh: 80, tempCritical: 92 };
+  await setAlertLimits(mine);
+  expect(await getAlertLimits()).toEqual(mine);
+  secure.__store.set('pcx.alerts', '{nao e json');
+  expect(await getAlertLimits()).toEqual(DEFAULT_LIMITS);
 });

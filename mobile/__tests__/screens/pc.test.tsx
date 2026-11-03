@@ -7,6 +7,8 @@ import MetricDetail from '../../app/pc/[id]/metric/[metric]';
 import PcSettings from '../../app/pc/[id]/settings';
 import type { ConnState } from '../../src/connection/ConnectionManager';
 import { PcProvider } from '../../src/hooks/PcContext';
+import { ThemeProvider } from '../../src/theme/ThemeProvider';
+import { THEMES } from '../../src/theme/themes';
 import type { SavedPc } from '../../src/storage/storage';
 import * as fx from '../protocol/fixtures';
 import { paramsMock, resetRouter, routerMock } from './mocks';
@@ -18,6 +20,10 @@ jest.mock('../../src/storage/storage', () => ({
   updatePc: jest.fn(async () => undefined),
   getTheme: jest.fn(async () => 'dark'),
   setTheme: jest.fn(),
+  getPrecise: jest.fn(async () => false),
+  setPrecise: jest.fn(),
+  getAlertLimits: jest.fn(async () => jest.requireActual('../../src/alerts/levels').DEFAULT_LIMITS),
+  setAlertLimits: jest.fn(),
 }));
 jest.mock('../../src/hooks/usePcConnection', () => ({ usePcConnection: jest.fn() }));
 jest.mock('../../src/hooks/useMetricHistory', () => ({
@@ -196,14 +202,16 @@ describe('detalhe da GPU', () => {
     }
   });
 
-  test('sem a capacidade gpu.temp nao ha grafico de temperatura', async () => {
+  test('sem a capacidade gpu.temp, o aviso fica no lugar do grafico de temperatura', async () => {
     paramsMock.current = { id: 'a1' };
     const hello = fx.clone(fx.hello);
     hello.capabilities = ['cpu', 'ram', 'disk', 'net', 'gpu'];
     setConnection({ kind: 'connected', hello });
     await renderWith(<GpuDetail />);
     expect(screen.getByText('Uso da GPU')).toBeTruthy();
-    expect(screen.queryByText('Temperatura')).toBeNull();
+    expect(screen.getByText(/Temperatura indisponível nesta placa/)).toBeTruthy();
+    const history = jest.requireMock('../../src/hooks/useMetricHistory').useMetricHistory as jest.Mock;
+    expect(history.mock.calls.map((call) => call[1])).not.toContain('gpu.temp');
   });
 });
 
@@ -302,4 +310,52 @@ test('o painel recarrega o PC salvo depois de um ajuste (apelido aparece na hora
   await fireEvent.press(screen.getByText('Salvar apelido'));
   await act(async () => undefined);
   expect(storage.getPc!.mock.calls.length).toBe(before + 1);
+});
+
+
+describe('cores de alerta na tela do PC', () => {
+  const hot = () => {
+    const snap = fx.clone(fx.snapshotMessage);
+    snap.data.cpu_total = 10;
+    snap.data.ram_percent = 96;
+    snap.data.gpus[0].usage_percent = 88;
+    snap.data.gpus[0].temp_c = 76;
+    snap.data.disks[0]!.percent = 97;
+    return snap;
+  };
+
+  test('GPU com os dois selos, RAM e disco criticos, CPU normal', async () => {
+    setConnection(connected, hot());
+    await renderWith(<Panel />);
+    expect(screen.getByTestId('badge-Uso alto')).toBeTruthy();
+    expect(screen.getByTestId('badge-Temperatura alta')).toBeTruthy();
+    expect(screen.getAllByTestId('badge-Uso crítico')).toHaveLength(2); // RAM e disco
+    expect(screen.getByText('88%').props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ color: THEMES.dark.warning })]),
+    );
+    expect(screen.getByText('10%').props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ color: THEMES.dark.text })]),
+    );
+  });
+
+  test('chave desligada: a tela do PC fica sem selos nem cores', async () => {
+    storage.getAlertLimits!.mockImplementationOnce(async () => ({
+      ...jest.requireActual('../../src/alerts/levels').DEFAULT_LIMITS,
+      enabled: false,
+    }));
+    setConnection(connected, hot());
+    await render(
+      <ThemeProvider>
+        <PcProvider agentId="a1">
+          <Panel />
+        </PcProvider>
+      </ThemeProvider>,
+    );
+    await waitFor(() => expect(storage.getAlertLimits).toHaveBeenCalled());
+    await act(async () => undefined);
+    await waitFor(() => expect(screen.queryByTestId(/^badge-/)).toBeNull());
+    expect(screen.getByText('88%').props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ color: THEMES.dark.text })]),
+    );
+  });
 });

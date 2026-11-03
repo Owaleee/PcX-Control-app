@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { type LayoutChangeEvent, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { type AlertBadge, type AlertLevel, worst } from '../alerts/levels';
 import { useTheme } from '../theme/ThemeProvider';
+import { AlertBadgeView, BADGE_GAP, badgesWidth, levelColor } from './AlertBadge';
 
 /** Um dado extra do cartao, sempre com o nome do que mostra (ex.: "VRAM" e "3,3 / 7,8 GiB"). */
-export type GaugeStat = { label: string; value: string };
+export type GaugeStat = { label: string; value: string; level?: AlertLevel };
 
 /** O que um cartao tem alem do titulo e do numero: define quanto sobra para o numero. */
 export type GaugeLayout = { bar: boolean; stats: boolean; subtitle?: boolean };
@@ -24,6 +26,10 @@ type Props = {
    * o do cartao mais cheio, para os numeros ficarem do mesmo tamanho.
    */
   layoutAs?: GaugeLayout;
+  /** Nivel do numero grande e da barra (cores de alerta). */
+  level?: AlertLevel;
+  /** Selos no canto, empilhados (a GPU pode ter "Uso" e "Temperatura"). */
+  badges?: AlertBadge[];
   onPress?: () => void;
   testID?: string;
 };
@@ -82,7 +88,19 @@ export function subtitleFontSize(width: number, text: string, scale = 1): number
 }
 
 /** Indicador grande do modo painel. Com `onPress`, o cartao abre um detalhe. */
-export function Gauge({ label, caption, subtitle, value, percent, stats = [], layoutAs, onPress, testID }: Props) {
+export function Gauge({
+  label,
+  caption,
+  subtitle,
+  value,
+  percent,
+  stats = [],
+  layoutAs,
+  level = 'normal',
+  badges = [],
+  onPress,
+  testID,
+}: Props) {
   const { theme } = useTheme();
   const scale = Math.min(FONT_SCALE_CAP, Math.max(1, useWindowDimensions().fontScale || 1));
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -93,38 +111,59 @@ export function Gauge({ label, caption, subtitle, value, percent, stats = [], la
     const { width, height: h } = event.nativeEvent.layout;
     setSize({ width, height: h });
   };
-  const subtitleSize = subtitleFontSize(size.width, subtitle ?? '', scale);
+  // Os selos ficam ao lado do titulo e do nome: o nome tem a largura que sobra.
+  const badgeColumn = badgesWidth(badges);
+  const subtitleSize = subtitleFontSize(size.width - (badgeColumn ? badgeColumn + 8 : 0), subtitle ?? '', scale);
+  const valueColor = levelColor(theme, level) ?? theme.text;
+  const border = worst(level, ...badges.map((b) => b.level), ...stats.map((s) => s.level ?? 'normal'));
+  const borderColor = levelColor(theme, border);
   const fixedHeight = (base: number) => Math.ceil(base * scale);
-  const box = [styles.box, { backgroundColor: theme.surface, borderColor: theme.border }];
+  const box = [
+    styles.box,
+    borderColor
+      ? { backgroundColor: theme.surface, borderColor, borderWidth: 2, padding: PADDING - 1 }
+      : { backgroundColor: theme.surface, borderColor: theme.border },
+  ];
   const content = (
     <>
-      <Text
-        style={[styles.header, { height: fixedHeight(HEADER), lineHeight: fixedHeight(HEADER) }]}
-        numberOfLines={1}
-        maxFontSizeMultiplier={FONT_SCALE_CAP}
-      >
-        <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-        {caption ? <Text style={[styles.caption, { color: theme.textMuted }]}>{` · ${caption}`}</Text> : null}
-      </Text>
-      {subtitle !== undefined ? (
-        <Text
-          testID={testID ? `${testID}-subtitle` : undefined}
-          style={{
-            color: theme.textMuted,
-            fontSize: subtitleSize,
-            height: fixedHeight(SUBTITLE),
-            lineHeight: fixedHeight(SUBTITLE),
-          }}
-          numberOfLines={1}
-          ellipsizeMode="clip"
-          allowFontScaling={false}
-        >
-          {subtitle}
-        </Text>
-      ) : null}
+      <View style={styles.top}>
+        <View style={styles.titles}>
+          <Text
+            style={[styles.header, { height: fixedHeight(HEADER), lineHeight: fixedHeight(HEADER) }]}
+            numberOfLines={1}
+            maxFontSizeMultiplier={FONT_SCALE_CAP}
+          >
+            <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
+            {caption ? <Text style={[styles.caption, { color: theme.textMuted }]}>{` · ${caption}`}</Text> : null}
+          </Text>
+          {subtitle !== undefined ? (
+            <Text
+              testID={testID ? `${testID}-subtitle` : undefined}
+              style={{
+                color: theme.textMuted,
+                fontSize: subtitleSize,
+                height: fixedHeight(SUBTITLE),
+                lineHeight: fixedHeight(SUBTITLE),
+              }}
+              numberOfLines={1}
+              ellipsizeMode="clip"
+              allowFontScaling={false}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        {badges.length > 0 ? (
+          <View testID={testID ? `${testID}-badges` : undefined} style={styles.badges}>
+            {badges.map((badge) => (
+              <AlertBadgeView key={badge.label} badge={badge} />
+            ))}
+          </View>
+        ) : null}
+      </View>
       <Text
         testID={testID ? `${testID}-value` : undefined}
-        style={[styles.value, { color: theme.text, fontSize, lineHeight: Math.round(fontSize * 1.2) }]}
+        style={[styles.value, { color: valueColor, fontSize, lineHeight: Math.round(fontSize * 1.2) }]}
         numberOfLines={1}
         allowFontScaling={false}
       >
@@ -132,7 +171,7 @@ export function Gauge({ label, caption, subtitle, value, percent, stats = [], la
       </Text>
       {safe !== undefined ? (
         <View style={[styles.track, { backgroundColor: theme.track }]}>
-          <View style={[styles.fill, { width: `${safe}%`, backgroundColor: theme.accent }]} />
+          <View style={[styles.fill, { width: `${safe}%`, backgroundColor: levelColor(theme, level) ?? theme.accent }]} />
         </View>
       ) : null}
       {stats.length > 0 ? (
@@ -147,7 +186,10 @@ export function Gauge({ label, caption, subtitle, value, percent, stats = [], la
                 {stat.label}
               </Text>
               <Text
-                style={[styles.statValue, { color: theme.text, lineHeight: fixedHeight(18) }]}
+                style={[
+                  styles.statValue,
+                  { color: levelColor(theme, stat.level ?? 'normal') ?? theme.text, lineHeight: fixedHeight(18) },
+                ]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 maxFontSizeMultiplier={FONT_SCALE_CAP}
@@ -160,7 +202,11 @@ export function Gauge({ label, caption, subtitle, value, percent, stats = [], la
       ) : null}
     </>
   );
-  const spoken = [`${label}${caption ? ` ${caption}` : ''}${subtitle ? `, ${subtitle}` : ''}: ${value}`, ...stats.map((s) => `${s.label}: ${s.value}`)].join(', ');
+  const spoken = [
+    `${label}${caption ? ` ${caption}` : ''}${subtitle ? `, ${subtitle}` : ''}: ${value}`,
+    ...badges.map((b) => b.label),
+    ...stats.map((s) => `${s.label}: ${s.value}`),
+  ].join(', ');
   if (onPress) {
     return (
       <Pressable
@@ -192,6 +238,9 @@ const styles = StyleSheet.create({
     gap: GAP,
     overflow: 'hidden',
   },
+  top: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  titles: { flex: 1, minWidth: 0, gap: GAP },
+  badges: { gap: BADGE_GAP, alignItems: 'flex-end' },
   header: { fontSize: 18 },
   label: { fontSize: 18, fontWeight: '600' },
   caption: { fontSize: 16 },
