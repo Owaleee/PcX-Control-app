@@ -8,7 +8,7 @@ from pcx_agent.sensors.base import GpuReading
 
 # \GPU Engine(*)\Utilization Percentage -> pid_X_luid_0xH_0xL_phys_N_eng_M_engtype_T[#k]
 _ENGINE = re.compile(
-    r"^pid_\d+_luid_(0x[0-9a-f]+_0x[0-9a-f]+)_phys_(\d+)_eng_(\d+)_engtype_.+$",
+    r"^pid_\d+_luid_(0x[0-9a-f]+_0x[0-9a-f]+)_phys_(\d+)_eng_(\d+)_engtype_(.+)$",
     re.IGNORECASE,
 )
 # \GPU Adapter Memory(*)\Dedicated Usage -> luid_0xH_0xL_phys_N
@@ -36,6 +36,10 @@ def parse_gpu_usage(
 ) -> list[GpuReading]:
     """Uso por placa: soma por motor entre processos e devolve o motor mais ocupado.
 
+    Motores de video (NVIDIA "VideoDecode"/"VideoEncode", AMD "video codec 0") ficam de fora:
+    gravar a tela ou tocar video ocupa o codificador sem ser o "uso da GPU" que o Gerenciador de
+    Tarefas mostra por padrao (3D, Copy, Compute).
+
     `adapters` e indexado pelo LUID DXGI (minusculo); LUIDs que nao estao la
     (adaptador de software, removido) sao ignorados.
     """
@@ -52,6 +56,8 @@ def parse_gpu_usage(
         key = adapter_key(luid, phys)
         luids[key] = luid
         per_engine = engines.setdefault(key, {})
+        if match.group(4).strip().lower().startswith("video"):
+            continue  # a placa aparece, mas o motor de video nao conta no uso
         per_engine[engine] = per_engine.get(engine, 0.0) + float(value)
 
     readings = []
@@ -62,7 +68,7 @@ def parse_gpu_usage(
             GpuReading(
                 id=key,
                 name=info.name,
-                usage_percent=round(min(100.0, max(engines[key].values())), 2),
+                usage_percent=round(min(100.0, max(engines[key].values(), default=0.0)), 2),
                 vram_used_bytes=int(used) if used is not None else None,
                 vram_total_bytes=info.vram_total_bytes or None,
             )

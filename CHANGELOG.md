@@ -31,6 +31,10 @@ novo (protocolo 1).
   reconhece pelo nome ou pela faixa de IP (Radmin, Hamachi, ZeroTier, Tailscale, WireGuard,
   OpenVPN, Hyper-V, WSL, VirtualBox, VMware). Uma VPN renomeada pode passar; o endereço aparece
   na janela de pareamento para conferir.
+- **Uso da GPU acima do real em placas AMD:** numa RX 7600 o app mostrava 70% com o
+  Gerenciador de Tarefas em 2%. O agente somava o motor de vídeo, ocupado pela gravação em
+  segundo plano do Radeon (Instant Replay). Agora o uso considera só os motores de 3D, cópia e
+  computação, como o Gerenciador mostra por padrão. Vale também para NVIDIA e Intel.
 
 ## [app 0.3.0] - 2026-11-02
 

@@ -2,6 +2,8 @@ import json
 import math
 from pathlib import Path
 
+import pytest
+
 from pcx_agent.sensors.windows.gpu import AdapterInfo, parse_gpu_usage, parse_vram_usage
 
 GIB = 1024**3
@@ -137,3 +139,37 @@ def test_real_samples_ignore_the_second_adapter_that_dxgi_does_not_list():
     assert luids == {REAL_RTX, "0x00000000_0x0000ffcb"}
     readings = parse_gpu_usage(REAL["engines"], REAL_ADAPTERS)
     assert len(readings) == 1
+
+
+RX7600 = "0x00000000_0x00009962"
+
+
+def test_rx7600_instant_replay_uses_compute_not_video():
+    """Amostra real (02/11/2026): o Radeon Software gravava com o Instant Replay. O Gerenciador
+    de Tarefas mostrava 2%; o motor de video (70%) nao e o "uso da GPU" que a pessoa espera."""
+    samples = json.loads((Path(__file__).parent / "data" / "pdh_rx7600_instant_replay.json").read_text())
+    adapters = {RX7600: AdapterInfo("AMD Radeon RX 7600", 8 * GIB)}
+    (reading,) = parse_gpu_usage(samples, adapters)
+    assert reading.usage_percent == 1.9
+
+
+
+@pytest.mark.parametrize(
+    "kind", ["video codec 0", "VideoDecode", "VideoEncode", "Video Processing", "video encode 1"]
+)
+def test_video_engines_are_ignored(kind):
+    samples = [sample(engine(RTX, 0, 5, kind), 95.0), sample(engine(RTX, 0, 0, "3D"), 12.0)]
+    (reading,) = parse_gpu_usage(samples, {RTX: ADAPTERS[RTX]})
+    assert reading.usage_percent == 12.0
+
+
+def test_unknown_engine_type_still_counts():
+    samples = [sample(engine(RTX, 0, 7, "Security"), 33.0), sample(engine(RTX, 0, 0, "3D"), 5.0)]
+    (reading,) = parse_gpu_usage(samples, {RTX: ADAPTERS[RTX]})
+    assert reading.usage_percent == 33.0
+
+
+def test_only_video_activity_means_zero_usage():
+    samples = [sample(engine(RTX, 0, 5, "VideoEncode"), 80.0)]
+    (reading,) = parse_gpu_usage(samples, {RTX: ADAPTERS[RTX]})
+    assert reading.usage_percent == 0.0
