@@ -1,4 +1,4 @@
-"""SensorProvider real para Windows (psutil + PDH + DXGI + NVML)."""
+"""SensorProvider real para Windows (psutil + PDH + DXGI + D3DKMT + NVML)."""
 
 import logging
 import socket
@@ -10,7 +10,7 @@ import psutil
 
 from pcx_agent.ratelimit_log import RateLimitedLog
 from pcx_agent.sensors.base import DiskVolume, GpuReading, Snapshot
-from pcx_agent.sensors.windows import native
+from pcx_agent.sensors.windows import d3dkmt, native
 from pcx_agent.sensors.windows.gpu import (
     AdapterInfo,
     describe_adapters,
@@ -21,6 +21,11 @@ from pcx_agent.sensors.windows.gpu import (
 logger = logging.getLogger("pcx_agent.sensors.windows")
 ADAPTER_CACHE_S = 60.0
 RETRY_S = 60.0
+
+
+def _luid_of(reading_id: str) -> str:
+    """'luid_0x..._0x..._phys_0' -> '0x..._0x...'."""
+    return reading_id.removeprefix("luid_").split("_phys_")[0]
 
 
 def _pct(value: float) -> float:
@@ -41,8 +46,12 @@ class WindowsSensorProvider:
         self._adapters_at = float("-inf")
         self._pdh = self._open(native.PdhGpuCounters, "contadores de GPU")
         self._nvml = self._open(native.NvmlTemperatures, "temperatura NVIDIA (NVML)")
+        self._d3d = self._open(d3dkmt.D3dkmtTemperatures, "temperatura pelo driver (D3DKMT)")
         self._pdh_retry_at = clock() + RETRY_S
         self._nvml_retry_at = clock() + RETRY_S
+        self._d3d_retry_at = clock() + RETRY_S
+        # None: ainda nao sabemos se o driver da temperatura (o hello pode vir antes da 1a leitura)
+        self._driver_has_temp: bool | None = None
 
     @staticmethod
     def _open(factory, label: str, quiet: bool = False):
@@ -71,14 +80,33 @@ class WindowsSensorProvider:
         if self._nvml is None and now >= self._nvml_retry_at:
             self._nvml = self._open(native.NvmlTemperatures, "NVML", quiet=True)
             self._nvml_retry_at = now + RETRY_S
+        if self._d3d is None and now >= self._d3d_retry_at:
+            self._d3d = self._open(d3dkmt.D3dkmtTemperatures, "D3DKMT", quiet=True)
+            self._d3d_retry_at = now + RETRY_S
 
     def capabilities(self) -> set[str]:
         caps = {"cpu", "ram", "disk", "net"}
         if self._pdh is not None:
             caps.add("gpu")
-        if self._nvml is not None:
+        if self._driver_has_temp is None and self._d3d is not None:
+            self._probe_driver_temperature()
+        if self._nvml is not None or self._driver_has_temp:
             caps.add("gpu.temp")
         return caps
+
+    def _refresh_adapters(self) -> None:
+        now = self._clock()
+        if now - self._adapters_at >= ADAPTER_CACHE_S:
+            self._adapters = native.list_adapters()
+            self._adapters_at = now
+            self._log_adapters()
+
+    def _probe_driver_temperature(self) -> None:
+        try:
+            self._refresh_adapters()
+        except Exception:  # noqa: BLE001 - a leitura normal registra a falha
+            return
+        self._driver_temperatures()
 
     def _volumes(self) -> list[DiskVolume]:
         volumes = []
@@ -98,6 +126,21 @@ class WindowsSensorProvider:
                 )
             )
         return volumes
+
+    def _driver_temperatures(self) -> dict[str, float]:
+        """{LUID: C} pelo driver de video; vale para NVIDIA, AMD e Intel."""
+        if self._d3d is None:
+            return {}
+        try:
+            temps = self._d3d.read(list(self._adapters))
+        except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
+            self._failures.report(
+                "d3dkmt", "Falha ao ler a temperatura (D3DKMT); tentando de novo em 60 s", exc_info=True
+            )
+            self._drop("_d3d", "D3DKMT")
+            return {}
+        self._driver_has_temp = bool(temps)
+        return temps
 
     def _temperatures(self) -> dict[str, float]:
         if self._nvml is None:
@@ -127,11 +170,7 @@ class WindowsSensorProvider:
         if self._pdh is None:
             return []
         try:
-            now = self._clock()
-            if now - self._adapters_at >= ADAPTER_CACHE_S:
-                self._adapters = native.list_adapters()
-                self._adapters_at = now
-                self._log_adapters()
+            self._refresh_adapters()
             engines, memory = self._pdh.read()
             readings = parse_gpu_usage(engines, self._adapters, parse_vram_usage(memory))
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
@@ -139,8 +178,13 @@ class WindowsSensorProvider:
             self._drop("_pdh", "contadores de GPU")
             return []
         # A temperatura e opcional: se falhar, o uso e a VRAM continuam aparecendo.
-        temps = self._temperatures()
-        return [r.model_copy(update={"temp_c": temps.get(r.name)}) for r in readings]
+        # Primeiro o driver (por LUID, duas placas iguais nao se confundem); o NVML completa.
+        by_luid = self._driver_temperatures()
+        by_name = self._temperatures()
+        return [
+            r.model_copy(update={"temp_c": by_luid.get(_luid_of(r.id), by_name.get(r.name))})
+            for r in readings
+        ]
 
     def read(self) -> Snapshot:
         now = time.monotonic()
@@ -172,6 +216,6 @@ class WindowsSensorProvider:
         )
 
     def close(self) -> None:
-        for resource in (self._pdh, self._nvml):
+        for resource in (self._pdh, self._nvml, self._d3d):
             if resource is not None:
                 resource.close()
