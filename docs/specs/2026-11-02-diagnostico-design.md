@@ -108,12 +108,8 @@ espera ver como "uso da GPU".
 
 - `usage_percent` passa a ser o motor mais ocupado entre os de **3D, Compute e Copy** (e motores
   sem tipo conhecido). Motores de vídeo (`video codec`, `video decode`, `video encode`,
-  `video processing`) ficam de fora.
-- `GpuReading` ganha `video_percent` (opcional): o motor de vídeo mais ocupado. É um acréscimo
-  ao protocolo 1.
-- O app mostra "Vídeo N%" no cartão da GPU só quando `video_percent` passa de 5%, com a
-  explicação no detalhe ("codificação ou decodificação de vídeo: gravação, transmissão ou
-  vídeo tocando").
+  `video processing`) ficam de fora e não são mostrados em lugar nenhum: o app só exibe os dados
+  que importam para o painel.
 - Os números reais acima viram um teste automático (amostra gravada da RX 7600).
 
 ### Uso e temperatura pelo mesmo caminho do Gerenciador de Tarefas
@@ -135,8 +131,8 @@ espera ver como "uso da GPU".
 
 ### App
 
-- Aceita `vendor` e `video_percent` (opcionais) e não quebra com agentes que não mandam.
-- Mostra "Vídeo N%" no cartão da GPU (retrato e modo painel) quando passar de 5%.
+- Aceita `vendor` (opcional, usado só pelo agente e pelo relatório; não aparece na tela) e não
+  quebra com agentes que não mandam.
 - No histórico da GPU, sem a capacidade `gpu.temp`, mostra "Temperatura indisponível nesta placa"
   no lugar do gráfico de temperatura.
 
@@ -179,6 +175,7 @@ antivírus, leitura de sensores) e são funções puras. As leituras do Windows 
 - **CI do Windows:** as leituras reais de firewall, Central de Segurança e versão rodam sem erro
   e no prazo.
 - **App (Jest):** `vendor` aceito e ignorado; aviso de temperatura indisponível.
+- **Uso da GPU:** a amostra real da RX 7600 dá 1,90% (o motor de vídeo a 70,48% não entra).
 - **Manual:** no PC do amigo (AMD), "Verificar conexão" com a rede Pública e com a VPN ligada;
   copiar o relatório.
 
