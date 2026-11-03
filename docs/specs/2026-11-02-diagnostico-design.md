@@ -161,6 +161,10 @@ sofrendo.
 
   A tela de Configurações valida que alto < crítico, aceita uso de 50% a 100% e temperatura de
   50 °C a 110 °C, e tem "Restaurar padrão".
+- **Ligar e desligar:** a seção "Alertas" das Configurações começa com a chave "Cores de alerta"
+  (ligada por padrão). Desligada, os cartões voltam ao visual normal (sem cor, sem selo, sem borda)
+  e os campos de limite ficam escondidos; os limites escolhidos continuam guardados para quando a
+  chave voltar a ser ligada.
 - **Onde aparece:** no modo painel e na tela do PC (em pé), nos cartões de CPU, RAM, GPU e discos.
 
 ## 5. Interface
@@ -203,7 +207,8 @@ antivírus, leitura de sensores) e são funções puras. As leituras do Windows 
   e no prazo.
 - **App (Jest):** `vendor` aceito e ignorado; aviso de temperatura indisponível; nível de alerta
   nos limites exatos (79/80/94/95%, 74/75/84/85 °C); dois selos da GPU independentes; borda com o
-  nível mais grave; limites salvos, validados e restaurados; cores também na tela do PC; selos
+  nível mais grave; limites salvos, validados e restaurados; chave desligada some com cores, selos
+  e bordas nas duas telas e guarda os limites; cores também na tela do PC; selos
   dentro do cartão de 160 px.
 - **Uso da GPU:** a amostra real da RX 7600 dá 1,90% (o motor de vídeo a 70,48% não entra).
 - **Manual:** no PC do amigo (AMD), "Verificar conexão" com a rede Pública e com a VPN ligada;

@@ -95,7 +95,7 @@ números estranhos.
 - `alertLevel(value, limits)` → `normal | alto | critico`, funções puras; limites padrão (uso 80/95%, temperatura 75/85 °C) e leitura/gravação no aparelho com validação (alto < crítico, faixas da spec) e "Restaurar padrão".
 - `Gauge` e `MetricCard` recebem os selos (`badges`) e o nível da borda; a GPU tem dois selos empilhados (uso e temperatura) ao lado do título e do nome; o cálculo do nome desconta a largura dos selos.
 - Temperatura e VRAM mudam de cor sem selo; a rede fica sem alerta.
-- Seção "Alertas" em Configurações.
+- Seção "Alertas" em Configurações, começando pela chave "Cores de alerta" (ligada por padrão); desligada, nenhum cartão mostra cor, selo ou borda de alerta, e os limites ficam guardados.
 - Testes da spec, seção 7 (limites exatos, selos independentes, borda, configurações, tela do PC, cartão de 160 px).
 
 ### Tarefa 8: versão, documentação e revisão
