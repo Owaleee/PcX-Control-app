@@ -14,6 +14,46 @@ conversam pelo **protocolo**, versionado à parte (hoje: `protocol: 1`).
 ### Planejado
 - Versão `1.0.0` (agente e app): lançamento público, com README e GIF do modo painel.
 
+## [agente 0.5.0] - 2026-11-03
+
+Diagnóstico de conexão, registro de travamentos e temperatura da GPU em placas AMD e Intel.
+Compatível com o app 0.2.0 ou mais novo (protocolo 1).
+
+### Adicionado
+- **Verificar conexão**, no menu da bandeja: confere o IP da rede local, o tipo de rede no
+  Windows, a regra do firewall, VPNs ligadas, se o agente responde pelo IP da rede, antivírus de
+  terceiros, as placas de vídeo e a leitura dos sensores. Cada problema vem com o que fazer; dois
+  têm correção num clique (abrir as configurações de rede e recriar a regra do firewall, com
+  pedido de administrador). **Copiar relatório** gera um texto para mandar a quem está ajudando,
+  sem senha, código ou token.
+- **Temperatura da GPU em NVIDIA, AMD e Intel**, lida do driver de vídeo do Windows (o mesmo
+  caminho do Gerenciador de Tarefas). A biblioteca da NVIDIA continua como reserva.
+- **Registro de travamentos:** erro inesperado em qualquer parte do agente vai para o
+  `agent.log`, e uma trava dentro de um driver deixa a pilha no `crash.log`.
+- O log registra cada placa de vídeo ao iniciar (nome, fabricante, VRAM) e as versões do agente,
+  do Windows e do Python.
+- Cada GPU leva o fabricante (`vendor`) no protocolo, como acréscimo.
+
+### Mudado
+- Num PC com placa integrada e dedicada, a dedicada (mais VRAM) vem primeiro e é a mostrada no
+  modo painel.
+- Falhas de leitura da GPU vão para o log no máximo uma vez por minuto por tipo; antes, só a
+  primeira falha aparecia.
+
+## [app 0.4.0] - 2026-11-03
+
+Compatível com o agente 0.2.0 ou mais novo (protocolo 1). A temperatura em placas AMD e Intel
+precisa do agente 0.5.0.
+
+### Adicionado
+- **Cores de alerta** no modo painel e na tela do PC: uso e temperatura em nível alto (amarelo)
+  ou crítico (vermelho) mudam a cor do número, da barra e da borda do cartão, com um selo de texto
+  ("Uso alto", "Temperatura crítica"). A GPU pode ter os dois selos, empilhados. A rede fica sem
+  alerta.
+- Seção **Alertas** nas Configurações: chave "Cores de alerta" (ligada por padrão) e os limites
+  (padrão: uso 80% e 95%, temperatura 75 °C e 85 °C), com "Restaurar padrão".
+- No histórico da GPU, sem temperatura, um aviso aparece no lugar do gráfico.
+
 ## [app 0.3.1] - 2026-11-02
 
 Correção do modo painel. Compatível com o agente 0.2.0 ou mais novo (protocolo 1); não precisa

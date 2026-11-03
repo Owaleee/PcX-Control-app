@@ -6,7 +6,7 @@
 Transforme o celular Android em um painel de sensores do seu PC Windows, na rede local, com
 pareamento por QR code.
 
-**Versões atuais:** agente **0.4.0** (Windows) e app **0.3.1** (Android). Os dois conversam pelo
+**Versões atuais:** agente **0.5.0** (Windows) e app **0.4.0** (Android). Os dois conversam pelo
 protocolo **1**.
 
 Qualquer app conversa com qualquer agente do protocolo 1. As novidades do agente (aviso de
@@ -14,6 +14,9 @@ rede, IP do QR, log) valem para qualquer app; as do app aparecem só no app novo
 
 | Agente | App | Protocolo |
 | --- | --- | --- |
+| 0.5.0 | 0.4.0 | 1 |
+| 0.5.0 | 0.3.1 | 1 |
+| 0.4.0 | 0.4.0 | 1 |
 | 0.4.0 | 0.3.1 | 1 |
 | 0.4.0 | 0.3.0 | 1 |
 | 0.4.0 | 0.2.0 | 1 |
@@ -67,7 +70,11 @@ no Windows. A janela de pareamento avisa quando não está.
 
 ### "PC não encontrado" no celular
 
-O celular não conseguiu chegar ao PC. Na ordem do mais comum:
+O celular não conseguiu chegar ao PC. No agente 0.5.0 ou mais novo, comece pela bandeja:
+**Verificar conexão** confere tudo abaixo de uma vez, diz o que fazer e corrige a rede Pública e a
+regra do firewall num clique. **Copiar relatório** gera um texto para mandar a quem está ajudando.
+
+Na ordem do mais comum:
 
 1. **Rede Pública no Windows.** Em *Configurações › Rede e Internet*, abra a rede conectada
    (Wi-Fi ou Ethernet) e marque **Privada**. A janela de pareamento mostra esse aviso.
@@ -103,10 +110,16 @@ Na bandeja, **Abrir pasta de logs** (`%LOCALAPPDATA%\PcXControl\logs\agent.log`)
 agente 0.4.0, cada tentativa de pareamento aparece com o IP do celular e o resultado, e cada
 conexão e desconexão também. Senha, código e token nunca são gravados.
 
+Desde o agente 0.5.0, a pasta também guarda o `crash.log`: se o agente fechar sozinho (por
+exemplo, por uma falha no driver de vídeo), a pilha do momento fica registrada ali. O
+`agent.log` registra as placas de vídeo ao iniciar e cada resultado do "Verificar conexão".
+
 ### Sem temperatura da GPU
 
-A temperatura usa a biblioteca da NVIDIA. Em placas AMD e Intel, uso e VRAM aparecem
-normalmente e a temperatura fica oculta.
+Desde o agente 0.5.0, a temperatura vem do driver de vídeo do Windows, como no Gerenciador de
+Tarefas, em placas NVIDIA, AMD e Intel. Ela precisa de um driver WDDM 2.4 ou mais novo (Windows
+10 de 2018 em diante com o driver da placa atualizado). Sem esse dado no driver, uso e VRAM
+continuam aparecendo e o app avisa que a temperatura está indisponível.
 
 ## Arquitetura
 
@@ -119,7 +132,7 @@ flowchart LR
     Tray["Bandeja e janelas<br/>pystray + tkinter"]
     API["API /v1 e WebSocket<br/>FastAPI + Uvicorn"]
     Sampler["Coletor<br/>1 s com celular, 5 s sem"]
-    Sensors["Sensores<br/>psutil, PDH, DXGI, NVML"]
+    Sensors["Sensores<br/>psutil, PDH, DXGI, D3DKMT, NVML"]
     DB[("SQLite<br/>aparelhos e 24 h de histórico")]
   end
   App -- "pareamento (QR ou senha)" --> API
