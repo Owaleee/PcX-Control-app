@@ -21,6 +21,7 @@ from pcx_agent.sensors.windows.gpu import (
 logger = logging.getLogger("pcx_agent.sensors.windows")
 ADAPTER_CACHE_S = 60.0
 RETRY_S = 60.0
+MAX_INSTANCES = 500
 
 
 def _luid_of(reading_id: str) -> str:
@@ -43,6 +44,8 @@ class WindowsSensorProvider:
         self._failures = RateLimitedLog(logger, interval_s=60.0, clock=clock)
         self._adapters: dict[str, AdapterInfo] = {}
         self._logged_adapters: dict[str, AdapterInfo] | None = None
+        # Nomes das instancias do ultimo contador de GPU, para o relatorio do diagnostico.
+        self.gpu_instances: list[str] = []
         self._adapters_at = float("-inf")
         self._pdh = self._open(native.PdhGpuCounters, "contadores de GPU")
         self._nvml = self._open(native.NvmlTemperatures, "temperatura NVIDIA (NVML)")
@@ -172,6 +175,7 @@ class WindowsSensorProvider:
         try:
             self._refresh_adapters()
             engines, memory = self._pdh.read()
+            self.gpu_instances = [str(sample.get("InstanceName", "")) for sample in engines[:MAX_INSTANCES]]
             readings = parse_gpu_usage(engines, self._adapters, parse_vram_usage(memory))
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
             self._failures.report("gpu", "Falha ao ler a GPU; tentando de novo em 60 s", exc_info=True)

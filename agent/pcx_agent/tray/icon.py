@@ -14,6 +14,7 @@ from pcx_agent.tray import texts
 class TrayActions:
     pair: Callable[[], None]
     devices: Callable[[], None]
+    diagnostics: Callable[[], None]
     password: Callable[[], None]
     toggle_autostart: Callable[[], None]
     autostart_checked: Callable[[], bool]
@@ -25,6 +26,7 @@ def build_tray_icon(controller, actions: TrayActions) -> pystray.Icon:
     menu = pystray.Menu(
         pystray.MenuItem(texts.MENU_PAIR, lambda: actions.pair(), default=True),
         pystray.MenuItem(texts.MENU_DEVICES, lambda: actions.devices()),
+        pystray.MenuItem(texts.MENU_DIAGNOSTICS, lambda: actions.diagnostics()),
         pystray.MenuItem(texts.MENU_PASSWORD, lambda: actions.password()),
         pystray.MenuItem(
             texts.MENU_AUTOSTART,

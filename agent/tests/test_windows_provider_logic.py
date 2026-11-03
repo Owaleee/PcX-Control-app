@@ -296,3 +296,9 @@ def test_two_cards_with_the_same_name_get_their_own_temperature(make, monkeypatc
     provider, _ = make()
     temps = {g.id: g.temp_c for g in provider.read().gpus}
     assert temps == {f"luid_{LUID}_phys_0": 50.0, f"luid_{other}_phys_0": 70.0}
+
+
+def test_keeps_the_gpu_counter_names_for_the_report(make):
+    provider, _ = make()
+    provider.read()
+    assert provider.gpu_instances == [ENGINE]

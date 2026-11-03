@@ -18,7 +18,7 @@ DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 
 
 def apply_style(root: tk.Tk) -> None:
-    """Estilo dos widgets ttk (so a tabela usa ttk). Chamar uma vez."""
+    """Estilo dos widgets ttk (a tabela e a barra de rolagem). Chamar uma vez."""
     style = ttk.Style(root)
     style.theme_use("clam")
     style.configure(
@@ -40,6 +40,17 @@ def apply_style(root: tk.Tk) -> None:
     )
     style.map("Pcx.Treeview", background=[("selected", COLORS["border_strong"])])
     style.map("Pcx.Treeview.Heading", background=[("active", COLORS["surface"])])
+    # Barra de rolagem escura (a do tk puro fica clara no Windows e destoa do tema).
+    style.configure(
+        "Pcx.Vertical.TScrollbar",
+        background=COLORS["border_strong"],
+        troughcolor=COLORS["background"],
+        bordercolor=COLORS["background"],
+        arrowcolor=COLORS["text_muted"],
+        lightcolor=COLORS["border_strong"],
+        darkcolor=COLORS["border_strong"],
+    )
+    style.map("Pcx.Vertical.TScrollbar", background=[("active", COLORS["text_muted"])])
 
 
 def _dark_title_bar(window: tk.Toplevel) -> None:

@@ -26,6 +26,7 @@ def _app_dark_theme() -> dict[str, str]:
         ("text_muted", "textMuted"),
         ("accent", "accent"),
         ("danger", "danger"),
+        ("warning", "warning"),
         ("border", "border"),
     ],
 )
@@ -45,6 +46,11 @@ def test_colors_match_app_dark_theme(ours, app):
         ("on_accent", "accent"),
         ("danger", "background"),
         ("text", "titlebar"),
+        ("ok", "background"),
+        ("ok", "surface"),
+        ("warning", "background"),
+        ("warning", "surface"),
+        ("danger", "surface"),
     ],
 )
 def test_text_contrast_is_readable(fg, bg):
@@ -63,6 +69,7 @@ def test_window_sizes_follow_the_mockup():
         "pairing": (460, 640),
         "devices": (640, 460),
         "password": (460, 460),
+        "diagnostics": (560, 640),
     }
 
 

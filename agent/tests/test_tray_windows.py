@@ -326,3 +326,134 @@ def test_repeated_network_checks_do_not_pile_up(root):
     assert changes[-1] == "aviso 4"
     assert None not in changes  # sem piscar: a faixa nao some entre uma checagem e outra
     slot.destroy()
+
+
+class _DiagnosticsController:
+    """Controlador falso: resultados prontos, sem PowerShell."""
+
+    def __init__(self, results):
+        self.results = results
+        self.runs = 0
+        self.fixes = []
+
+    def run_diagnostics(self):
+        self.runs += 1
+        return self.results
+
+    def diagnostics_report(self, results):
+        return f"relatorio com {len(results)} itens"
+
+    def apply_fix(self, fix):
+        self.fixes.append(fix)
+        return True
+
+
+def _diag_results():
+    from pcx_agent.diagnostics.model import CheckResult
+
+    return [
+        CheckResult("rede.ip", "Rede e firewall", "IP da rede local", "ok", "192.168.18.22 na placa Ethernet."),
+        CheckResult(
+            "rede.tipo", "Rede e firewall", "Tipo de rede no Windows", "problema",
+            "A rede da placa Ethernet está como Pública: o Windows bloqueia o celular. Mude para Privada.",
+            "abrir_rede",
+        ),
+        CheckResult(
+            "rede.firewall", "Rede e firewall", "Regra do firewall", "problema",
+            'A regra "PcX Control - agente" não existe: o Windows bloqueia o celular. Crie a regra de novo.',
+            "criar_firewall",
+        ),
+        CheckResult("rede.vpn", "Rede e firewall", "VPN", "atencao", "VPN ligada: Radmin VPN."),
+        CheckResult("agente.local", "Agente acessível", "Agente respondendo na rede", "ok", "Responde."),
+        CheckResult("antivirus.terceiros", "Antivírus", "Avast Antivirus", "atencao", "Libere o PcX Control nele."),
+        CheckResult("sensores.gpu", "Sensores", "AMD Radeon RX 7600", "info", "Fabricante: AMD."),
+        CheckResult("sensores.leitura", "Sensores", "Leitura dos sensores", "ok", "Lidos."),
+    ]
+
+
+def _open_diagnostics(root, controller):
+    from pcx_agent.tray.diagnostics_window import DiagnosticsWindow
+
+    window = DiagnosticsWindow.show(root, controller)
+    deadline = time.monotonic() + 5
+    while not window.results and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.02)
+    for _ in range(5):
+        root.update()
+    return window
+
+
+def test_diagnostics_lists_results_with_summary_and_fixes(root):
+    from pcx_agent.tray import texts
+
+    controller = _DiagnosticsController(_diag_results())
+    window = _open_diagnostics(root, controller)
+    assert controller.runs == 1
+    assert window.status.cget("text") == texts.DIAG_SUMMARY_PROBLEMS.format(n=2)
+    for text in ("Rede e firewall", "Antivírus", "Sensores", "AMD Radeon RX 7600", "Avast Antivirus"):
+        assert _find(window, text) is not None, text
+    assert [b.cget("text") for b in window.results_list.fix_buttons] == [
+        texts.DIAG_FIX_NETWORK, texts.DIAG_FIX_FIREWALL,
+    ]
+    window.close()
+
+
+def test_diagnostics_fix_buttons_call_the_controller_and_rerun_on_focus(root):
+    controller = _DiagnosticsController(_diag_results())
+    window = _open_diagnostics(root, controller)
+    window.results_list.fix_buttons[0].invoke()
+    window.results_list.fix_buttons[1].invoke()
+    assert controller.fixes == ["abrir_rede", "criar_firewall"]
+    window.event_generate("<FocusIn>")
+    deadline = time.monotonic() + 5
+    while controller.runs < 2 and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.02)
+    assert controller.runs == 2
+    window.close()
+
+
+def test_diagnostics_copy_report_goes_to_clipboard(root):
+    from pcx_agent.tray import texts
+
+    window = _open_diagnostics(root, _DiagnosticsController(_diag_results()))
+    window.copy_report()
+    assert root.clipboard_get() == "relatorio com 8 itens"
+    assert window.status.cget("text") == texts.DIAG_COPIED
+    window.close()
+
+
+def test_diagnostics_footer_buttons_are_not_cut(root):
+    from pcx_agent.tray import texts
+
+    window = _open_diagnostics(root, _DiagnosticsController(_diag_results()))
+    for text in (texts.DIAG_COPY, texts.DIAG_AGAIN, texts.CLOSE):
+        assert _fully_visible(window, _find(window, text)), text
+    window.close()
+
+
+def test_diagnostics_all_ok_summary(root):
+    from pcx_agent.diagnostics.model import CheckResult
+    from pcx_agent.tray import texts
+
+    ok = [CheckResult("rede.ip", "Rede e firewall", "IP", "ok", "ok")]
+    window = _open_diagnostics(root, _DiagnosticsController(ok))
+    assert window.status.cget("text") == texts.DIAG_SUMMARY_OK
+    window.close()
+
+
+def test_diagnostics_failure_keeps_the_window_usable(root, caplog):
+    class Broken(_DiagnosticsController):
+        def run_diagnostics(self):
+            self.runs += 1
+            raise RuntimeError("quebrou")
+
+    from pcx_agent.tray.diagnostics_window import DiagnosticsWindow
+
+    controller = Broken([])
+    window = DiagnosticsWindow.show(root, controller)
+    _settle(root, 1.0)
+    assert str(window.again_button.cget("state")) == "normal"
+    assert any("Diagnostico falhou" in r.getMessage() for r in caplog.records)
+    window.close()
