@@ -8,8 +8,8 @@
 ## 1. Objetivo
 
 Fazer o agente explicar sozinho por que o celular não conecta, deixar na pasta `logs` tudo o que
-for preciso para tratar travamentos e problemas de placa de vídeo, e preparar agente e app para
-placas AMD e Intel.
+for preciso para tratar travamentos e problemas de placa de vídeo, e fazer o uso e a temperatura
+da GPU baterem com o Gerenciador de Tarefas em placas NVIDIA, AMD e Intel.
 
 Motivo: no primeiro teste em outro PC (Windows 10, placa AMD, Ethernet e Radmin VPN), o agente
 estava aberto e a regra de firewall existia, mas o celular não chegava ao PC. Foi preciso rodar
@@ -26,8 +26,8 @@ diagnostica precisa de menos atualizações.
 3. Qualquer travamento do agente, inclusive dentro de uma DLL de driver, deixa um registro na
    pasta `logs`.
 4. Num PC com placa integrada e dedicada, o app mostra a dedicada no modo painel.
-5. O relatório copiado de um PC com placa AMD traz o necessário para implementar a temperatura
-   AMD sem precisar da placa em mãos.
+5. Na RX 7600 do PC do amigo, o uso e a temperatura da GPU no app batem com o Gerenciador de
+   Tarefas (uso dentro de 5 pontos, temperatura dentro de 2 °C).
 
 ## 2. Diagnóstico
 
@@ -87,24 +87,56 @@ gravada no `agent.log`.
 O `crash.log` não passa pela rotação (é aberto em modo de acréscimo e cortado em 1 MiB ao
 iniciar) e também passa pela regra de nunca gravar segredos.
 
-## 4. Placas AMD e Intel
+## 4. Placas AMD e Intel e o uso da GPU
 
-### Agente
+### O que o teste no PC do amigo mostrou
 
-- `GpuReading` ganha `vendor: "nvidia" | "amd" | "intel" | "outra"`, a partir do `VendorId` do
-  DXGI (`0x10DE`, `0x1002`, `0x8086`). É um **acréscimo** ao protocolo 1: apps antigos ignoram.
-- As placas saem ordenadas por VRAM dedicada, da maior para a menor. A primeira (a que o app
-  mostra no modo painel e cujo histórico é gravado) passa a ser a dedicada.
-- A temperatura passa a vir de **fontes por fabricante** atrás de uma interface:
-  `GpuTemperatureSource` com `vendor` e `read() -> dict[str, float]`. NVIDIA (NVML) é a fonte
-  atual. AMD e Intel ficam como fontes registradas que ainda não leem nada; a capacidade
-  `gpu.temp` só aparece quando alguma fonte devolve valores.
-- O relatório e o log de início trazem o que falta para a fonte AMD: nomes, `VendorId` e
-  instâncias dos contadores.
+Na AMD Radeon RX 7600, o app mostrava a GPU em 70% e o Gerenciador de Tarefas em 2%. Os
+contadores do Windows mostraram o motivo:
+
+| Instância (`\GPU Engine(*)\Utilization Percentage`) | Uso |
+| --- | --- |
+| `pid_12468_luid_0x00000000_0x00009962_phys_0_eng_12_engtype_video codec 0` | 70,48% |
+| `pid_12468_luid_0x00000000_0x00009962_phys_0_eng_2_engtype_compute 0` | 1,90% |
+
+O processo 12468 é o `AMDRSServ.exe` (Radeon Software) gravando com o Instant Replay. O agente
+toma o motor mais ocupado de todos, e o de vídeo entrava na conta; o Gerenciador de Tarefas
+mostra por padrão 3D, Copy e Compute. A leitura estava certa, mas não era o número que a pessoa
+espera ver como "uso da GPU".
+
+### Uso da GPU
+
+- `usage_percent` passa a ser o motor mais ocupado entre os de **3D, Compute e Copy** (e motores
+  sem tipo conhecido). Motores de vídeo (`video codec`, `video decode`, `video encode`,
+  `video processing`) ficam de fora.
+- `GpuReading` ganha `video_percent` (opcional): o motor de vídeo mais ocupado. É um acréscimo
+  ao protocolo 1.
+- O app mostra "Vídeo N%" no cartão da GPU só quando `video_percent` passa de 5%, com a
+  explicação no detalhe ("codificação ou decodificação de vídeo: gravação, transmissão ou
+  vídeo tocando").
+- Os números reais acima viram um teste automático (amostra gravada da RX 7600).
+
+### Uso e temperatura pelo mesmo caminho do Gerenciador de Tarefas
+
+- O Gerenciador de Tarefas lê a GPU direto do driver de vídeo do Windows (D3DKMT): o tempo de
+  execução de cada motor (`D3DKMTQueryStatistics`) e, com drivers WDDM 2.4 ou mais novos, a
+  temperatura (`D3DKMTQueryAdapterInfo` com `KMTQAITYPE_ADAPTERPERFDATA`). É igual para NVIDIA,
+  AMD e Intel; foi daí que veio a temperatura de 52 °C da RX 7600 no Gerenciador.
+- O agente passa a ler por esse caminho, atrás de uma interface `GpuSource`. Os contadores PDH
+  atuais ficam como reserva quando o driver não oferecer esses dados.
+- A temperatura vem do D3DKMT em qualquer fabricante; o NVML continua como reserva em placas
+  NVIDIA. A capacidade `gpu.temp` só aparece quando alguma fonte devolve valores.
+- `GpuReading` ganha `vendor: "nvidia" | "amd" | "intel" | "outra"`, a partir do `VendorId`
+  (`0x10DE`, `0x1002`, `0x8086`). Acréscimo ao protocolo 1.
+- As placas saem ordenadas por VRAM dedicada, da maior para a menor, para a dedicada ser a
+  mostrada no modo painel.
+- A CI do Windows testa a leitura D3DKMT no adaptador do runner; a comparação com o Gerenciador
+  de Tarefas e a temperatura AMD são conferidas no PC do amigo (roteiro manual).
 
 ### App
 
-- Aceita `vendor` (opcional) e não quebra com agentes que não mandam.
+- Aceita `vendor` e `video_percent` (opcionais) e não quebra com agentes que não mandam.
+- Mostra "Vídeo N%" no cartão da GPU (retrato e modo painel) quando passar de 5%.
 - No histórico da GPU, sem a capacidade `gpu.temp`, mostra "Temperatura indisponível nesta placa"
   no lugar do gráfico de temperatura.
 
@@ -152,5 +184,5 @@ antivírus, leitura de sensores) e são funções puras. As leituras do Windows 
 
 ## 8. Fora deste trabalho
 
-Leitura de temperatura AMD e Intel (vem depois, com o relatório do PC do amigo), diagnóstico
-rodando sozinho, correção automática sem clique, diagnóstico pelo app.
+Leitura de sensores pelas bibliotecas dos fabricantes (ADL, IGCL), diagnóstico rodando sozinho,
+correção automática sem clique, diagnóstico pelo app.
