@@ -3,7 +3,7 @@
 - **Data:** 02/11/2026
 - **Autor:** Alexandre Queiroz (Owaleee)
 - **Status:** aguardando revisão
-- **Versões:** agente `0.5.0` e app `0.4.0` (depois do agente 0.4.0 e do app 0.3.0)
+- **Versões:** agente `0.5.0` e app `0.4.0` (depois do agente 0.4.0 e do app 0.3.1)
 
 ## 1. Objetivo
 
@@ -136,6 +136,33 @@ espera ver como "uso da GPU".
 - No histórico da GPU, sem a capacidade `gpu.temp`, mostra "Temperatura indisponível nesta placa"
   no lugar do gráfico de temperatura.
 
+### App: cores de alerta (app 0.4.0)
+
+Decidido em 03/11/2026, depois do app 0.3.1. Objetivo: ver de longe, no modo painel, se o PC está
+sofrendo.
+
+- **Níveis:** `normal`, `alto` e `critico`. A barra, o número grande e a borda do cartão ganham a
+  cor do nível (amarelo do tema para alto, `danger` para crítico).
+- **Selos:** o alerta nunca depende só da cor. Cartão em alto ou crítico mostra um selo de texto
+  no canto direito do título ("Uso alto", "Uso crítico"), lido também pelo leitor de tela.
+- **GPU com dois selos:** "Uso alto/crítico" (uso da GPU) e "Temperatura alta/crítica", cada um
+  com o próprio nível, empilhados em coluna ao lado do título e do nome da placa (não aumentam a
+  altura do cartão). Aparece só o selo do dado que passou do limite. A borda fica com o nível mais
+  grave dos dois. O cálculo do tamanho do nome da placa desconta a largura dos selos.
+- **Valores com cor, sem selo:** a temperatura e a VRAM mudam de cor quando passam do limite; a
+  VRAM não ganha selo próprio (seriam três empilhados).
+- **Rede:** sem alerta (não existe um "alto demais" que valha para toda internet).
+- **Limites padrão,** ajustáveis em Configurações do app, guardados no aparelho:
+
+  | Dado | Alto | Crítico |
+  | --- | --- | --- |
+  | Uso de CPU, GPU, RAM e VRAM | 80% | 95% |
+  | Temperatura da GPU | 75 °C | 85 °C |
+
+  A tela de Configurações valida que alto < crítico, aceita uso de 50% a 100% e temperatura de
+  50 °C a 110 °C, e tem "Restaurar padrão".
+- **Onde aparece:** no modo painel e na tela do PC (em pé), nos cartões de CPU, RAM, GPU e discos.
+
 ## 5. Interface
 
 - Janela `DiagnosticsWindow`, herdando de `BaseWindow`, 560×640, com as cores e os textos de
@@ -174,7 +201,10 @@ antivírus, leitura de sensores) e são funções puras. As leituras do Windows 
   correção, copia o relatório e não corta nada.
 - **CI do Windows:** as leituras reais de firewall, Central de Segurança e versão rodam sem erro
   e no prazo.
-- **App (Jest):** `vendor` aceito e ignorado; aviso de temperatura indisponível.
+- **App (Jest):** `vendor` aceito e ignorado; aviso de temperatura indisponível; nível de alerta
+  nos limites exatos (79/80/94/95%, 74/75/84/85 °C); dois selos da GPU independentes; borda com o
+  nível mais grave; limites salvos, validados e restaurados; cores também na tela do PC; selos
+  dentro do cartão de 160 px.
 - **Uso da GPU:** a amostra real da RX 7600 dá 1,90% (o motor de vídeo a 70,48% não entra).
 - **Manual:** no PC do amigo (AMD), "Verificar conexão" com a rede Pública e com a VPN ligada;
   copiar o relatório.

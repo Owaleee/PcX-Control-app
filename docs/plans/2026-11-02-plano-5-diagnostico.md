@@ -1,8 +1,8 @@
-# PcX Control — Plano 5: diagnóstico, logs de falhas e GPU (agente 0.5.0)
+# PcX Control — Plano 5: diagnóstico, logs de falhas e GPU (agente 0.5.0, app 0.4.0)
 
 **Objetivo:** o agente aponta sozinho por que o celular não conecta (menu "Verificar conexão"), guarda na pasta `logs` tudo o que for preciso para tratar travamentos e problemas de placa de vídeo, e mostra uso e temperatura da GPU coerentes com o Gerenciador de Tarefas em NVIDIA, AMD e Intel.
 
-**Arquitetura:** verificações como funções puras com entradas injetáveis (`diagnostics/checks.py`); leituras do Windows isoladas em `diagnostics/windows.py` e `sensors/windows/d3dkmt.py`, testadas com saídas gravadas; a janela só monta a tela. O app não muda nesta versão: ele já ignora campos novos.
+**Arquitetura:** verificações como funções puras com entradas injetáveis (`diagnostics/checks.py`); leituras do Windows isoladas em `diagnostics/windows.py` e `sensors/windows/d3dkmt.py`, testadas com saídas gravadas; a janela só monta a tela.
 
 **Spec:** `docs/specs/2026-11-02-diagnostico-design.md`.
 
@@ -88,7 +88,17 @@ números estranhos.
 - Correções: `abrir_rede` → `ms-settings:network-status`; `criar_firewall` → `ShellExecute` com `runas` em `cmd /c ""<app>\firewall.cmd" add "<exe>""` (só no `.exe` instalado); ao voltar o foco para a janela, roda de novo.
 - Testes (Xvfb e CI do Windows): a janela abre, mostra os resultados de um runner falso, cada correção chama a ação injetada, "Copiar relatório" põe o texto na área de transferência, nada fica cortado; tema com as novas cores e contraste.
 
-### Tarefa 7: versão, documentação e revisão
+### Tarefa 7: cores de alerta no app
 
-- Agente `0.5.0`; `CHANGELOG.md` `[agente 0.5.0]`; README (diagnóstico e temperatura em AMD e Intel); `docs/teste-manual-app.md` (itens do diagnóstico e comparação com o Gerenciador de Tarefas na RX 7600); `docs/decisoes-e-pendencias.md`.
+**Arquivos:** `mobile/src/alerts/levels.ts` (novo), `mobile/src/storage/alertLimits.ts` (novo), `mobile/src/components/Gauge.tsx`, `mobile/src/components/MetricCard.tsx`, `mobile/app/pc/[id]/panel.tsx`, `mobile/app/pc/[id]/index.tsx`, `mobile/app/settings.tsx`, testes.
+
+- `alertLevel(value, limits)` → `normal | alto | critico`, funções puras; limites padrão (uso 80/95%, temperatura 75/85 °C) e leitura/gravação no aparelho com validação (alto < crítico, faixas da spec) e "Restaurar padrão".
+- `Gauge` e `MetricCard` recebem os selos (`badges`) e o nível da borda; a GPU tem dois selos empilhados (uso e temperatura) ao lado do título e do nome; o cálculo do nome desconta a largura dos selos.
+- Temperatura e VRAM mudam de cor sem selo; a rede fica sem alerta.
+- Seção "Alertas" em Configurações.
+- Testes da spec, seção 7 (limites exatos, selos independentes, borda, configurações, tela do PC, cartão de 160 px).
+
+### Tarefa 8: versão, documentação e revisão
+
+- Agente `0.5.0` e app `0.4.0`; `CHANGELOG.md` `[agente 0.5.0]` e `[app 0.4.0]`; tabela de compatibilidade do README; README (diagnóstico e temperatura em AMD e Intel); `docs/teste-manual-app.md` (itens do diagnóstico e comparação com o Gerenciador de Tarefas na RX 7600); `docs/decisoes-e-pendencias.md`.
 - Revisão independente da branch, correções com teste, CI verde, PR.
