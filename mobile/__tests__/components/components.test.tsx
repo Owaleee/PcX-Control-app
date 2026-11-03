@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { Gauge, valueFontSize } from '../../src/components/Gauge';
+import { Gauge, subtitleFontSize, valueFontSize } from '../../src/components/Gauge';
 import { MetricCard } from '../../src/components/MetricCard';
 import { Sparkline, sparklinePath } from '../../src/components/Sparkline';
 import { StatusPill, statusLabel } from '../../src/components/StatusPill';
@@ -88,8 +88,9 @@ test('Gauge mostra o nome, o que o numero indica e os dados com rotulo', async (
   // O nome da placa aparece inteiro: a letra diminui, mas nunca vira "..."
   const name = screen.getByTestId('g-subtitle');
   expect(name.props.children).toBe('NVIDIA GeForce RTX 4070 Ti SUPER');
-  expect(name.props.adjustsFontSizeToFit).toBe(true);
+  expect(name.props.adjustsFontSizeToFit).toBeUndefined();
   expect(name.props.ellipsizeMode).toBe('clip');
+  expect(StyleSheet.flatten(name.props.style).fontSize).toBe(16);
 });
 
 test('Gauge diminui o numero grande para caber num cartao baixo', async () => {
@@ -104,15 +105,16 @@ test('Gauge diminui o numero grande para caber num cartao baixo', async () => {
 test.each([
   // [altura do cartao, barra, dados, nome] -> o conteudo cabe na altura
   [160, true, true, true],
-  [150, true, true, true],
+  // Altura minima em que o cartao da GPU (com nome, barra e dados) cabe inteiro
+  [154, true, true, true],
   [150, true, true, false],
   [110, true, false, false],
   [300, true, true, true],
 ])('valueFontSize: cartao de %ipx com tudo dentro', (height, bar, stats, subtitle) => {
   const size = valueFontSize(height, { bar, stats, subtitle });
-  // padding 12+12, titulo 22, nome 18, barra 8, dados 32, espaco de 4 entre cada um
+  // padding 12+12, titulo 22, nome 20, barra 8, dados 32, espaco de 4 entre cada um
   let used = 24 + 22 + 4 + size * 1.2;
-  if (subtitle) used += 18 + 4;
+  if (subtitle) used += 20 + 4;
   if (bar) used += 8 + 4;
   if (stats) used += 32 + 4;
   expect(size).toBeGreaterThanOrEqual(24);
@@ -132,4 +134,19 @@ test.each<[ConnState, string]>([
   expect(statusLabel(state)).toBe(text);
   await render(<StatusPill state={state} />);
   expect(screen.getByText(text)).toBeTruthy();
+});
+
+test.each([
+  // [largura do cartao, nome, tamanho esperado]
+  [380, 'NVIDIA GeForce RTX 3070', 16],
+  [380, 'AMD Radeon RX 7600', 16],
+  [300, 'NVIDIA GeForce RTX 4070 Ti SUPER', 14],
+  [200, 'NVIDIA GeForce RTX 4070 Ti SUPER', 11],
+  [0, 'NVIDIA GeForce RTX 3070', 16],
+])('subtitleFontSize: cartao de %ipx com "%s" usa %i', (width, name, expected) => {
+  const size = subtitleFontSize(width, name);
+  expect(size).toBe(expected);
+  // Nunca abaixo de 11: legivel no celular
+  expect(size).toBeGreaterThanOrEqual(11);
+  if (width > 0 && size > 11) expect(name.length * size * 0.6).toBeLessThanOrEqual(width - 24);
 });

@@ -27,8 +27,8 @@ atualizar o agente.
 - Cada cartão do modo painel diz o que o número indica ("CPU · uso total", "GPU · uso",
   "Memória RAM · em uso", "Rede · download") e os dados de baixo têm nome ("VRAM usada",
   "Temperatura", "Usada / total", "Livre", "Upload").
-- O cartão da GPU mostra o nome inteiro da placa numa linha própria; num nome longo a letra
-  diminui em vez de cortar.
+- O cartão da GPU mostra o nome inteiro da placa numa linha própria, no mesmo tamanho dos
+  rótulos; num nome longo a letra diminui (até um mínimo legível) em vez de cortar.
 - Sem leitura de temperatura, a GPU mostra "Temperatura: indisponível" em vez de esconder o dado,
   no modo painel e na tela do PC.
 - Na tela do PC, o cartão da GPU começa com "GPU ·" e o da rede explica as setas (↓ recebendo,

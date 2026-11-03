@@ -128,8 +128,10 @@ test('num celular baixo o numero da GPU diminui para caber no cartao', async () 
   const card = screen.getByTestId('gpu-card');
   const size = () => StyleSheet.flatten(screen.getByTestId('gpu-card-value').props.style).fontSize;
   await act(async () => card.props.onLayout({ nativeEvent: { layout: { width: 360, height: 160 } } }));
-  // padding, titulo, nome, barra e dados ocupam 120 px; o numero fica com o resto
-  expect(size() * 1.2 + 120).toBeLessThanOrEqual(160);
+  // padding, titulo, nome, barra e dados ocupam 122 px; o numero fica com o resto
+  expect(size() * 1.2 + 122).toBeLessThanOrEqual(160);
+  // O nome da placa continua no tamanho normal
+  expect(StyleSheet.flatten(screen.getByTestId('gpu-card-subtitle').props.style).fontSize).toBe(16);
 });
 
 test('um toque mostra os controles por 3 s', async () => {

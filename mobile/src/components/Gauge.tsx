@@ -23,9 +23,13 @@ type Props = {
 const PADDING = 12;
 const GAP = 4;
 const HEADER = 22;
-const SUBTITLE = 18;
+const SUBTITLE = 20;
 const TRACK = 8;
 const STATS = 32;
+const MAX_SUBTITLE = 16;
+const MIN_SUBTITLE = 11;
+/** Largura media de uma letra em relacao ao tamanho da fonte (com folga para letras largas). */
+const CHAR_WIDTH = 0.6;
 const MAX_VALUE = 56;
 const MIN_VALUE = 24;
 
@@ -46,17 +50,33 @@ export function valueFontSize(
   return Math.max(MIN_VALUE, Math.min(MAX_VALUE, size));
 }
 
+/**
+ * Tamanho da letra para o nome caber inteiro na largura do cartao. O ajuste automatico do Android
+ * tambem olha a altura da linha e encolhia o nome ate ficar ilegivel.
+ */
+export function subtitleFontSize(width: number, text: string): number {
+  if (width <= 0 || text.length === 0) return MAX_SUBTITLE;
+  const available = width - 2 * PADDING;
+  const size = Math.floor(available / (text.length * CHAR_WIDTH));
+  return Math.max(MIN_SUBTITLE, Math.min(MAX_SUBTITLE, size));
+}
+
 /** Indicador grande do modo painel. Com `onPress`, o cartao abre um detalhe. */
 export function Gauge({ label, caption, subtitle, value, percent, stats = [], onPress, testID }: Props) {
   const { theme } = useTheme();
-  const [height, setHeight] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const height = size.height;
   const safe = percent === undefined ? undefined : Math.min(100, Math.max(0, percent));
   const fontSize = valueFontSize(height, {
     bar: safe !== undefined,
     stats: stats.length > 0,
     subtitle: subtitle !== undefined,
   });
-  const onLayout = (event: LayoutChangeEvent) => setHeight(event.nativeEvent.layout.height);
+  const onLayout = (event: LayoutChangeEvent) => {
+    const { width, height: h } = event.nativeEvent.layout;
+    setSize({ width, height: h });
+  };
+  const subtitleSize = subtitleFontSize(size.width, subtitle ?? '');
   const box = [styles.box, { backgroundColor: theme.surface, borderColor: theme.border }];
   const content = (
     <>
@@ -67,11 +87,9 @@ export function Gauge({ label, caption, subtitle, value, percent, stats = [], on
       {subtitle !== undefined ? (
         <Text
           testID={testID ? `${testID}-subtitle` : undefined}
-          style={[styles.subtitle, { color: theme.textMuted }]}
+          style={[styles.subtitle, { color: theme.textMuted, fontSize: subtitleSize }]}
           numberOfLines={1}
           ellipsizeMode="clip"
-          adjustsFontSizeToFit
-          minimumFontScale={0.5}
         >
           {subtitle}
         </Text>
@@ -140,7 +158,7 @@ const styles = StyleSheet.create({
   header: { height: HEADER, lineHeight: HEADER, fontSize: 18 },
   label: { fontSize: 18, fontWeight: '600' },
   caption: { fontSize: 16 },
-  subtitle: { height: SUBTITLE, lineHeight: SUBTITLE, fontSize: 15 },
+  subtitle: { height: SUBTITLE, lineHeight: SUBTITLE },
   value: { fontWeight: '700' },
   track: { height: TRACK, borderRadius: 4, overflow: 'hidden' },
   fill: { height: '100%' },
