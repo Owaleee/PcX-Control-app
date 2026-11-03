@@ -17,7 +17,8 @@ from pcx_agent.api.app import build_context
 from pcx_agent.config import DEFAULT_PORT, default_data_dir, load_settings
 from pcx_agent.controller import NO_NETWORK_WARNING
 from pcx_agent.logs import setup_logging
-from pcx_agent.pairing_uri import local_ipv4, pairing_uri, print_pairing
+from pcx_agent.network import lan_address
+from pcx_agent.pairing_uri import pairing_uri, print_pairing
 from pcx_agent.server import AgentServer, PortInUseError, StartupError
 
 DEMO_PASSWORD = "demo-password"
@@ -79,7 +80,7 @@ def run_console(args) -> int:
         print(f"PcX Control {__version__} | porta {settings.port} | dados em {settings.data_dir}")
         if args.demo:
             print(f"Modo demo (sensores simulados). Senha: {DEMO_PASSWORD}")
-        qr_host = local_ipv4() if args.host in ("0.0.0.0", "::") else args.host
+        qr_host = lan_address()[0] if args.host in ("0.0.0.0", "::") else args.host
         if qr_host == "127.0.0.1" and args.host in ("0.0.0.0", "::"):
             print(NO_NETWORK_WARNING)
         code = ctx.pairing.new_code()

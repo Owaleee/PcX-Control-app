@@ -21,7 +21,15 @@ pytestmark = [
 def _tk_root():
     # Um Tk por arquivo: criar varios seguidos falha de vez em quando no runner do Windows
     # ("Can't find a usable tk.tcl").
-    window = tk.Tk()
+    # O Python do runner do Windows as vezes nao encontra arquivos do Tk na primeira tentativa.
+    for attempt in range(3):
+        try:
+            window = tk.Tk()
+            break
+        except tk.TclError:
+            if attempt == 2:
+                raise
+            time.sleep(2)
     window.withdraw()
     from pcx_agent.tray.widgets import apply_style
 
@@ -49,7 +57,10 @@ def controller(tmp_path):
     from pcx_agent.sensors.fake import FakeSensorProvider
 
     ctx = build_context(load_settings(data_dir=tmp_path), FakeSensorProvider(seed=2))
-    yield AgentController(ctx, 8765, host_lookup=lambda: "192.168.0.15")
+    yield AgentController(
+        ctx, 8765, address_lookup=lambda: ("192.168.0.15", "Ethernet"),
+        category_lookup=lambda _name: None,
+    )
     ctx.db.close()
 
 
@@ -181,7 +192,9 @@ def test_tk_callback_errors_go_to_the_log(root, caplog):
 def _fully_visible(window, widget) -> bool:
     window.update_idletasks()
     bottom = widget.winfo_rooty() + widget.winfo_height()
-    return widget.winfo_ismapped() and bottom <= window.winfo_rooty() + window.winfo_height()
+    inside = bottom <= window.winfo_rooty() + window.winfo_height()
+    # Sem espaco, o tkinter espreme o widget: conta como cortado.
+    return widget.winfo_ismapped() and inside and widget.winfo_height() >= widget.winfo_reqheight()
 
 
 def _find(widget, text):
@@ -218,3 +231,98 @@ def test_pairing_window_shows_ip_and_close(root, controller):
     assert _fully_visible(window, _find(window, "192.168.0.15:8765"))
     assert _fully_visible(window, _find(window, "Fechar"))
     window.close()
+
+
+def _public_controller(tmp_path, category):
+    from pcx_agent.api.app import build_context
+    from pcx_agent.config import load_settings
+    from pcx_agent.controller import AgentController
+    from pcx_agent.sensors.fake import FakeSensorProvider
+
+    ctx = build_context(load_settings(data_dir=tmp_path), FakeSensorProvider(seed=2))
+    return ctx, AgentController(
+        ctx, 8765, address_lookup=lambda: ("192.168.18.22", "Ethernet"),
+        category_lookup=lambda _name: category,
+    )
+
+
+def _settle(root, seconds=2.0):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.02)
+
+
+@pytest.mark.parametrize("window_name", ["pairing", "first_run"])
+def test_public_network_banner_shows_and_keeps_buttons_visible(root, tmp_path, window_name):
+    from pcx_agent.controller import PUBLIC_NETWORK_WARNING
+    from pcx_agent.tray import texts
+    from pcx_agent.tray.first_run import FirstRunWindow
+    from pcx_agent.tray.pairing import PairingWindow
+
+    ctx, controller = _public_controller(tmp_path, "public")
+    try:
+        if window_name == "pairing":
+            window, last_button = PairingWindow.show(root, controller), texts.CLOSE
+        else:
+            window = FirstRunWindow.show(root, controller)
+            window.password_field.set_value("senha-boa-1")
+            window.confirm_field.set_value("senha-boa-1")
+            window.primary_action()
+            last_button = texts.FINISH
+        _settle(root)
+        assert _fully_visible(window, _find(window, PUBLIC_NETWORK_WARNING))
+        assert _fully_visible(window, _find(window, texts.OPEN_NETWORK_SETTINGS))
+        assert _fully_visible(window, _find(window, "192.168.18.22:8765"))
+        assert _fully_visible(window, _find(window, last_button))
+        window.close()
+    finally:
+        ctx.db.close()
+
+
+def test_private_network_has_no_banner(root, tmp_path):
+    from pcx_agent.controller import PUBLIC_NETWORK_WARNING
+    from pcx_agent.tray.pairing import PairingWindow
+
+    ctx, controller = _public_controller(tmp_path, "private")
+    try:
+        window = PairingWindow.show(root, controller)
+        _settle(root, 1.0)
+        assert _find(window, PUBLIC_NETWORK_WARNING) is None
+        window.close()
+    finally:
+        ctx.db.close()
+
+
+def test_repeated_network_checks_do_not_pile_up(root):
+    """Varios cliques em "Gerar outro codigo" nao enfileiram PowerShell nem piscam a faixa."""
+    import threading
+
+    from pcx_agent.tray.network_banner import NetworkWarningSlot
+
+    calls, running, peak = [], [0], [0]
+    lock = threading.Lock()
+
+    class SlowController:
+        def public_network_warning(self, info):
+            with lock:
+                running[0] += 1
+                peak[0] = max(peak[0], running[0])
+            time.sleep(0.3)
+            calls.append(info)
+            with lock:
+                running[0] -= 1
+            return f"aviso {info}"
+
+    changes = []
+    slot = NetworkWarningSlot(root, on_change=changes.append)
+    slot.pack()
+    for info in range(5):
+        slot.check(SlowController(), info)
+        root.update()
+    _settle(root, 1.5)
+    assert len(calls) <= 2
+    assert calls[-1] == 4
+    assert changes[-1] == "aviso 4"
+    assert None not in changes  # sem piscar: a faixa nao some entre uma checagem e outra
+    slot.destroy()

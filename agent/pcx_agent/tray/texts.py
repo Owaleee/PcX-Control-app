@@ -51,6 +51,7 @@ NO_CAMERA_HINT = "Use IP e senha no app"
 NEW_CODE = "Gerar outro código"
 EXPIRED = "Código expirado.\nGere outro."
 PAIRED = "Celular {nome} pareado!"
+OPEN_NETWORK_SETTINGS = "Abrir configurações de rede"
 
 # Celulares pareados
 DEVICES_HEADING = "Celulares pareados"

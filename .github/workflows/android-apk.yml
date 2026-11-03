@@ -1,0 +1,51 @@
+name: android-apk
+
+# APK de teste compilado na CI (sem EAS): prebuild do Expo + Gradle no runner do GitHub,
+# que ja traz o Android SDK. Assinado com a chave de debug do template do Expo: serve para
+# testar, nao para a Play Store.
+
+on:
+  push:
+    paths: ["mobile/**", ".github/workflows/android-apk.yml"]
+  workflow_dispatch:
+  workflow_call:
+
+defaults:
+  run:
+    working-directory: mobile
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Gerar o projeto Android (expo prebuild)
+        run: npx expo prebuild --platform android --no-install --clean
+      - name: Compilar o APK (so arm64, a arquitetura dos celulares atuais)
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+      - name: Nomear o APK com a versao
+        id: apk
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/PcXControl-$VERSION.apk"
+          echo "name=PcXControl-$VERSION.apk" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-android
+          path: mobile/dist/${{ steps.apk.outputs.name }}
+          if-no-files-found: error

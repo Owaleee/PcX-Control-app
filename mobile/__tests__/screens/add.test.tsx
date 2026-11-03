@@ -106,6 +106,27 @@ test('dois toques rapidos fazem um unico pedido', async () => {
   await act(async () => release(fx.clone(fx.pair)));
 });
 
+test('o campo de IP coloca os pontos sozinho e usa o teclado numerico', async () => {
+  await openManual();
+  const field = screen.getByLabelText('IP do PC');
+  expect(field.props.keyboardType).toBe('decimal-pad');
+  let typed = '';
+  for (const char of '192168') {
+    typed = screen.getByLabelText('IP do PC').props.value + char;
+    await fireEvent.changeText(screen.getByLabelText('IP do PC'), typed);
+  }
+  expect(screen.getByLabelText('IP do PC').props.value).toBe('192.168.');
+  await fireEvent.changeText(screen.getByLabelText('IP do PC'), '192.168');
+  expect(screen.getByLabelText('IP do PC').props.value).toBe('192.168');
+});
+
+test('colar IP com porta preenche os dois campos', async () => {
+  await openManual();
+  await fireEvent.changeText(screen.getByLabelText('IP do PC'), '192.168.18.22:9000');
+  expect(screen.getByLabelText('IP do PC').props.value).toBe('192.168.18.22');
+  expect(screen.getByLabelText('Porta').props.value).toBe('9000');
+});
+
 test('IP invalido mostra erro sem chamar a rede', async () => {
   await openManual();
   await fillManual('192.168.0');

@@ -1,6 +1,7 @@
 """API HTTP /v1 do agente."""
 
 import asyncio
+import logging
 import math
 import time
 from contextlib import asynccontextmanager
@@ -62,6 +63,23 @@ def build_context(
         sampler=Sampler(provider, history, sessions.has_active, **sampler_options),
         provider=provider,
     )
+
+
+pairing_log = logging.getLogger("pcx_agent.pairing")
+_RESULTS = {
+    "rate_limited": "bloqueado",
+    "bad_credentials": "senha_errada",
+    "code_invalid_or_expired": "codigo_invalido",
+    "invalid_name": "nome_invalido",
+}
+
+
+MAX_LOGGED_NAME = 64
+
+
+def _logged_name(name: str) -> str:
+    """Nome do aparelho para o log: curto, para ninguem encher o arquivo com nomes gigantes."""
+    return name if len(name) <= MAX_LOGGED_NAME else name[:MAX_LOGGED_NAME] + "…"
 
 
 class ApiError(Exception):
@@ -145,7 +163,12 @@ def create_app(
         return JSONResponse(body, status_code=err.status, headers=err.headers)
 
     @app.exception_handler(RequestValidationError)
-    async def validation_handler(_request: Request, err: RequestValidationError) -> JSONResponse:
+    async def validation_handler(request: Request, err: RequestValidationError) -> JSONResponse:
+        if request.url.path == "/v1/pair":
+            pairing_log.info(
+                "Pareamento ip=%s metodo=desconhecido resultado=pedido_invalido",
+                request.client.host if request.client else "desconhecido",
+            )
         fields = sorted({".".join(str(p) for p in e["loc"][1:]) or "corpo" for e in err.errors()})
         body = {"code": "invalid_request", "message": f"Campos inválidos: {', '.join(fields)}."}
         return JSONResponse(body, status_code=422)
@@ -188,12 +211,21 @@ def create_app(
     @app.post("/v1/pair")
     def pair(body: PairRequest, request: Request) -> dict:
         client_ip = request.client.host if request.client else "desconhecido"
+        method = "qr" if body.code is not None else "senha"
         try:
             result = ctx.pairing.pair(
                 body.device_name, code=body.code, password=body.password, client_ip=client_ip
             )
         except PairError as err:
+            pairing_log.info(
+                "Pareamento ip=%s metodo=%s resultado=%s aparelho=%r",
+                client_ip, method, _RESULTS.get(err.kind, err.kind), _logged_name(body.device_name),
+            )
             raise _pair_error(err) from None
+        pairing_log.info(
+            "Pareamento ip=%s metodo=%s resultado=pareado aparelho=%r",
+            client_ip, method, _logged_name(body.device_name),
+        )
         return {
             "device_id": result.device_id,
             "token": result.token,

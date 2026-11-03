@@ -46,6 +46,8 @@ $result = Get-Content $Out -Raw | ConvertFrom-Json
 Write-Host "Autoteste: $(Get-Content $Out -Raw)"
 if (-not $result.ok) { Fail "autoteste falhou: $($result.error)" }
 if ($result.tray -ne "ok") { Fail "autoteste nao carregou a bandeja: $($result.tray)" }
+# "vazio" = a VM ainda identificava a rede (nao e erro); "ilegivel" = havia redes e o agente nao leu.
+if ($result.network.profile_output -eq "ilegivel") { Fail "o agente nao conseguiu ler o tipo de rede (Get-NetConnectionProfile)" }
 
 Write-Host "Atualizando depois de desligar o inicio com o Windows pela bandeja"
 Remove-ItemProperty -Path $RunKey -Name PcXControl

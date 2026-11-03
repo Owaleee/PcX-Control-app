@@ -94,7 +94,7 @@ export default function PcPanel() {
                 detail={[vram, temp].filter(Boolean).join(' · ') || undefined}
                 history={index === 0 ? gpu : undefined}
                 stale={stale}
-                onPress={index === 0 ? open('gpu.usage') : undefined}
+                onPress={index === 0 ? () => router.push(`${base}/gpu`) : undefined}
               />
             );
           })}

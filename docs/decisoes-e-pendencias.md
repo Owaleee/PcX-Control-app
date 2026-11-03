@@ -183,3 +183,110 @@ Documentos de origem: o [spec](specs/2026-10-30-pcx-control-v1-design.md) (§3, 
 - Teste de fumaça na CI do Windows: instala em silêncio, confere a regra de firewall e o início
   com o Windows, roda o `--self-test` no executável e desinstala.
 - Falta o roteiro manual "Instalador e bandeja" no PC: [teste manual](teste-manual-app.md).
+
+---
+
+# Agente 0.4.0 e app 0.3.0 (Plano 4)
+
+Documento de origem: o [plano 4](plans/2026-11-02-plano-4-rede-e-ip.md). Motivo: no primeiro
+teste em outro PC (Windows 10 com Ethernet e Radmin VPN), o agente estava aberto e a regra de
+firewall existia, mas o celular não chegava ao PC, e nem o log nem a janela ajudavam a entender.
+
+## Decisões
+
+| Decisão | Por quê |
+| --- | --- |
+| O IP do QR vem da placa da rede local, não da rota padrão | Uma VPN pode virar a rota padrão; o celular nunca alcança esse IP. Sem placa local, o agente volta a usar a rota padrão, como antes. |
+| VPNs e placas virtuais reconhecidas por nome e por faixa de IP | Radmin usa `26.x`, Hamachi `25.x`, Tailscale `100.64/10`; os nomes cobrem as que usam faixas privadas (ZeroTier, Hyper-V, WSL, VirtualBox). |
+| Tipo da rede lido pelo `Get-NetConnectionProfile`, numa thread | É a fonte oficial do Windows, mas leva cerca de 1 s; a janela abre na hora e o aviso aparece depois. Qualquer falha esconde o aviso em vez de travar. |
+| A faixa de aviso encolhe o QR | Mantém o endereço do PC e os botões visíveis sem aumentar a janela (que já tem 720 px no assistente). |
+| Uma linha de log por tentativa de pareamento e por evento de conexão | Responde na hora "o celular chegou ao PC?". O nome do aparelho vai com `repr`, então nunca quebra a linha. |
+| Mensagem de "PC não encontrado" estendida | O spec fixava o texto; a nova versão acrescenta a dica de rede Privada, a causa mais comum no Windows. |
+| Pontos automáticos no IP, com separador para blocos curtos | Um IP só com dígitos é ambíguo (`1921681822`); o ponto automático entra quando o bloco não aceita mais dígitos, e `.`, `,` ou espaço fecham blocos curtos. |
+
+## Achados da revisão independente
+
+Corrigidos, cada um com um teste que falhava antes:
+1. Editar um bloco no meio do IP juntava ou embaralhava os blocos; agora, com os 4 blocos na tela,
+   a edição não redistribui os dígitos.
+2. Colar um IP mais curto por cima do atual virava um IP inválido.
+3. Um bloco do IP podia passar de 255 enquanto se digitava.
+4. Nomes de placa com acento (`Conexão Local`) não batiam com a saída do PowerShell em pt-BR, e o
+   aviso de rede Pública nunca aparecia: a leitura agora é em UTF-8.
+5. Vários cliques em "Gerar outro código" enfileiravam checagens de rede e faziam a faixa piscar.
+6. Um nome de aparelho gigante ia inteiro para o log em cada tentativa.
+
+## Bateria de testes de regressão (antes do lançamento)
+
+Um revisor independente testou as funções antigas e as novas de ponta a ponta (agente real em
+modo demo, HTTP, WebSocket, pareamento, sessões, histórico, janelas na tela virtual e o app),
+e rodou os testes do agente 0.3.0 e do app 0.2.0 contra o código novo. Sem regressões de
+comportamento além das mudanças intencionais. Corrigidos, cada um com um teste que falhava antes:
+
+1. Colar `IP:porta` ou uma URL no campo de IP gerava um IP errado (`192.168.0.10:8765` virava
+   `192.168.0.108`). Agora o host e a porta são separados, e o que não é IPv4 fica como está para a
+   validação avisar.
+2. O PowerShell 5.1 pode começar a saída com um BOM e esconder o aviso de rede Pública; o teste do
+   Windows agora exige ler ao menos uma rede, e o autoteste do `.exe` também.
+3. Rede de Domínio também bloqueia o celular (a regra vale só no perfil Privado) e agora avisa.
+4. O hotspot móvel do Windows (`192.168.137.x`) podia ir para o QR.
+5. Pedido de pareamento inválido e celular que não se autentica não apareciam no log.
+6. Digitar `010` num bloco deslocava os blocos seguintes.
+7. O campo de IP dos ajustes do PC não tinha os pontos automáticos.
+
+## Teste em placa AMD (antes do lançamento)
+
+Num PC com Radeon RX 7600, o app mostrava 70% de uso e o Gerenciador de Tarefas, 2%. A leitura
+do contador `GPU Engine` mostrou a origem: o motor `video codec 0`, usado pelo `AMDRSServ.exe`
+(gravação em segundo plano do Radeon), estava em 70%, e o de computação em 1,9%. O agente pegava
+o motor mais ocupado de todos. Agora os motores de vídeo (codificação e decodificação) ficam de
+fora, e o uso sai do motor mais ocupado entre os que sobram. A amostra real virou teste
+(`tests/data/pdh_rx7600_instant_replay.json`). A temperatura em placas AMD e Intel fica para o
+agente 0.5.0.
+
+## Pendências (Plano 4)
+
+- VPN com nome que o agente não reconhece (um WireGuard chamado "casa", um adaptador TAP
+  "Ethernet 3") ainda pode ir para o QR. O caminho robusto é ler o tipo e a descrição da placa no
+  Windows (`GetAdaptersAddresses` ou `Get-NetAdapter`).
+- No modo painel, um toque no cartão da GPU abre o histórico mesmo quando a ideia era só mostrar
+  os controles; avaliar toque longo se incomodar no uso.
+- `tray/pairing.py` (163 linhas) e `panel.tsx` (177) passaram um pouco das ~150 linhas.
+- Motivo do log: um celular que se desconecta pelo app aparece como "desconectado no PC", e o
+  mesmo celular reconectando aparece como "sessão expirou" na conexão antiga.
+- Nomes de aparelho com 22 ou mais letras e números seguidos aparecem como `[oculto]` no log
+  (efeito da regra que esconde tokens).
+- Muitos pedidos bloqueados seguidos geram uma linha cada; coalescer por IP se virar problema.
+- A tela de histórico da GPU aberta pelo modo painel herda a tela em paisagem e sempre ligada.
+- `config.json` numa pasta sem permissão de escrita derruba a inicialização.
+
+---
+
+# Estratégia: agente estável, app evolui
+
+Decisão de 02/11/2026: o agente deve chegar a um ponto em que não precise mais de atualizações
+para ajustar bugs ou inconsistências. Funções novas entram principalmente pelo app, que é mais
+fácil de atualizar. As regras do protocolo que sustentam isso estão em
+[`protocolo.md`](protocolo.md#como-o-protocolo-evolui).
+
+## O que isso pede do agente
+
+- **Expor dados, não telas:** o agente entrega métricas, histórico e capacidades de forma
+  genérica; o que o app faz com eles (cartões, gráficos, alertas) muda sem tocar no agente.
+- **Capacidades anunciadas no `hello`** para tudo que for opcional, para o app se adaptar a
+  agentes mais antigos.
+- **Diagnóstico embutido:** log de atividade e avisos de rede (agente 0.4.0) reduzem os casos em
+  que é preciso atualizar o agente só para descobrir um problema.
+- **Antes de declarar o agente estável:** fechar as pendências que afetam o uso (VPN com nome
+  desconhecido no QR, teste em placas AMD e Intel) e rodar o roteiro manual completo num PC
+  que não seja o de desenvolvimento.
+
+## Pendências de compatibilidade
+
+- **Protocolo novo sem quebrar apps antigos:** hoje o app só aceita `protocol: 1` no `hello` e,
+  com outro número, falha ao conectar sem explicar. Antes de um protocolo 2 (por exemplo, com o
+  HTTPS planejado), o app precisa mostrar "Atualize o app para usar este PC", e o agente precisa
+  continuar aceitando o protocolo 1 por pelo menos uma versão.
+- **Agente antigo com app novo:** quando o app ganhar uma função que dependa de algo novo no
+  agente, ele deve checar a capacidade no `hello` e mostrar "Atualize o PcX Control no PC para
+  usar isto" em vez de um cartão vazio.

@@ -12,9 +12,47 @@ conversam pelo **protocolo**, versionado à parte (hoje: `protocol: 1`).
 ## [Não lançado]
 
 ### Planejado
-- App, modo painel: um cartão de GPU só, com uso, VRAM e temperatura (hoje a VRAM não aparece
-  no modo painel). Tocar no cartão abre o gráfico com as três métricas.
 - Versão `1.0.0` (agente e app): lançamento público, com README e GIF do modo painel.
+
+## [agente 0.4.0] - 2026-11-02
+
+Rede e diagnóstico, a partir do primeiro teste em outro PC. Compatível com o app 0.2.0 ou mais
+novo (protocolo 1).
+
+### Adicionado
+- **Aviso de rede Pública** (e de rede de Domínio) na janela de pareamento e no assistente, com
+  o botão "Abrir configurações de rede". A checagem roda em segundo plano e não trava a janela.
+- **Log de atividade:** cada tentativa de pareamento (IP do celular, QR ou senha, resultado) e
+  cada conexão, recusa por PC ocupado, sessão assumida e desconexão. Sem senha, código ou token.
+
+### Corrigido
+- O QR podia levar o IP de uma VPN (como a Radmin) ou de uma placa virtual, que o celular nunca
+  alcança. Agora o agente escolhe a placa da rede local e ignora as VPNs e placas virtuais que
+  reconhece pelo nome ou pela faixa de IP (Radmin, Hamachi, ZeroTier, Tailscale, WireGuard,
+  OpenVPN, Hyper-V, WSL, VirtualBox, VMware). Uma VPN renomeada pode passar; o endereço aparece
+  na janela de pareamento para conferir.
+- **Uso da GPU acima do real em placas AMD:** numa RX 7600 o app mostrava 70% com o
+  Gerenciador de Tarefas em 2%. O agente somava o motor de vídeo, ocupado pela gravação em
+  segundo plano do Radeon (Instant Replay). Agora o uso considera só os motores de 3D, cópia e
+  computação, como o Gerenciador mostra por padrão. Vale também para NVIDIA e Intel.
+
+## [app 0.3.0] - 2026-11-02
+
+Compatível com o agente 0.2.0 ou mais novo (protocolo 1).
+
+### Adicionado
+- Modo painel: **um cartão só para a GPU**, com o uso, a VRAM (usada / total e percentual) e a
+  temperatura. Antes a temperatura tinha um cartão próprio e a VRAM não aparecia.
+- Tocar no cartão da GPU (no modo painel ou no painel em retrato) abre o **histórico da GPU**:
+  uso, VRAM e temperatura no mesmo intervalo (15 min, 1 h ou 24 h), com média e máximo de cada.
+- Campo de IP com **pontos automáticos** e teclado numérico: o ponto entra sozinho quando o
+  bloco está completo; ponto, vírgula ou espaço fecham um bloco curto. Colar um IP com zeros à
+  esquerda, vírgulas, `IP:porta` ou uma URL também funciona (a porta vai para o campo Porta). O
+  campo de IP dos ajustes do PC funciona do mesmo jeito.
+
+### Mudado
+- "PC não encontrado" agora também lembra de conferir se a rede do PC está como Privada no
+  Windows.
 
 ## [agente 0.3.0] - 2026-11-02
 

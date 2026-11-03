@@ -43,6 +43,8 @@ WINDOW_SIZES = {
 
 QR_SIZE = 264
 QR_PANEL = 300  # quadro branco em volta do QR
+QR_SIZE_COMPACT = 176  # com a faixa de aviso de rede, o QR encolhe para caber
+QR_PANEL_COMPACT = 204
 
 
 def _luminance(hex_color: str) -> float:

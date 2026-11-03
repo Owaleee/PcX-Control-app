@@ -5,7 +5,7 @@ import { Alert } from 'react-native';
 import { baseUrl, forgetMe, getInfo, isApiError, userMessage } from '../../../src/api/http';
 import { Body, Button, Field, Message, Screen } from '../../../src/components/ui';
 import { usePc } from '../../../src/hooks/PcContext';
-import { normalizeIpv4 } from '../../../src/protocol/ip';
+import { formatIpInput, normalizeIpv4, portFromAddress } from '../../../src/protocol/ip';
 import { removePc, updatePc } from '../../../src/storage/storage';
 
 export default function PcSettings() {
@@ -89,7 +89,17 @@ export default function PcSettings() {
       <Button title="Salvar apelido" variant="secondary" onPress={() => void saveAlias()} />
       <Message text={aliasMessage} tone="info" />
       <Body>Se o IP do PC mudar, atualize aqui. Não é preciso parear de novo.</Body>
-      <Field label="IP do PC" value={host} onChangeText={setHost} placeholder="192.168.0.10" />
+      <Field
+        label="IP do PC"
+        value={host}
+        onChangeText={(text) => {
+          const pastedPort = portFromAddress(text);
+          if (pastedPort) setPort(pastedPort);
+          setHost((previous) => formatIpInput(text, previous));
+        }}
+        placeholder="192.168.0.10"
+        keyboardType="decimal-pad"
+      />
       <Field label="Porta" value={port} onChangeText={setPort} keyboardType="number-pad" maxLength={5} />
       <Button
         title={checking ? 'Verificando…' : 'Salvar endereço'}

@@ -38,6 +38,9 @@ cd agent
 | A12 | CPU do agente ocioso no Gerenciador de Tarefas por 5 min | Média abaixo de 1% |
 | A13 | Instalar de novo com o agente aberto | O instalador pede para fechar o PcX Control |
 | A14 | Desinstalar | A regra de firewall some; `%LOCALAPPDATA%\PcXControl` continua |
+| A15 | Marcar a rede do PC como Pública e abrir "Parear celular" | Faixa "A rede deste PC está como Pública…" com o botão que abre as configurações de rede; o QR, o endereço e os botões continuam visíveis |
+| A16 | PC com VPN (Radmin, Hamachi) ligada | O endereço da janela é o IP do Wi-Fi ou Ethernet, não o da VPN |
+| A17 | Parear com senha errada e depois certa; conectar e sair do app | `agent.log` tem uma linha por tentativa (IP, método, resultado) e as linhas de conexão e desconexão, sem a senha |
 
 ## Roteiro
 
@@ -63,6 +66,9 @@ cd agent
 
 | 18 | Configurações → "Números precisos" desligado (padrão) e ligado | Percentuais inteiros (51%) e, ligado, com uma casa (50,5%), no painel, no detalhe e no modo painel |
 | 19 | Cartão de memória | Mostra usado / total e quanto está livre ("· 17,9 GiB livres") |
+| 20 | Modo painel: cartão da GPU | Um cartão só com uso, "VRAM x / y GiB · z%" e "Temperatura" (sem cartão de temperatura separado) |
+| 21 | Tocar no cartão da GPU (modo painel e retrato) | Abre o histórico com Uso da GPU, VRAM e Temperatura; as abas 15 min, 1 h e 24 h mudam os três |
+| 22 | Digitar o IP no pareamento manual: `192168`, depois `.18.22` | O campo mostra `192.168.18.22`, com os pontos colocados sozinho |
 
 Anote o modelo do celular, a versão do Android e a versão do Windows junto com o resultado.
 

@@ -35,7 +35,7 @@ const KNOWN_CODES: readonly ApiErrorKind[] = [
 ];
 
 export const NOT_FOUND_MESSAGE =
-  'PC não encontrado. Confira se o celular e o PC estão na mesma rede Wi-Fi e se o PcX Control está aberto.';
+  'PC não encontrado. Confira se o celular e o PC estão na mesma rede Wi-Fi, se o PcX Control está aberto e se a rede do PC está como Privada no Windows.';
 const GENERIC_MESSAGE = 'Algo deu errado. Tente de novo.';
 const DEFAULT_TIMEOUT_MS = 5000;
 

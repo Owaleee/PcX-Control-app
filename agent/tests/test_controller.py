@@ -27,8 +27,14 @@ def ctx(tmp_path):
     context.db.close()
 
 
-def make(ctx, host="192.168.0.10"):
-    return AgentController(ctx, 8765, host_lookup=lambda: host, now=lambda: NOW)
+def make(ctx, host="192.168.0.10", interface="Ethernet", category=None):
+    return AgentController(
+        ctx,
+        8765,
+        address_lookup=lambda: (host, interface),
+        category_lookup=lambda _name: category,
+        now=lambda: NOW,
+    )
 
 
 def test_set_password_rejects_mismatch(ctx):
@@ -60,7 +66,7 @@ def test_start_pairing_builds_uri_with_lan_host(ctx):
     assert query["p"] == ["8765"]
     assert query["c"] == [info.code]
     assert query["id"] == [ctx.db.agent_id]
-    assert (info.host, info.port) == ("192.168.0.10", 8765)
+    assert (info.host, info.port, info.interface) == ("192.168.0.10", 8765, "Ethernet")
     assert info.warning is None
     assert info.expires_at == NOW + ctx.pairing.code_ttl_s == NOW + 300
 
@@ -153,3 +159,47 @@ def test_format_last_used(ts, expected):
 def test_format_last_used_future_is_now():
     now = _local(2026, 11, 1, 18, 0)
     assert format_last_used(now + 5, now) == "agora"
+
+
+def test_default_address_lookup_ignores_vpn(ctx, monkeypatch):
+    """Sem injecao, o controlador usa network.lan_address (que ignora VPNs)."""
+    import pcx_agent.controller as controller_module
+
+    monkeypatch.setattr(controller_module, "lan_address", lambda: ("192.168.18.22", "Ethernet"))
+    info = AgentController(ctx, 8765, now=lambda: NOW).start_pairing()
+    assert info.host == "192.168.18.22"
+    assert info.interface == "Ethernet"
+
+
+def test_public_network_warning_when_qr_adapter_is_public(ctx):
+    from pcx_agent.controller import PUBLIC_NETWORK_WARNING
+
+    controller = make(ctx, category="public")
+    info = controller.start_pairing()
+    assert controller.public_network_warning(info) == PUBLIC_NETWORK_WARNING
+    assert "Pública" in PUBLIC_NETWORK_WARNING and "Privada" in PUBLIC_NETWORK_WARNING
+
+
+@pytest.mark.parametrize("category", ["private", None])
+def test_no_warning_for_private_domain_or_unknown(ctx, category):
+    controller = make(ctx, category=category)
+    assert controller.public_network_warning(controller.start_pairing()) is None
+
+
+def test_no_warning_without_adapter_name(ctx):
+    asked = []
+    controller = AgentController(
+        ctx, 8765, address_lookup=lambda: ("192.168.0.10", None),
+        category_lookup=lambda name: asked.append(name) or "public", now=lambda: NOW,
+    )
+    assert controller.public_network_warning(controller.start_pairing()) is None
+    assert asked == []
+
+
+def test_domain_network_also_warns(ctx):
+    """A regra do firewall vale so no perfil Privado: rede de Dominio tambem bloqueia o celular."""
+    from pcx_agent.controller import DOMAIN_NETWORK_WARNING
+
+    controller = make(ctx, category="domain")
+    assert controller.public_network_warning(controller.start_pairing()) == DOMAIN_NETWORK_WARNING
+    assert "Privada" in DOMAIN_NETWORK_WARNING
