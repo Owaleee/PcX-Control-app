@@ -8,9 +8,15 @@ from datetime import UTC, datetime
 
 import psutil
 
+from pcx_agent.ratelimit_log import RateLimitedLog
 from pcx_agent.sensors.base import DiskVolume, GpuReading, Snapshot
 from pcx_agent.sensors.windows import native
-from pcx_agent.sensors.windows.gpu import AdapterInfo, parse_gpu_usage, parse_vram_usage
+from pcx_agent.sensors.windows.gpu import (
+    AdapterInfo,
+    describe_adapters,
+    parse_gpu_usage,
+    parse_vram_usage,
+)
 
 logger = logging.getLogger("pcx_agent.sensors.windows")
 ADAPTER_CACHE_S = 60.0
@@ -28,8 +34,10 @@ class WindowsSensorProvider:
         self._net = psutil.net_io_counters()
         self._disk_io = psutil.disk_io_counters()
         self._last = time.monotonic()
-        self._gpu_failed_once = False
+        # Falhas repetidas da GPU: no maximo uma linha por minuto por tipo.
+        self._failures = RateLimitedLog(logger, interval_s=60.0, clock=clock)
         self._adapters: dict[str, AdapterInfo] = {}
+        self._logged_adapters: dict[str, AdapterInfo] | None = None
         self._adapters_at = float("-inf")
         self._pdh = self._open(native.PdhGpuCounters, "contadores de GPU")
         self._nvml = self._open(native.NvmlTemperatures, "temperatura NVIDIA (NVML)")
@@ -96,10 +104,23 @@ class WindowsSensorProvider:
             return {}
         try:
             return self._nvml.read()
-        except Exception:
-            logger.warning("Falha ao ler a temperatura (NVML); tentando de novo em 60 s", exc_info=True)
+        except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
+            self._failures.report(
+                "nvml", "Falha ao ler a temperatura (NVML); tentando de novo em 60 s", exc_info=True
+            )
             self._drop("_nvml", "NVML")
             return {}
+
+    def _log_adapters(self) -> None:
+        """Uma linha por placa ao abrir e quando a lista muda (placa nova, driver trocado)."""
+        if self._adapters == self._logged_adapters:
+            return
+        self._logged_adapters = dict(self._adapters)
+        lines = describe_adapters(self._adapters)
+        if not lines:
+            logger.info("Nenhuma placa de video encontrada (DXGI)")
+        for line in lines:
+            logger.info("Placa de video: %s", line)
 
     def _gpus(self) -> list[GpuReading]:
         self._maybe_reopen()
@@ -110,12 +131,11 @@ class WindowsSensorProvider:
             if now - self._adapters_at >= ADAPTER_CACHE_S:
                 self._adapters = native.list_adapters()
                 self._adapters_at = now
+                self._log_adapters()
             engines, memory = self._pdh.read()
             readings = parse_gpu_usage(engines, self._adapters, parse_vram_usage(memory))
-        except Exception:
-            level = logging.DEBUG if self._gpu_failed_once else logging.WARNING
-            logger.log(level, "Falha ao ler a GPU; tentando de novo em 60 s", exc_info=True)
-            self._gpu_failed_once = True
+        except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
+            self._failures.report("gpu", "Falha ao ler a GPU; tentando de novo em 60 s", exc_info=True)
             self._drop("_pdh", "contadores de GPU")
             return []
         # A temperatura e opcional: se falhar, o uso e a VRAM continuam aparecendo.

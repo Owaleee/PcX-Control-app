@@ -54,6 +54,7 @@ class FakeSensorProvider:
                     vram_used_bytes=vram_used,
                     vram_total_bytes=vram_total,
                     temp_c=self._wave(40, 75, 0.04),
+                    vendor="nvidia",
                 )
             ],
             host_name="PC-DEMO",

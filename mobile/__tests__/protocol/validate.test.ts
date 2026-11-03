@@ -41,6 +41,18 @@ describe('parseSnapshotMessage', () => {
     expect(parseSnapshotMessage(noTemp)?.data.gpus[0]?.temp_c).toBeNull();
   });
 
+  test('vendor da GPU (agente 0.5.0) e opcional e nao derruba a leitura', () => {
+    expect(parseSnapshotMessage(fx.snapshotMessage)?.data.gpus[0]?.vendor).toBe('nvidia');
+    const old = fx.clone(fx.snapshotMessage) as { data: { gpus: Record<string, unknown>[] } };
+    delete old.data.gpus[0]!.vendor;
+    expect(parseSnapshotMessage(old)?.data.gpus[0]?.vendor).toBeNull();
+    const odd = fx.clone(fx.snapshotMessage) as { data: { gpus: Record<string, unknown>[] } };
+    odd.data.gpus[0]!.vendor = 42;
+    const parsed = parseSnapshotMessage(odd);
+    expect(parsed?.data.gpus[0]?.usage_percent).toBe(fx.snapshotMessage.data.gpus[0]!.usage_percent);
+    expect(parsed?.data.gpus[0]?.vendor).toBeNull();
+  });
+
   test.each([
     ['cpu acima de 100', (m: any) => (m.data.cpu_total = 101)],
     ['NaN', (m: any) => (m.data.ram_percent = Number.NaN)],

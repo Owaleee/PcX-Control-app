@@ -26,7 +26,7 @@ const isNullableNum = (v: unknown): v is number | null => v === null || v === un
 
 function parseGpu(v: unknown): GpuReading | null {
   if (!isObj(v)) return null;
-  const { id, name, usage_percent, vram_used_bytes, vram_total_bytes, temp_c } = v;
+  const { id, name, usage_percent, vram_used_bytes, vram_total_bytes, temp_c, vendor } = v;
   if (!isText(id) || !isText(name) || !isPercent(usage_percent)) return null;
   if (!isNullableNonNeg(vram_used_bytes) || !isNullableNonNeg(vram_total_bytes)) return null;
   if (!isNullableNum(temp_c)) return null;
@@ -37,6 +37,8 @@ function parseGpu(v: unknown): GpuReading | null {
     vram_used_bytes: vram_used_bytes ?? null,
     vram_total_bytes: vram_total_bytes ?? null,
     temp_c: temp_c ?? null,
+    // Campo opcional: agente antigo nao manda, e um valor estranho nao derruba a leitura.
+    vendor: isText(vendor) ? vendor : null,
   };
 }
 

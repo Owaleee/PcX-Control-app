@@ -46,7 +46,7 @@ números estranhos.
 - `AdapterInfo` ganha `vendor_id: int`; `vendor_name(vendor_id) -> str` (`0x10DE` nvidia, `0x1002` amd, `0x8086` intel, senão `outra`).
 - `GpuReading.vendor: str | None = None`; `parse_gpu_usage` preenche e devolve as placas ordenadas por `vram_total_bytes` decrescente.
 - `describe_adapters(adapters) -> list[str]`: uma linha por placa (nome, fabricante, `VendorId` em hexa, VRAM em GiB, LUID). O provider registra essas linhas ao abrir e quando a lista de placas muda.
-- `RateLimitedLog(logger, interval_s=60)`: `warning(key, msg, *args)` registra no máximo uma vez por minuto por `key`; usado nas falhas de PDH, DXGI, NVML e D3DKMT.
+- `RateLimitedLog(logger, interval_s=60)`: `report(key, msg, *args)` registra no máximo uma vez por minuto por `key`; usado nas falhas de PDH, DXGI, NVML e D3DKMT.
 - Testes: ordem por VRAM (integrada de 512 MiB depois da dedicada de 8 GiB); `vendor` de cada `VendorId`; linhas de `describe_adapters`; `RateLimitedLog` com relógio falso; fixtures do protocolo regeradas com `vendor` e o teste de contrato verde.
 
 ### Tarefa 3: temperatura pelo D3DKMT

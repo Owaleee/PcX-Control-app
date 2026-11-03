@@ -61,10 +61,11 @@ def test_empty_samples_returns_empty_list():
     assert parse_gpu_usage(DATA, {}) == []
 
 
-def test_two_physical_gpus_listed_separately_and_sorted():
+def test_two_physical_gpus_listed_separately_more_vram_first():
     readings = parse_gpu_usage(DATA, ADAPTERS)
-    assert [r.id for r in readings] == sorted(r.id for r in readings)
     assert len(readings) == 2
+    # A RTX (8 GiB) vem antes da outra (4 GiB), mesmo com o LUID depois na ordem alfabetica.
+    assert [r.name for r in readings] == ["NVIDIA GeForce RTX 3070", "Outra GPU"]
 
 
 def test_same_luid_different_phys_are_separate():

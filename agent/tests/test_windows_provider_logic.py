@@ -1,5 +1,6 @@
 """Logica de recuperacao do provider do Windows, com dubles no lugar do codigo nativo."""
 
+import logging
 from typing import ClassVar
 
 import pytest
@@ -133,3 +134,62 @@ def test_machine_without_nvml_has_no_temperature_and_no_error(make):
     provider, _ = make()
     gpu = provider.read().gpus[0]
     assert gpu.temp_c is None and gpu.usage_percent == 42.0
+
+
+def _gpu_logs(caplog, level=logging.INFO):
+    return [r.getMessage() for r in caplog.records if r.name == provider_module.logger.name and r.levelno >= level]
+
+
+def test_logs_the_cards_once_and_again_when_the_list_changes(make, monkeypatch, caplog):
+    provider, clock = make()
+    with caplog.at_level(logging.INFO, logger=provider_module.logger.name):
+        provider.read()
+        clock.now += 61  # a lista e relida a cada minuto; igual, nao repete
+        provider.read()
+        monkeypatch.setattr(
+            provider_module.native,
+            "list_adapters",
+            lambda: {
+                LUID: AdapterInfo("NVIDIA Teste", 8 * GIB, 0x10DE),
+                "0x00000000_0x0000a1b2": AdapterInfo("Intel UHD", GIB // 2, 0x8086),
+            },
+        )
+        clock.now += 61
+        provider.read()
+    cards = [m for m in _gpu_logs(caplog) if m.startswith("Placa de video:")]
+    assert cards == [
+        "Placa de video: NVIDIA Teste | fabricante outra (VendorId 0x0000) | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
+        "Placa de video: NVIDIA Teste | fabricante nvidia (VendorId 0x10DE) | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
+        "Placa de video: Intel UHD | fabricante intel (VendorId 0x8086) | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2",
+    ]
+
+
+def test_no_cards_found_is_logged(make, monkeypatch, caplog):
+    monkeypatch.setattr(provider_module.native, "list_adapters", dict)
+    provider, _ = make()
+    with caplog.at_level(logging.INFO, logger=provider_module.logger.name):
+        provider.read()
+    assert "Nenhuma placa de video encontrada (DXGI)" in _gpu_logs(caplog)
+
+
+def test_gpu_failure_later_on_is_logged_again(make, caplog):
+    """Antes, so a primeira falha da GPU ia para o log; as seguintes sumiam para sempre."""
+    provider, clock = make()
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        FakePdh.instances[-1].fail = True
+        provider.read()  # falha, fecha e agenda nova tentativa
+        clock.now += 61
+        provider.read()  # reabre
+        FakePdh.instances[-1].fail = True
+        provider.read()  # falha de novo, 61 s depois da primeira
+    warnings = [m for m in _gpu_logs(caplog, logging.WARNING) if m.startswith("Falha ao ler a GPU")]
+    assert len(warnings) == 2
+
+
+def test_nvml_failure_is_a_warning_with_the_reason(make, caplog):
+    provider, _ = make()
+    FakeNvml.instances[-1].fail = True
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        provider.read()
+    (record,) = [r for r in caplog.records if "NVML" in r.getMessage()]
+    assert record.exc_info is not None
