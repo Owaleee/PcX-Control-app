@@ -104,6 +104,16 @@ describe('alertas', () => {
     expect(storage.setAlertLimits).toHaveBeenLastCalledWith({ ...DEFAULT_LIMITS, usageHigh: 85 });
   });
 
+  test('o erro some quando os limites sao ressincronizados', async () => {
+    await open();
+    await fireEvent.changeText(screen.getByLabelText('Uso alto a partir de (%)'), '8');
+    expect(screen.getByText(/Uso: escolha valores/)).toBeTruthy();
+    await fireEvent(screen.getByRole('switch', { name: 'Cores de alerta' }), 'valueChange', false);
+    await fireEvent(screen.getByRole('switch', { name: 'Cores de alerta' }), 'valueChange', true);
+    expect(screen.getByLabelText('Uso alto a partir de (%)').props.value).toBe('80');
+    expect(screen.queryByText(/Uso: escolha valores/)).toBeNull();
+  });
+
   test('restaurar padrao volta os quatro limites', async () => {
     storage.getAlertLimits.mockImplementation(async () => ({ ...DEFAULT_LIMITS, usageHigh: 60, tempCritical: 100 }));
     await open();

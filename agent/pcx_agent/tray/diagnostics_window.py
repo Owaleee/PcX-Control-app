@@ -1,7 +1,9 @@
 """Janela "Verificar conexao": roda o diagnostico em segundo plano e mostra o que fazer."""
 
 import logging
-from concurrent.futures import Future, ThreadPoolExecutor
+import threading
+from collections.abc import Callable
+from concurrent.futures import Future
 
 from pcx_agent.diagnostics.model import CheckResult
 from pcx_agent.tray import texts
@@ -18,8 +20,23 @@ from pcx_agent.tray.widgets import (
 
 POLL_MS = 150
 logger = logging.getLogger("pcx_agent.tray")
-# O diagnostico chama o PowerShell (alguns segundos): nunca na thread da interface.
-_RUNS = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pcx-diagnostico")
+
+
+def in_background(work: Callable[[], object]) -> Future:
+    """Roda fora da thread da interface (o diagnostico chama o PowerShell por alguns segundos).
+
+    Thread daemon: sair pela bandeja no meio de um diagnostico nao espera o PowerShell terminar.
+    """
+    future: Future = Future()
+
+    def run() -> None:
+        try:
+            future.set_result(work())
+        except BaseException as exc:  # noqa: BLE001 - entregue a quem consulta o resultado
+            future.set_exception(exc)
+
+    threading.Thread(target=run, name="pcx-diagnostico", daemon=True).start()
+    return future
 
 
 def summary(results: list[CheckResult]) -> tuple[str, str]:
@@ -61,7 +78,7 @@ class DiagnosticsWindow(BaseWindow):
             return  # um diagnostico por vez
         self.status.configure(text=texts.DIAG_RUNNING, fg=COLORS["text"])
         self.again_button.configure(state="disabled")
-        self._running = _RUNS.submit(self.controller.run_diagnostics)
+        self._running = in_background(self.controller.run_diagnostics)
         self.after(POLL_MS, self._poll, self._running)
 
     def _poll(self, running: Future) -> None:
@@ -82,8 +99,20 @@ class DiagnosticsWindow(BaseWindow):
         self.results_list.show(self.results)
 
     def _fix(self, fix: str) -> None:
-        self.controller.apply_fix(fix)
-        self._rerun_on_focus = True  # ao voltar das Configuracoes ou do pedido de administrador
+        # O pedido de administrador segura a chamada: fora da thread da interface.
+        done = in_background(lambda: self.controller.apply_fix(fix))
+        if fix == "criar_firewall":
+            self.after(POLL_MS, self._after_fix, done)  # o netsh terminou: verifica de novo
+        else:
+            self._rerun_on_focus = True  # ao voltar das Configuracoes de rede
+
+    def _after_fix(self, done: Future) -> None:
+        if not self.winfo_exists():
+            return
+        if not done.done():
+            self.after(POLL_MS, self._after_fix, done)
+            return
+        self.run()
 
     def _focus_back(self, event) -> None:
         if event.widget is self and self._rerun_on_focus:

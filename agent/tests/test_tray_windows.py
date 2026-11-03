@@ -457,3 +457,28 @@ def test_diagnostics_failure_keeps_the_window_usable(root, caplog):
     assert str(window.again_button.cget("state")) == "normal"
     assert any("Diagnostico falhou" in r.getMessage() for r in caplog.records)
     window.close()
+
+
+def test_diagnostics_run_in_a_daemon_thread():
+    """Sair pela bandeja no meio de um diagnostico nao espera o PowerShell terminar."""
+    import threading as th
+
+    from pcx_agent.tray.diagnostics_window import in_background
+
+    seen = []
+    future = in_background(lambda: seen.append(th.current_thread().daemon) or 42)
+    assert future.result(timeout=5) == 42
+    assert seen == [True]
+
+
+def test_firewall_fix_runs_in_background_and_checks_again_when_done(root):
+    controller = _DiagnosticsController(_diag_results())
+    window = _open_diagnostics(root, controller)
+    window.results_list.fix_buttons[1].invoke()  # criar_firewall
+    deadline = time.monotonic() + 5
+    while controller.runs < 2 and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.02)
+    assert controller.fixes == ["criar_firewall"]
+    assert controller.runs == 2  # verificou de novo sem precisar voltar o foco
+    window.close()

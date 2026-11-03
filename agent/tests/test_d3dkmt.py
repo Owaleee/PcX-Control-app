@@ -70,3 +70,17 @@ def test_real_adapters_are_read_without_errors():
         temps.close()
     assert isinstance(result, dict)
     assert all(isinstance(v, float) and 0 < v <= 150 for v in result.values())
+
+
+def test_ctypes_structures_have_the_windows_sizes():
+    """Tamanhos do d3dkmthk.h em 64 bits: um campo errado aqui so quebraria no Windows."""
+    import ctypes
+
+    from pcx_agent.sensors.windows import d3dkmt
+
+    assert ctypes.sizeof(d3dkmt._OpenAdapterFromLuid) == 12  # LUID (8) + D3DKMT_HANDLE (4)
+    assert ctypes.sizeof(d3dkmt._CloseAdapter) == 4
+    if ctypes.sizeof(ctypes.c_void_p) == 8:
+        # hAdapter (4) + Type (4) + ponteiro (8) + tamanho (4) + alinhamento (4)
+        assert ctypes.sizeof(d3dkmt._QueryAdapterInfo) == 24
+        assert d3dkmt._QueryAdapterInfo.pPrivateDriverData.offset == 8

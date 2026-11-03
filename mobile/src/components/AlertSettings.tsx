@@ -24,6 +24,7 @@ export function AlertSettings() {
   if (syncedFrom !== alerts) {
     setSyncedFrom(alerts);
     setDraft(toDraft(alerts));
+    setError(null);
   }
 
   const change = (key: keyof LimitsDraft, text: string) => {

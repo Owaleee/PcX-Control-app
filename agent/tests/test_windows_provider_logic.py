@@ -166,8 +166,8 @@ def _gpu_logs(caplog, level=logging.INFO):
 
 
 def test_logs_the_cards_once_and_again_when_the_list_changes(make, monkeypatch, caplog):
-    provider, clock = make()
     with caplog.at_level(logging.INFO, logger=provider_module.logger.name):
+        provider, clock = make()  # a sondagem no construtor ja lista as placas
         provider.read()
         clock.now += 61  # a lista e relida a cada minuto; igual, nao repete
         provider.read()
@@ -191,8 +191,8 @@ def test_logs_the_cards_once_and_again_when_the_list_changes(make, monkeypatch, 
 
 def test_no_cards_found_is_logged(make, monkeypatch, caplog):
     monkeypatch.setattr(provider_module.native, "list_adapters", dict)
-    provider, _ = make()
     with caplog.at_level(logging.INFO, logger=provider_module.logger.name):
+        provider, _ = make()
         provider.read()
     assert "Nenhuma placa de video encontrada (DXGI)" in _gpu_logs(caplog)
 
@@ -302,3 +302,13 @@ def test_keeps_the_gpu_counter_names_for_the_report(make):
     provider, _ = make()
     provider.read()
     assert provider.gpu_instances == [ENGINE]
+
+
+def test_capabilities_never_touch_the_hardware(make):
+    """capabilities() roda no laco do servidor, junto com o coletor: so le o que ja sabe."""
+    FakeD3d.temps = {LUID: 52.0}
+    provider, _ = make()
+    asked = len(FakeD3d.instances[0].asked)
+    for _ in range(3):
+        assert "gpu.temp" in provider.capabilities()
+    assert len(FakeD3d.instances[0].asked) == asked

@@ -46,7 +46,8 @@ export function worst(...levels: AlertLevel[]): AlertLevel {
   return levels.reduce<AlertLevel>((a, b) => (ORDER[b] > ORDER[a] ? b : a), 'normal');
 }
 
-export type AlertBadge = { label: string; level: Exclude<AlertLevel, 'normal'> };
+/** `short`: forma curta, usada quando o nome da placa nao caberia ao lado dos selos. */
+export type AlertBadge = { label: string; short?: string; level: Exclude<AlertLevel, 'normal'> };
 
 export function usageBadge(level: AlertLevel): AlertBadge | null {
   if (level === 'normal') return null;
@@ -55,7 +56,12 @@ export function usageBadge(level: AlertLevel): AlertBadge | null {
 
 export function tempBadge(level: AlertLevel): AlertBadge | null {
   if (level === 'normal') return null;
-  return { label: level === 'critico' ? 'Temperatura crítica' : 'Temperatura alta', level };
+  const critical = level === 'critico';
+  return {
+    label: critical ? 'Temperatura crítica' : 'Temperatura alta',
+    short: critical ? 'Temp. crítica' : 'Temp. alta',
+    level,
+  };
 }
 
 export type LimitsDraft = { usageHigh: string; usageCritical: string; tempHigh: string; tempCritical: string };

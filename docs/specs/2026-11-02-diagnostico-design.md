@@ -45,7 +45,7 @@ Cada verificação devolve um resultado com: `id`, grupo, título, situação (`
 | Grupo | `id` | Situação | Correção |
 | --- | --- | --- | --- |
 | Rede e firewall | `rede.ip` | `ok` com IP da rede local; `problema` sem rede, só com VPN ou com `169.254.x.x` (o roteador não entregou IP) | — |
-| | `rede.tipo` | `ok` em Privada ou Domínio; `problema` em Pública; `info` se não der para ler | Abrir configurações de rede |
+| | `rede.tipo` | `ok` em Privada; `atencao` em Domínio (a regra do firewall vale só na Privada, como no aviso do agente 0.4.0); `problema` em Pública; `info` se não der para ler | Abrir configurações de rede |
 | | `rede.firewall` | `ok` com a regra "PcX Control - agente" ativa, de entrada, permitindo, no perfil Privado e apontando para o executável em uso; `problema` se faltar, estiver desativada ou apontar para outro programa; `info` rodando pelo código (sem instalador) | Criar regra de firewall |
 | | `rede.vpn` | `atencao` com VPN ligada (lista os nomes); `ok` sem VPN | — |
 | Agente acessível | `agente.local` | `ok` se o agente responde em `http://<IP da rede>:<porta>/v1/info` com o próprio `agent_id`; `problema` caso contrário. A explicação deixa claro que o teste parte do próprio PC e não prova o caminho do celular | — |
@@ -66,8 +66,10 @@ Cada verificação devolve um resultado com: `id`, grupo, título, situação (`
 - a versão do agente e a do Windows;
 - cada verificação, com a situação e a explicação;
 - as placas de rede (nome, IP, ativa ou não, se foi tomada como VPN);
-- as placas de vídeo (nome, fabricante, `VendorId`, VRAM, LUID) e os nomes das instâncias dos
-  contadores PDH de GPU.
+- as placas de vídeo (nome, fabricante, VRAM, uso, temperatura, LUID) e os tipos de motor que
+  cada placa expõe nos contadores PDH (os nomes inteiros das instâncias são longos o bastante
+  para o filtro de segredos esconder, e o que importa para tratar uma placa nova é o tipo de
+  motor).
 
 Nunca entram senha, código de pareamento ou token. Cada execução do diagnóstico também é
 gravada no `agent.log`.

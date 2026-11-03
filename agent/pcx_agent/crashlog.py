@@ -6,8 +6,13 @@
 - Trava nativa (uma DLL de driver derruba o processo): `crash.log`, com a pilha de cada thread,
   escrita pelo `faulthandler` no momento da trava. Ele so grava nomes de funcoes e linhas de
   codigo, nunca valores: senha, codigo e token nao aparecem ali.
+
+No Windows o `faulthandler` tambem registra excecoes que um driver ou o ctypes tratam sozinhos
+("Windows fatal exception" com o processo seguindo vivo). Por isso cada execucao termina com a
+linha ENDED_NORMALLY: pilha seguida dessa linha nao foi uma queda.
 """
 
+import atexit
 import contextlib
 import faulthandler
 import logging
@@ -21,6 +26,7 @@ from typing import TextIO
 from pcx_agent import __version__
 
 CRASH_FILE = "crash.log"
+ENDED_NORMALLY = "=== encerrado normalmente ==="
 MAX_CRASH_BYTES = 1_048_576
 logger = logging.getLogger("pcx_agent.crash")
 
@@ -94,6 +100,14 @@ def install_crash_logging(log_dir: Path) -> None:
     sys.excepthook = _excepthook
     threading.excepthook = _thread_excepthook
     faulthandler.enable(file=handle, all_threads=True)
+    atexit.register(_mark_normal_exit)
+
+
+def _mark_normal_exit() -> None:
+    handle = _state.get("handle")
+    if handle is not None and not handle.closed:
+        handle.write(ENDED_NORMALLY + "\n")
+        handle.flush()
 
 
 def uninstall_crash_logging() -> None:
@@ -101,6 +115,8 @@ def uninstall_crash_logging() -> None:
     if not _state:
         return
     faulthandler.disable()
+    atexit.unregister(_mark_normal_exit)
+    _mark_normal_exit()
     sys.excepthook = _state["excepthook"]
     threading.excepthook = _state["thread_excepthook"]
     handle = _state["handle"]

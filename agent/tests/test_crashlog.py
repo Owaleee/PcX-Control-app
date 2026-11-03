@@ -152,3 +152,22 @@ def test_agent_start_installs_crash_logging(tmp_path, monkeypatch):
     monkeypatch.setattr(main_module, "log_startup", lambda: calls.append("startup"))
     assert main_module.main(["--demo", "--dry-run", "--data-dir", str(tmp_path)]) == 0
     assert calls == [tmp_path / "logs", "startup"]
+
+
+def test_normal_exit_is_marked_after_the_header(tmp_path):
+    crashlog.install_crash_logging(tmp_path)
+    crashlog.uninstall_crash_logging()
+    lines = (tmp_path / crashlog.CRASH_FILE).read_text(encoding="utf-8").splitlines()
+    assert lines[0].startswith("=== PcX Control ")
+    assert lines[-1] == crashlog.ENDED_NORMALLY
+
+
+def test_process_exit_marks_normal_exit(tmp_path):
+    code = (
+        "from pathlib import Path\n"
+        "from pcx_agent import crashlog\n"
+        f"crashlog.install_crash_logging(Path({str(tmp_path)!r}))\n"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True, timeout=60)
+    content = (tmp_path / crashlog.CRASH_FILE).read_text(encoding="utf-8")
+    assert content.rstrip().endswith(crashlog.ENDED_NORMALLY)

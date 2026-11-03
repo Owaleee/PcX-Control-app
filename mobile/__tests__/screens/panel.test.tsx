@@ -297,14 +297,64 @@ describe('cores de alerta', () => {
     expect(color('gpu-card')).toBe(THEMES.dark.text); // 88% abaixo de 90
   });
 
-  test('com dois selos, o nome da placa ainda cabe e o cartao de 160 px nao vaza', async () => {
+  const layoutGpu = async (width: number) => {
+    const card = screen.getByTestId('gpu-card');
+    await act(async () => card.props.onLayout({ nativeEvent: { layout: { width, height: 160 } } }));
+  };
+  const nameFont = () => StyleSheet.flatten(screen.getByTestId('gpu-card-subtitle').props.style).fontSize;
+
+  test('com dois selos, o nome curto fica em tamanho normal e os selos por extenso', async () => {
     show(DEFAULT_LIMITS);
     await render(<PanelMode />);
-    const card = screen.getByTestId('gpu-card');
-    await act(async () => card.props.onLayout({ nativeEvent: { layout: { width: 380, height: 160 } } }));
-    const name = StyleSheet.flatten(screen.getByTestId('gpu-card-subtitle').props.style).fontSize;
-    expect(name).toBeGreaterThanOrEqual(11);
+    await layoutGpu(380);
+    expect(screen.getByText('Temperatura crítica')).toBeTruthy();
+    // "NVIDIA GeForce RTX 3070" ao lado dos selos: cabe inteiro
+    const name = fx.snapshotMessage.data.gpus[0]!.name;
+    const available = 380 - 24 - (Math.ceil(19 * 11 * 0.6) + 18) - 8;
+    expect(name.length * nameFont() * 0.6).toBeLessThanOrEqual(available);
     const size = StyleSheet.flatten(screen.getByTestId('gpu-card-value').props.style).fontSize;
     expect(size * 1.2 + 133).toBeLessThanOrEqual(160);
+  });
+
+  test('nome longo com dois selos: os selos ficam curtos e o nome cabe inteiro', async () => {
+    const snapshot = hot();
+    snapshot.data.gpus[0].name = 'NVIDIA GeForce RTX 4070 Ti SUPER';
+    (usePc as jest.Mock).mockReturnValue({
+      pc: { agentId: 'a1', name: 'PC' },
+      state: { kind: 'connected', hello: fx.clone(fx.hello) },
+      snapshot,
+      capabilities: fx.hello.capabilities,
+    });
+    (useTheme as jest.Mock).mockReturnValue({
+      theme: THEMES.dark, name: 'dark', setName, precise: false, alerts: DEFAULT_LIMITS,
+    });
+    await render(<PanelMode />);
+    await layoutGpu(380);
+    expect(screen.getByText('Temp. crítica')).toBeTruthy();
+    expect(screen.getByLabelText('Temperatura crítica')).toBeTruthy(); // o leitor de tela le por extenso
+    const available = 380 - 24 - (Math.ceil(13 * 11 * 0.6) + 18) - 8;
+    expect(32 * nameFont() * 0.6).toBeLessThanOrEqual(available);
+    expect(nameFont()).toBeGreaterThanOrEqual(11);
+  });
+
+  test('VRAM alta sozinha colore o valor, mas nao acende a borda sem selo', async () => {
+    const snapshot = fx.clone(fx.snapshotMessage);
+    snapshot.data.gpus[0].usage_percent = 10;
+    snapshot.data.gpus[0].temp_c = 50;
+    snapshot.data.gpus[0].vram_used_bytes = Math.round(0.9 * snapshot.data.gpus[0].vram_total_bytes!);
+    (usePc as jest.Mock).mockReturnValue({
+      pc: { agentId: 'a1', name: 'PC' },
+      state: { kind: 'connected', hello: fx.clone(fx.hello) },
+      snapshot,
+      capabilities: fx.hello.capabilities,
+    });
+    (useTheme as jest.Mock).mockReturnValue({
+      theme: THEMES.dark, name: 'dark', setName, precise: false, alerts: DEFAULT_LIMITS,
+    });
+    await render(<PanelMode />);
+    expect(screen.queryByTestId(/^badge-/)).toBeNull();
+    expect(border('gpu-card')).toBe(THEMES.dark.border);
+    const vram = screen.getByText(/· 90%$/);
+    expect(StyleSheet.flatten(vram.props.style).color).toBe(THEMES.dark.warning);
   });
 });

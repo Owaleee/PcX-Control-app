@@ -60,7 +60,8 @@ def build_report(results: list[CheckResult], facts: ReportFacts) -> str:
         vram = f"{gpu.vram_total_bytes / 1024**3:.1f} GiB" if gpu.vram_total_bytes else "VRAM desconhecida"
         temp = f"{gpu.temp_c:.0f} °C" if gpu.temp_c is not None else "sem temperatura"
         vendor = VENDOR_LABELS.get(gpu.vendor or "", "outro")
-        lines.append(f"- {gpu.name} | {vendor} | {vram} | uso {gpu.usage_percent:.0f}% | {temp}")
+        luid = gpu.id.removeprefix("luid_").replace("_phys_", " phys ")
+        lines.append(f"- {gpu.name} | {vendor} | {vram} | uso {gpu.usage_percent:.0f}% | {temp} | LUID {luid}")
     for card, kinds in engine_types(facts.pdh_instances).items():
         lines.append(f"- Motores de {card}: {', '.join(kinds)}")
     # Nunca sai senha, codigo ou token: o mesmo filtro do log passa no texto inteiro.

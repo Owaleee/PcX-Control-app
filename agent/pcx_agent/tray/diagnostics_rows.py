@@ -41,6 +41,8 @@ class ResultList(tk.Frame):
         # A roda do mouse rola a lista so com o ponteiro em cima dela.
         self.canvas.bind("<Enter>", lambda _e: self.canvas.bind_all("<MouseWheel>", self._wheel))
         self.canvas.bind("<Leave>", lambda _e: self.canvas.unbind_all("<MouseWheel>"))
+        # Fechar com Esc com o ponteiro em cima nao gera <Leave>: solta aqui tambem.
+        self.canvas.bind("<Destroy>", lambda _e: self.canvas.unbind_all("<MouseWheel>"))
         self.fix_buttons: list[tk.Button] = []
 
     def _wheel(self, event) -> None:

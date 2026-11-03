@@ -43,9 +43,13 @@ class Sources:
 
 def probe_agent(address: str, agent_id: str, timeout: float = PROBE_TIMEOUT_S) -> AgentProbe:
     """Chama /v1/info pelo IP da rede, de dentro do PC, e confere se e este agente."""
+    # Sem proxy: num PC de empresa, o proxy do Windows tambem pegaria o IP da rede local.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with urllib.request.urlopen(f"http://{address}/v1/info", timeout=timeout) as response:
+        with opener.open(f"http://{address}/v1/info", timeout=timeout) as response:
             info = json.loads(response.read())
+    except urllib.error.HTTPError:
+        return AgentProbe(reachable=True, same_agent=False)  # respondeu, mas nao e o agente
     except (OSError, ValueError, urllib.error.URLError) as exc:
         reason = getattr(exc, "reason", exc)
         return AgentProbe(reachable=False, error=str(reason))

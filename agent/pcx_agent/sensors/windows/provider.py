@@ -53,8 +53,11 @@ class WindowsSensorProvider:
         self._pdh_retry_at = clock() + RETRY_S
         self._nvml_retry_at = clock() + RETRY_S
         self._d3d_retry_at = clock() + RETRY_S
-        # None: ainda nao sabemos se o driver da temperatura (o hello pode vir antes da 1a leitura)
-        self._driver_has_temp: bool | None = None
+        # O hello pode vir antes da 1a leitura: a sondagem acontece aqui, na thread de quem cria
+        # o provider, e nunca dentro de capabilities() (chamado no laco do servidor).
+        self._driver_has_temp = False
+        if self._d3d is not None:
+            self._probe_driver_temperature()
 
     @staticmethod
     def _open(factory, label: str, quiet: bool = False):
@@ -91,8 +94,6 @@ class WindowsSensorProvider:
         caps = {"cpu", "ram", "disk", "net"}
         if self._pdh is not None:
             caps.add("gpu")
-        if self._driver_has_temp is None and self._d3d is not None:
-            self._probe_driver_temperature()
         if self._nvml is not None or self._driver_has_temp:
             caps.add("gpu.temp")
         return caps

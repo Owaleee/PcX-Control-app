@@ -106,3 +106,20 @@ def test_fixes_do_nothing_outside_windows(monkeypatch):
     assert fixes.open_network_settings() is False
     assert fixes.create_firewall_rule(r"C:\x\PcXControl.exe") is False
     assert fixes.create_firewall_rule(None) is False
+
+
+def test_wait_for_rule_until_netsh_creates_it(monkeypatch):
+    from pcx_agent.diagnostics import windows as win
+    from pcx_agent.diagnostics.model import FirewallRule
+
+    rule = FirewallRule("PcX Control - agente", True, "in", "allow", frozenset({"private"}), "x")
+    answers = iter([[], None, [rule]])
+    monkeypatch.setattr(win, "read_firewall_rules", lambda: next(answers))
+    assert fixes.wait_for_rule(timeout_s=5, interval_s=0.01) is True
+
+
+def test_wait_for_rule_gives_up(monkeypatch):
+    from pcx_agent.diagnostics import windows as win
+
+    monkeypatch.setattr(win, "read_firewall_rules", list)
+    assert fixes.wait_for_rule(timeout_s=0.05, interval_s=0.01) is False

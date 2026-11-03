@@ -25,7 +25,10 @@ export default function GpuDetail() {
       ) : (
         <>
           <Title>Temperatura</Title>
-          <Body>Temperatura indisponível nesta placa. Atualize o agente do PC para a versão 0.5.0 ou mais nova.</Body>
+          <Body>
+            Temperatura indisponível nesta placa: o driver de vídeo não informa, ou o agente do PC é anterior à
+            versão 0.5.0.
+          </Body>
         </>
       )}
     </Screen>

@@ -146,3 +146,63 @@ def test_report_never_carries_secrets():
     results = runner.run_all(sources(probe=lambda a: AgentProbe(reachable=False, error=f"pcx://pair?c=1234&t={token}")))
     text = build_report(results, ReportFacts("0.5.0", "10"))
     assert token not in text and "c=1234" not in text
+
+
+class _Info:
+    """Servidor HTTP local para a sonda: responde /v1/info ou 404."""
+
+    def __init__(self, status: int, body: bytes):
+        import http.server
+        import threading
+
+        status_, body_ = status, body
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(status_)
+                self.end_headers()
+                self.wfile.write(body_)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        self.address = f"127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+def test_probe_ignores_the_system_proxy(monkeypatch):
+    server = _Info(200, b'{"agent_id": "eu"}')
+    try:
+        monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")  # proxy morto
+        monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+        monkeypatch.delenv("NO_PROXY", raising=False)
+        monkeypatch.delenv("no_proxy", raising=False)
+        assert runner.probe_agent(server.address, "eu") == AgentProbe(reachable=True, same_agent=True)
+    finally:
+        server.close()
+
+
+def test_probe_other_program_answering_404_is_reachable_but_not_us():
+    server = _Info(404, b"not found")
+    try:
+        assert runner.probe_agent(server.address, "eu") == AgentProbe(reachable=True, same_agent=False)
+    finally:
+        server.close()
+
+
+def test_probe_other_agent_id():
+    server = _Info(200, b'{"agent_id": "outro"}')
+    try:
+        assert runner.probe_agent(server.address, "eu") == AgentProbe(reachable=True, same_agent=False)
+    finally:
+        server.close()
+
+
+def test_report_shows_the_card_luid():
+    text = build_report([], ReportFacts("0.5.0", "10", gpus=[GPU]))
+    assert "| LUID 0x00000000_0x00009962 phys 0" in text

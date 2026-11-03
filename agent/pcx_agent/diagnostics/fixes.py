@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+import time
 from pathlib import Path, PureWindowsPath
 
 logger = logging.getLogger("pcx_agent.diagnostics")
@@ -43,4 +44,18 @@ def create_firewall_rule(exe_path: str | None) -> bool:
         logger.info("Criacao da regra do firewall nao concluida (codigo %s)", result)
         return False
     logger.info("Pedido para criar a regra do firewall enviado")
-    return True
+    return wait_for_rule()
+
+
+def wait_for_rule(timeout_s: float = 20.0, interval_s: float = 1.0) -> bool:
+    """O ShellExecute volta antes do netsh terminar: espera a regra aparecer."""
+    from pcx_agent.diagnostics.checks import RULE_NAME
+    from pcx_agent.diagnostics.windows import read_firewall_rules
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        rules = read_firewall_rules()
+        if rules and any(rule.name == RULE_NAME for rule in rules):
+            return True
+        time.sleep(interval_s)
+    return False

@@ -55,8 +55,8 @@ test('selos de uso e de temperatura, cada um com o proprio nivel', () => {
   expect(usageBadge('normal')).toBeNull();
   expect(usageBadge('alto')).toEqual({ label: 'Uso alto', level: 'alto' });
   expect(usageBadge('critico')).toEqual({ label: 'Uso crítico', level: 'critico' });
-  expect(tempBadge('alto')).toEqual({ label: 'Temperatura alta', level: 'alto' });
-  expect(tempBadge('critico')).toEqual({ label: 'Temperatura crítica', level: 'critico' });
+  expect(tempBadge('alto')).toEqual({ label: 'Temperatura alta', short: 'Temp. alta', level: 'alto' });
+  expect(tempBadge('critico')).toEqual({ label: 'Temperatura crítica', short: 'Temp. crítica', level: 'critico' });
 });
 
 describe('validateDraft', () => {

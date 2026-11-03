@@ -112,10 +112,20 @@ export function Gauge({
     setSize({ width, height: h });
   };
   // Os selos ficam ao lado do titulo e do nome: o nome tem a largura que sobra.
-  const badgeColumn = badgesWidth(badges);
-  const subtitleSize = subtitleFontSize(size.width - (badgeColumn ? badgeColumn + 8 : 0), subtitle ?? '', scale);
+  const nameWidth = (compact: boolean) => {
+    const column = badgesWidth(badges, compact);
+    return size.width - (column ? column + 8 : 0);
+  };
+  const fits = (width: number) => {
+    const font = subtitleFontSize(width, subtitle ?? '', scale);
+    return (subtitle ?? '').length * font * CHAR_WIDTH <= width - 2 * PADDING;
+  };
+  // Selos por extenso; se o nome da placa nao couber ao lado, a forma curta ("Temp. alta").
+  const compactBadges = subtitle !== undefined && size.width > 0 && !fits(nameWidth(false));
+  const subtitleSize = subtitleFontSize(nameWidth(compactBadges), subtitle ?? '', scale);
   const valueColor = levelColor(theme, level) ?? theme.text;
-  const border = worst(level, ...badges.map((b) => b.level), ...stats.map((s) => s.level ?? 'normal'));
+  // A borda segue so o numero e os selos: um alerta nunca aparece so pela cor.
+  const border = worst(level, ...badges.map((b) => b.level));
   const borderColor = levelColor(theme, border);
   const fixedHeight = (base: number) => Math.ceil(base * scale);
   const box = [
@@ -156,7 +166,7 @@ export function Gauge({
         {badges.length > 0 ? (
           <View testID={testID ? `${testID}-badges` : undefined} style={styles.badges}>
             {badges.map((badge) => (
-              <AlertBadgeView key={badge.label} badge={badge} />
+              <AlertBadgeView key={badge.label} badge={badge} compact={compactBadges} />
             ))}
           </View>
         ) : null}

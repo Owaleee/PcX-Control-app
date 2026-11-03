@@ -17,14 +17,14 @@ export function levelColor(theme: Theme, level: AlertLevel): string | null {
 }
 
 /** Largura que a coluna de selos ocupa (para o nome da placa caber ao lado). */
-export function badgesWidth(badges: Badge[]): number {
+export function badgesWidth(badges: Badge[], compact = false): number {
   if (badges.length === 0) return 0;
-  const longest = Math.max(...badges.map((b) => b.label.length));
+  const longest = Math.max(...badges.map((b) => (compact ? (b.short ?? b.label) : b.label).length));
   return Math.ceil(longest * BADGE_FONT * 0.6) + 2 * BADGE_PADDING + 2;
 }
 
 /** Selo "Uso alto", "Temperatura critica"...: o alerta nunca depende so da cor. */
-export function AlertBadgeView({ badge }: { badge: Badge }) {
+export function AlertBadgeView({ badge, compact = false }: { badge: Badge; compact?: boolean }) {
   const { theme } = useTheme();
   const color = levelColor(theme, badge.level) ?? theme.text;
   return (
@@ -32,8 +32,13 @@ export function AlertBadgeView({ badge }: { badge: Badge }) {
       testID={`badge-${badge.label}`}
       style={[styles.badge, { borderColor: color, backgroundColor: theme.background }]}
     >
-      <Text style={[styles.text, { color }]} numberOfLines={1} allowFontScaling={false}>
-        {badge.label}
+      <Text
+        style={[styles.text, { color }]}
+        numberOfLines={1}
+        allowFontScaling={false}
+        accessibilityLabel={badge.label}
+      >
+        {compact ? (badge.short ?? badge.label) : badge.label}
       </Text>
     </View>
   );

@@ -111,7 +111,9 @@ agente 0.4.0, cada tentativa de pareamento aparece com o IP do celular e o resul
 conexão e desconexão também. Senha, código e token nunca são gravados.
 
 Desde o agente 0.5.0, a pasta também guarda o `crash.log`: se o agente fechar sozinho (por
-exemplo, por uma falha no driver de vídeo), a pilha do momento fica registrada ali. O
+exemplo, por uma falha no driver de vídeo), a pilha do momento fica registrada ali. Cada execução
+termina com a linha `=== encerrado normalmente ===`; uma pilha seguida dessa linha foi um erro
+que o driver tratou sozinho, não uma queda. O
 `agent.log` registra as placas de vídeo ao iniciar e cada resultado do "Verificar conexão".
 
 ### Sem temperatura da GPU
