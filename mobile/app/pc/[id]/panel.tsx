@@ -6,9 +6,9 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Gauge } from '../../../src/components/Gauge';
+import { Gauge, type GaugeLayout, type GaugeStat } from '../../../src/components/Gauge';
 import { statusLabel } from '../../../src/components/StatusPill';
-import { formatFree, formatPercent, formatRate, formatTemp, formatUsage } from '../../../src/format/format';
+import { formatBytes, formatPercent, formatRate, formatTemp, formatUsage } from '../../../src/format/format';
 import { usePc } from '../../../src/hooks/PcContext';
 import { pixelShiftOffset } from '../../../src/theme/pixelShift';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -53,12 +53,19 @@ export default function PanelMode() {
   const data = snapshot?.data;
   const gpu = data?.gpus[0];
   const temp = capabilities.includes('gpu.temp') ? gpu?.temp_c ?? null : null;
-  const gpuDetail: string[] = [];
+  const gpuStats: GaugeStat[] = [];
   if (gpu && gpu.vram_used_bytes !== null && gpu.vram_total_bytes) {
     const vramPercent = (100 * gpu.vram_used_bytes) / gpu.vram_total_bytes;
-    gpuDetail.push(`VRAM ${formatUsage(gpu.vram_used_bytes, gpu.vram_total_bytes)} · ${percent(vramPercent)}`);
+    gpuStats.push({
+      label: 'VRAM usada',
+      value: `${formatUsage(gpu.vram_used_bytes, gpu.vram_total_bytes)} · ${percent(vramPercent)}`,
+    });
   }
-  if (temp !== null) gpuDetail.push(`Temperatura ${formatTemp(temp)}`);
+  // Sem leitura, a coluna fica com "indisponível": o cartao nao muda de forma.
+  if (gpu) gpuStats.push({ label: 'Temperatura', value: temp !== null ? formatTemp(temp) : 'indisponível' });
+
+  // Todos os cartoes calculam o numero como o mais cheio (a GPU, com nome e dados): mesmo tamanho.
+  const layout: GaugeLayout = { bar: true, stats: true, subtitle: Boolean(gpu) };
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -85,26 +92,42 @@ export default function PanelMode() {
           {data ? (
             <View testID="panel-gauges" style={[styles.gauges, { opacity: stale ? 0.5 : 1 }]}>
               <View style={styles.row}>
-                <Gauge label="CPU" value={percent(data.cpu_total)} percent={data.cpu_total} />
+                <Gauge layoutAs={layout} testID="cpu" label="CPU" caption="uso total" value={percent(data.cpu_total)} percent={data.cpu_total} />
                 {gpu ? (
                   <Gauge
+                    layoutAs={layout}
                     testID="gpu-card"
                     label="GPU"
+                    caption="uso"
+                    subtitle={gpu.name}
                     value={percent(gpu.usage_percent)}
                     percent={gpu.usage_percent}
-                    detail={gpuDetail}
+                    stats={gpuStats}
                     onPress={() => router.push(`/pc/${pc.agentId}/gpu`)}
                   />
                 ) : null}
               </View>
               <View style={styles.row}>
                 <Gauge
-                  label="RAM"
+                  layoutAs={layout}
+                  testID="ram"
+                  label="Memória RAM"
+                  caption="em uso"
                   value={percent(data.ram_percent)}
                   percent={data.ram_percent}
-                  detail={`${formatUsage(data.ram_used_bytes, data.ram_total_bytes)} · ${formatFree(data.ram_used_bytes, data.ram_total_bytes)}`}
+                  stats={[
+                    { label: 'Usada / total', value: formatUsage(data.ram_used_bytes, data.ram_total_bytes) },
+                    { label: 'Livre', value: formatBytes(Math.max(0, data.ram_total_bytes - data.ram_used_bytes)) },
+                  ]}
                 />
-                <Gauge label="Rede" value={`↓ ${formatRate(data.net_down_bps)}`} detail={`↑ ${formatRate(data.net_up_bps)}`} />
+                <Gauge
+                  layoutAs={layout}
+                  testID="net"
+                  label="Rede"
+                  caption="download (recebendo)"
+                  value={`↓ ${formatRate(data.net_down_bps)}`}
+                  stats={[{ label: 'Upload (enviando)', value: `↑ ${formatRate(data.net_up_bps)}` }]}
+                />
               </View>
             </View>
           ) : (
