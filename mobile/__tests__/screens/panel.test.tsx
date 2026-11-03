@@ -128,10 +128,21 @@ test('num celular baixo o numero da GPU diminui para caber no cartao', async () 
   const card = screen.getByTestId('gpu-card');
   const size = () => StyleSheet.flatten(screen.getByTestId('gpu-card-value').props.style).fontSize;
   await act(async () => card.props.onLayout({ nativeEvent: { layout: { width: 360, height: 160 } } }));
-  // padding, titulo, nome, barra e dados ocupam 122 px; o numero fica com o resto
-  expect(size() * 1.2 + 122).toBeLessThanOrEqual(160);
-  // O nome da placa continua no tamanho normal
-  expect(StyleSheet.flatten(screen.getByTestId('gpu-card-subtitle').props.style).fontSize).toBe(16);
+  // Com a fonte do sistema no limite (115%), titulo, nome, barra e dados ocupam ~133 px
+  expect(size() * 1.2 + 133).toBeLessThanOrEqual(160);
+  // O nome da placa continua legivel (16 com a fonte do sistema a 115%)
+  expect(StyleSheet.flatten(screen.getByTestId('gpu-card-subtitle').props.style).fontSize).toBe(18);
+});
+
+test('todos os cartoes do painel usam o mesmo tamanho de numero', async () => {
+  await render(<PanelMode />);
+  const ids = ['cpu', 'gpu-card', 'ram', 'net'];
+  for (const id of ids) {
+    const card = screen.getByTestId(id);
+    await act(async () => card.props.onLayout({ nativeEvent: { layout: { width: 380, height: 180 } } }));
+  }
+  const sizes = ids.map((id) => StyleSheet.flatten(screen.getByTestId(`${id}-value`).props.style).fontSize);
+  expect(new Set(sizes).size).toBe(1);
 });
 
 test('um toque mostra os controles por 3 s', async () => {

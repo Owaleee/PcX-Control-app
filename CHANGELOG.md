@@ -22,17 +22,25 @@ atualizar o agente.
 ### Corrigido
 - O cartão da GPU vazava do modo painel em celulares com tela baixa: o título "GPU" e a
   temperatura ficavam fora do cartão. Agora o número grande se ajusta à altura de cada cartão.
+- O nome da placa de vídeo ficava minúsculo no Android: o ajuste automático da fonte também
+  considera a altura da linha. O tamanho agora é calculado pela largura do cartão.
 
 ### Mudado
 - Cada cartão do modo painel diz o que o número indica ("CPU · uso total", "GPU · uso",
   "Memória RAM · em uso", "Rede · download") e os dados de baixo têm nome ("VRAM usada",
   "Temperatura", "Usada / total", "Livre", "Upload").
-- O cartão da GPU mostra o nome inteiro da placa numa linha própria, no mesmo tamanho dos
-  rótulos; num nome longo a letra diminui (até um mínimo legível) em vez de cortar.
+- O cartão da GPU mostra o nome inteiro da placa numa linha própria; num nome longo a letra
+  diminui (até um mínimo legível) em vez de cortar.
 - Sem leitura de temperatura, a GPU mostra "Temperatura: indisponível" em vez de esconder o dado,
   no modo painel e na tela do PC.
 - Na tela do PC, o cartão da GPU começa com "GPU ·" e o da rede explica as setas (↓ recebendo,
   ↑ enviando).
+- **Responsividade:**
+  - No modo painel, os quatro números têm o mesmo tamanho e crescem com a tela (tablet ou TV
+    box); num cartão estreito, o número também respeita a largura.
+  - O modo painel acompanha o tamanho de fonte do Android até 115% sem vazar dos cartões.
+  - Na tela do PC, com o celular deitado ou num tablet, os cartões ficam em duas colunas.
+  - Com o celular deitado, o quadro da câmera do pareamento cabe na altura da tela.
 
 ## [agente 0.4.0] - 2026-11-02
 

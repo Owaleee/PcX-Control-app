@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MetricCard } from '../../../src/components/MetricCard';
 import { StatusPill } from '../../../src/components/StatusPill';
-import { Body, Button, Message, Screen } from '../../../src/components/ui';
+import { Body, Button, CardGrid, Message, Screen } from '../../../src/components/ui';
 import { formatFree, formatPercent, formatRate, formatTemp, formatUptime, formatUsage } from '../../../src/format/format';
 import { metricScale } from '../../../src/format/metric';
 import { usePc } from '../../../src/hooks/PcContext';
@@ -31,7 +31,7 @@ export default function PcPanel() {
   const data = snapshot?.data;
 
   return (
-    <Screen>
+    <Screen wide>
       <Stack.Screen
         options={{
           title: pc.alias || pc.name,
@@ -62,61 +62,63 @@ export default function PcPanel() {
             {`${data.host_name} · ligado há ${formatUptime(data.uptime_s)}`}
             {stale ? ' · valores anteriores' : ''}
           </Text>
-          <MetricCard
-            title="CPU"
-            value={percent(data.cpu_total)}
-            percent={data.cpu_total}
-            history={cpu}
-            stale={stale}
-            onPress={open('cpu.total')}
-          />
-          <MetricCard
-            title="Memória RAM"
-            value={percent(data.ram_percent)}
-            percent={data.ram_percent}
-            detail={`${formatUsage(data.ram_used_bytes, data.ram_total_bytes)} · ${formatFree(data.ram_used_bytes, data.ram_total_bytes)}`}
-            history={ram}
-            stale={stale}
-            onPress={open('ram.percent')}
-          />
-          {data.gpus.map((g, index) => {
-            const vram =
-              g.vram_used_bytes !== null && g.vram_total_bytes
-                ? `VRAM usada ${formatUsage(g.vram_used_bytes, g.vram_total_bytes)}`
-                : null;
-            const temp = `Temperatura ${g.temp_c !== null ? formatTemp(g.temp_c) : 'indisponível'}`;
-            return (
-              <MetricCard
-                key={g.id}
-                title={`GPU · ${g.name}`}
-                value={percent(g.usage_percent)}
-                percent={g.usage_percent}
-                detail={[vram, temp].filter(Boolean).join(' · ') || undefined}
-                history={index === 0 ? gpu : undefined}
-                stale={stale}
-                onPress={index === 0 ? () => router.push(`${base}/gpu`) : undefined}
-              />
-            );
-          })}
-          <MetricCard
-            title="Rede"
-            value={`↓ ${formatRate(data.net_down_bps)}  ↑ ${formatRate(data.net_up_bps)}`}
-            detail="↓ recebendo (download) · ↑ enviando (upload)"
-            history={net}
-            historyMax={metricScale('net.down_bps', net.map((p) => p.v))}
-            stale={stale}
-            onPress={open('net.down_bps')}
-          />
-          {data.disks.map((d) => (
+          <CardGrid>
             <MetricCard
-              key={d.mount}
-              title={`Disco ${d.mount}`}
-              value={percent(d.percent)}
-              percent={d.percent}
-              detail={formatUsage(d.used_bytes, d.total_bytes)}
+              title="CPU"
+              value={percent(data.cpu_total)}
+              percent={data.cpu_total}
+              history={cpu}
               stale={stale}
+              onPress={open('cpu.total')}
             />
-          ))}
+            <MetricCard
+              title="Memória RAM"
+              value={percent(data.ram_percent)}
+              percent={data.ram_percent}
+              detail={`${formatUsage(data.ram_used_bytes, data.ram_total_bytes)} · ${formatFree(data.ram_used_bytes, data.ram_total_bytes)}`}
+              history={ram}
+              stale={stale}
+              onPress={open('ram.percent')}
+            />
+            {data.gpus.map((g, index) => {
+              const vram =
+                g.vram_used_bytes !== null && g.vram_total_bytes
+                  ? `VRAM usada ${formatUsage(g.vram_used_bytes, g.vram_total_bytes)}`
+                  : null;
+              const temp = `Temperatura ${g.temp_c !== null ? formatTemp(g.temp_c) : 'indisponível'}`;
+              return (
+                <MetricCard
+                  key={g.id}
+                  title={`GPU · ${g.name}`}
+                  value={percent(g.usage_percent)}
+                  percent={g.usage_percent}
+                  detail={[vram, temp].filter(Boolean).join(' · ') || undefined}
+                  history={index === 0 ? gpu : undefined}
+                  stale={stale}
+                  onPress={index === 0 ? () => router.push(`${base}/gpu`) : undefined}
+                />
+              );
+            })}
+            <MetricCard
+              title="Rede"
+              value={`↓ ${formatRate(data.net_down_bps)}  ↑ ${formatRate(data.net_up_bps)}`}
+              detail="↓ recebendo (download) · ↑ enviando (upload)"
+              history={net}
+              historyMax={metricScale('net.down_bps', net.map((p) => p.v))}
+              stale={stale}
+              onPress={open('net.down_bps')}
+            />
+            {data.disks.map((d) => (
+              <MetricCard
+                key={d.mount}
+                title={`Disco ${d.mount}`}
+                value={percent(d.percent)}
+                percent={d.percent}
+                detail={formatUsage(d.used_bytes, d.total_bytes)}
+                stale={stale}
+              />
+            ))}
+          </CardGrid>
         </>
       ) : null}
       <Button title="Modo painel" onPress={() => router.push(`${base}/panel`)} disabled={!data} />

@@ -1,8 +1,17 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 import AddPc from '../../app/add';
 import * as fx from '../protocol/fixtures';
 import { resetRouter, routerMock } from './mocks';
+
+// Tamanho da tela controlado pelo teste (o padrao e o do ambiente de teste do React Native)
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: jest.fn(() => ({ width: 750, height: 1334, scale: 2, fontScale: 2 })),
+}));
+const windowSize = jest.requireMock('react-native/Libraries/Utilities/useWindowDimensions').default as jest.Mock;
+
 
 jest.mock('expo-router', () => jest.requireActual('./mocks').expoRouterMock());
 jest.mock('expo-device', () => ({ modelName: 'Moto G' }));
@@ -203,4 +212,13 @@ test('parear de novo o mesmo PC preserva o apelido', async () => {
   await render(<AddPc />);
   await act(async () => camera.onScan?.({ data: QR }));
   expect(storage.savePc).toHaveBeenCalledWith(expect.objectContaining({ agentId: AGENT, alias: 'PC da sala' }));
+});
+
+test('com o celular deitado o quadro da camera cabe na altura da tela', async () => {
+  windowSize.mockReturnValue({ width: 800, height: 360, scale: 2, fontScale: 1 });
+  await render(<AddPc />);
+  const box = StyleSheet.flatten(screen.getByTestId('camera-box').props.style);
+  expect(box.aspectRatio).toBe(1);
+  expect(box.maxWidth).toBeLessThanOrEqual(360 * 0.6);
+  windowSize.mockReturnValue({ width: 750, height: 1334, scale: 2, fontScale: 2 });
 });

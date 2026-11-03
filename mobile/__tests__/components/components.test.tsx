@@ -1,12 +1,21 @@
 import { act, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { Gauge, subtitleFontSize, valueFontSize } from '../../src/components/Gauge';
+import { FONT_SCALE_CAP, Gauge, subtitleFontSize, valueFontSize } from '../../src/components/Gauge';
 import { MetricCard } from '../../src/components/MetricCard';
 import { Sparkline, sparklinePath } from '../../src/components/Sparkline';
 import { StatusPill, statusLabel } from '../../src/components/StatusPill';
+import { CardGrid, WIDE_MIN_WIDTH } from '../../src/components/ui';
 import type { ConnState } from '../../src/connection/ConnectionManager';
 import * as fx from '../protocol/fixtures';
+
+// Tamanho da tela controlado pelo teste (o padrao e o do ambiente de teste do React Native)
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: jest.fn(() => ({ width: 750, height: 1334, scale: 2, fontScale: 2 })),
+}));
+const windowSize = jest.requireMock('react-native/Libraries/Utilities/useWindowDimensions').default as jest.Mock;
+
 
 const pts = (pairs: [number, number][]) => pairs.map(([t, v]) => ({ t, v }));
 
@@ -90,14 +99,15 @@ test('Gauge mostra o nome, o que o numero indica e os dados com rotulo', async (
   expect(name.props.children).toBe('NVIDIA GeForce RTX 4070 Ti SUPER');
   expect(name.props.adjustsFontSizeToFit).toBeUndefined();
   expect(name.props.ellipsizeMode).toBe('clip');
-  expect(StyleSheet.flatten(name.props.style).fontSize).toBe(16);
+  // O ambiente de teste usa a fonte do sistema em 200%; o cartao limita a 115%
+  expect(StyleSheet.flatten(name.props.style).fontSize).toBe(Math.round(16 * FONT_SCALE_CAP));
 });
 
 test('Gauge diminui o numero grande para caber num cartao baixo', async () => {
   await render(<Gauge testID="g" label="GPU" subtitle="RX 7600" value="16%" percent={16} stats={[{ label: 'VRAM', value: '1 GiB' }]} />);
   const box = screen.getByTestId('g');
   const size = () => StyleSheet.flatten(screen.getByTestId('g-value').props.style).fontSize;
-  expect(size()).toBe(56);
+  expect(size()).toBe(56); // antes de medir o cartao
   await act(async () => box.props.onLayout({ nativeEvent: { layout: { width: 380, height: 150 } } }));
   expect(size()).toBeLessThan(56);
 });
@@ -117,7 +127,7 @@ test.each([
   if (subtitle) used += 20 + 4;
   if (bar) used += 8 + 4;
   if (stats) used += 32 + 4;
-  expect(size).toBeGreaterThanOrEqual(24);
+  expect(size).toBeGreaterThanOrEqual(20);
   expect(used).toBeLessThanOrEqual(height);
 });
 
@@ -149,4 +159,52 @@ test.each([
   // Nunca abaixo de 11: legivel no celular
   expect(size).toBeGreaterThanOrEqual(11);
   if (width > 0 && size > 11) expect(name.length * size * 0.6).toBeLessThanOrEqual(width - 24);
+});
+
+test('valueFontSize com a fonte do Android aumentada: o cartao da GPU ainda cabe em 160px', () => {
+  const scale = FONT_SCALE_CAP;
+  const size = valueFontSize(160, { bar: true, stats: true, subtitle: true }, { scale });
+  const used = 24 + 22 * scale + 4 + 20 * scale + 4 + 8 + 4 + 32 * scale + 4 + size * 1.2;
+  expect(used).toBeLessThanOrEqual(160);
+});
+
+test('valueFontSize cresce com o cartao (tablet) e respeita a largura', () => {
+  const layout = { bar: true, stats: true, subtitle: true };
+  expect(valueFontSize(500, layout)).toBeGreaterThan(100);
+  expect(valueFontSize(2000, layout)).toBe(140);
+  // "↓ 23,3 KB/s" num cartao de 300px de largura nao passa da largura
+  const text = '↓ 23,3 KB/s';
+  const size = valueFontSize(500, layout, { width: 300, text });
+  expect(text.length * size * 0.6).toBeLessThanOrEqual(300 - 24);
+});
+
+describe('CardGrid', () => {
+  const dims = (width: number) => windowSize.mockReturnValue({ width, height: 800, scale: 2, fontScale: 1 });
+  afterEach(() => windowSize.mockReturnValue({ width: 750, height: 1334, scale: 2, fontScale: 2 }));
+
+  test('em pe (tela estreita) os cartoes ficam um embaixo do outro', async () => {
+    dims(400);
+    await render(
+      <CardGrid>
+        <MetricCard title="CPU" value="13%" />
+        <MetricCard title="RAM" value="44%" />
+      </CardGrid>,
+    );
+    expect(screen.queryByTestId('card-grid')).toBeNull();
+    expect(screen.getAllByTestId('metric-card')).toHaveLength(2);
+  });
+
+  test('deitado ou em tablet os cartoes ficam em duas colunas', async () => {
+    dims(WIDE_MIN_WIDTH);
+    await render(
+      <CardGrid>
+        <MetricCard title="CPU" value="13%" />
+        <MetricCard title="RAM" value="44%" />
+        <MetricCard title="Rede" value="↓ 1 KB/s" />
+      </CardGrid>,
+    );
+    const grid = screen.getByTestId('card-grid');
+    expect(StyleSheet.flatten(grid.props.style)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
+    expect(screen.getAllByTestId('metric-card')).toHaveLength(3);
+  });
 });

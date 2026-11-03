@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Gauge, type GaugeStat } from '../../../src/components/Gauge';
+import { Gauge, type GaugeLayout, type GaugeStat } from '../../../src/components/Gauge';
 import { statusLabel } from '../../../src/components/StatusPill';
 import { formatBytes, formatPercent, formatRate, formatTemp, formatUsage } from '../../../src/format/format';
 import { usePc } from '../../../src/hooks/PcContext';
@@ -64,6 +64,9 @@ export default function PanelMode() {
   // Sem leitura, a coluna fica com "indisponível": o cartao nao muda de forma.
   if (gpu) gpuStats.push({ label: 'Temperatura', value: temp !== null ? formatTemp(temp) : 'indisponível' });
 
+  // Todos os cartoes calculam o numero como o mais cheio (a GPU, com nome e dados): mesmo tamanho.
+  const layout: GaugeLayout = { bar: true, stats: true, subtitle: Boolean(gpu) };
+
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <StatusBar hidden />
@@ -89,9 +92,10 @@ export default function PanelMode() {
           {data ? (
             <View testID="panel-gauges" style={[styles.gauges, { opacity: stale ? 0.5 : 1 }]}>
               <View style={styles.row}>
-                <Gauge label="CPU" caption="uso total" value={percent(data.cpu_total)} percent={data.cpu_total} />
+                <Gauge layoutAs={layout} testID="cpu" label="CPU" caption="uso total" value={percent(data.cpu_total)} percent={data.cpu_total} />
                 {gpu ? (
                   <Gauge
+                    layoutAs={layout}
                     testID="gpu-card"
                     label="GPU"
                     caption="uso"
@@ -105,6 +109,8 @@ export default function PanelMode() {
               </View>
               <View style={styles.row}>
                 <Gauge
+                  layoutAs={layout}
+                  testID="ram"
                   label="Memória RAM"
                   caption="em uso"
                   value={percent(data.ram_percent)}
@@ -115,6 +121,8 @@ export default function PanelMode() {
                   ]}
                 />
                 <Gauge
+                  layoutAs={layout}
+                  testID="net"
                   label="Rede"
                   caption="download (recebendo)"
                   value={`↓ ${formatRate(data.net_down_bps)}`}
