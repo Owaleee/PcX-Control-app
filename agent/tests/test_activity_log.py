@@ -130,3 +130,27 @@ async def test_huge_device_name_is_truncated_in_the_log(client, caplog):
         await client.post("/v1/pair", json={"device_name": name, "password": "errada"})
     line = _lines(caplog, "pcx_agent.pairing")[0]
     assert len(line) < 250
+
+
+async def test_invalid_pair_request_is_logged(client, caplog):
+    with caplog.at_level(logging.INFO, logger="pcx_agent.pairing"):
+        await client.post("/v1/pair", json={"password": "segredo-qualquer"})
+    lines = _lines(caplog, "pcx_agent.pairing")
+    assert len(lines) == 1
+    assert "resultado=pedido_invalido" in lines[0] and "ip=10.0.0.5" in lines[0]
+    assert "segredo-qualquer" not in lines[0]
+
+
+def test_auth_timeout_is_logged(tmp_path, caplog):
+    ctx = build_context(load_settings(data_dir=tmp_path), FakeSensorProvider(seed=2))
+    try:
+        with (
+            TestClient(create_app(ctx, auth_timeout_s=0.2)) as client,
+            caplog.at_level(logging.INFO, logger="pcx_agent.stream"),
+            client.websocket_connect("/v1/stream") as ws,
+            pytest.raises(WebSocketDisconnect),
+        ):
+            ws.receive_json()
+    finally:
+        ctx.db.close()
+    assert any("não se autenticou" in line for line in _lines(caplog, "pcx_agent.stream"))

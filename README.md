@@ -28,7 +28,8 @@ recebe acréscimos ([regras](docs/protocolo.md#como-o-protocolo-evolui)).
   com gráficos de 15 minutos, 1 hora e 24 horas.
 - **Modo painel em paisagem:** tela sempre ligada, cartões grandes, um cartão só para a GPU e
   proteção contra burn-in. Tocar no cartão da GPU abre o histórico de uso, VRAM e temperatura.
-- **Pareamento em segundos:** QR code ou IP e senha (o campo de IP coloca os pontos sozinho).
+- **Pareamento em segundos:** QR code ou IP e senha (o campo de IP coloca os pontos sozinho e
+  aceita colar `IP:porta`).
 - **Temas** Escuro, Claro e AMOLED.
 - **No PC:** instalador, ícone na bandeja, janelas de pareamento e de celulares pareados, aviso
   quando a rede está como Pública e log de cada pareamento e conexão.
@@ -87,6 +88,8 @@ echo === 1) Porta 8765 escutando === & netstat -ano | findstr ":8765" & echo ===
 - **4** mostra a regra de firewall do instalador. Se não existir, crie no cmd **como
   administrador** (a mesma regra do instalador, presa ao programa e não à porta):
   `netsh advfirewall firewall add rule name="PcX Control - agente" dir=in action=allow protocol=TCP profile=private remoteip=localsubnet program="%LOCALAPPDATA%\Programs\PcX Control\PcXControl.exe"`
+  Se o administrador for outra conta do Windows, troque `%LOCALAPPDATA%` pelo caminho completo
+  da conta que usa o PcX Control (ex.: `C:\Users\nome\AppData\Local`).
 - **5** lista os IPs: use o do Wi-Fi ou Ethernet.
 
 No celular, abra o navegador em `http://<IP-do-PC>:8765/v1/info`. Se aparecer um texto com

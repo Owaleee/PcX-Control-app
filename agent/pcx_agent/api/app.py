@@ -163,7 +163,12 @@ def create_app(
         return JSONResponse(body, status_code=err.status, headers=err.headers)
 
     @app.exception_handler(RequestValidationError)
-    async def validation_handler(_request: Request, err: RequestValidationError) -> JSONResponse:
+    async def validation_handler(request: Request, err: RequestValidationError) -> JSONResponse:
+        if request.url.path == "/v1/pair":
+            pairing_log.info(
+                "Pareamento ip=%s metodo=desconhecido resultado=pedido_invalido",
+                request.client.host if request.client else "desconhecido",
+            )
         fields = sorted({".".join(str(p) for p in e["loc"][1:]) or "corpo" for e in err.errors()})
         body = {"code": "invalid_request", "message": f"Campos inválidos: {', '.join(fields)}."}
         return JSONResponse(body, status_code=422)

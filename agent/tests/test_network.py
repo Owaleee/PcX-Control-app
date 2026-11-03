@@ -112,13 +112,23 @@ def test_parse_profiles_domain_and_garbage():
 @pytest.mark.windows
 @pytest.mark.skipif(__import__("sys").platform != "win32", reason="Get-NetConnectionProfile")
 def test_network_category_runs_on_windows():
+    """Leitura real: quando o Windows devolve redes, o agente tem que conseguir le-las. Uma VM
+    recem-criada pode ainda nao ter rede identificada (saida vazia), e isso nao e erro."""
     import time
 
-    from pcx_agent.network import network_category, read_profiles
+    from pcx_agent.network import (
+        PROFILE_TIMEOUT_S,
+        network_category,
+        parse_profiles,
+        profile_output_status,
+        run_profile_script,
+    )
 
     started = time.monotonic()
-    profiles = read_profiles()
-    assert time.monotonic() - started < 6
+    raw = run_profile_script()
+    assert time.monotonic() - started < PROFILE_TIMEOUT_S + 1
+    assert profile_output_status(raw) != "ilegivel", repr(raw[:200])
+    profiles = parse_profiles(raw)
     assert all(value in ("public", "private", "domain") for value in profiles.values())
     if profiles:
         name = next(iter(profiles))
@@ -146,7 +156,7 @@ def test_read_profiles_asks_powershell_for_utf8_and_keeps_accents(monkeypatch):
     monkeypatch.setattr(network.subprocess, "run", fake_run)
     assert network.read_profiles() == {"Conexão Local": "public"}
     assert "[Console]::OutputEncoding" in calls["command"][-1]
-    assert calls["encoding"] == "utf-8"
+    assert calls["encoding"] == "utf-8-sig"
     assert calls["stdin"] == subprocess.DEVNULL
 
 
@@ -155,3 +165,64 @@ def test_read_profiles_outside_windows_is_empty(monkeypatch):
 
     monkeypatch.setattr(network, "IS_WINDOWS", False)
     assert network.read_profiles() == {}
+
+
+def test_parse_profiles_ignores_utf8_bom():
+    """Com OutputEncoding UTF-8 o PowerShell 5.1 pode escrever um BOM no inicio da saida."""
+    assert parse_profiles('﻿{"InterfaceAlias":"Wi-Fi","NetworkCategory":0}') == {"Wi-Fi": "public"}
+
+
+def test_read_profiles_decodes_with_bom_tolerance(monkeypatch):
+    from pcx_agent import network
+
+    seen = {}
+
+    class Done:
+        stdout = '﻿[{"InterfaceAlias":"Ethernet","NetworkCategory":1}]'
+
+    def fake_run(command, **kwargs):
+        seen.update(kwargs)
+        return Done()
+
+    monkeypatch.setattr(network, "IS_WINDOWS", True)
+    monkeypatch.setattr(network.subprocess, "run", fake_run)
+    assert network.read_profiles() == {"Ethernet": "private"}
+    assert seen["encoding"] == "utf-8-sig"
+
+
+def test_windows_mobile_hotspot_adapter_is_ignored():
+    hotspot = NetInterface("Conexão Local* 10", "192.168.137.1", True)
+    lan = NetInterface("Ethernet", "10.0.0.20", True)
+    assert is_virtual(hotspot.name, hotspot.ipv4)
+    assert choose_lan([hotspot, lan], preferred="26.1.2.3") == lan
+
+
+def test_read_profiles_timeout_is_generous_and_logged(monkeypatch, caplog):
+    """A primeira consulta ao WMI pode passar de 5 s num PC recem-ligado: o prazo e folgado
+    (a checagem roda em segundo plano) e, se estourar, fica registrado no log."""
+    import logging
+    import subprocess
+
+    from pcx_agent import network
+
+    assert network.PROFILE_TIMEOUT_S >= 15
+
+    def slow(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(network, "IS_WINDOWS", True)
+    monkeypatch.setattr(network.subprocess, "run", slow)
+    with caplog.at_level(logging.WARNING, logger="pcx_agent.network"):
+        assert network.read_profiles() == {}
+    assert any("tipo de rede" in r.getMessage() for r in caplog.records)
+
+
+def test_profile_output_status(monkeypatch):
+    """Classifica a saida bruta do PowerShell: vazia (Windows ainda identificando a rede),
+    ok, ou ilegivel (tinha redes mas o agente nao conseguiu ler: o bug do BOM)."""
+    from pcx_agent import network
+
+    assert network.profile_output_status("") == "vazio"
+    assert network.profile_output_status('{"InterfaceAlias":"Wi-Fi","NetworkCategory":1}') == "ok"
+    assert network.profile_output_status('﻿{"InterfaceAlias":"Wi-Fi","NetworkCategory":1}') == "ok"
+    assert network.profile_output_status('{"InterfaceAlias":"Wi-Fi","NetworkCategory":"???"} lixo') == "ilegivel"

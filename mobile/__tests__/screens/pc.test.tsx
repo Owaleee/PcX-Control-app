@@ -207,6 +207,20 @@ describe('detalhe da GPU', () => {
 });
 
 describe('ajustes do PC', () => {
+  test('o campo de IP dos ajustes tambem coloca os pontos e aceita IP com porta', async () => {
+    await renderWith(<PcSettings />);
+    const field = () => screen.getByLabelText('IP do PC');
+    expect(field().props.keyboardType).toBe('decimal-pad');
+    await fireEvent.changeText(field(), '');
+    for (const char of '192168') {
+      await fireEvent.changeText(field(), field().props.value + char);
+    }
+    expect(field().props.value).toBe('192.168.');
+    await fireEvent.changeText(field(), '10.0.0.7:9100');
+    expect(field().props.value).toBe('10.0.0.7');
+    expect(screen.getByLabelText('Porta').props.value).toBe('9100');
+  });
+
   test('salva o apelido', async () => {
     await renderWith(<PcSettings />);
     await fireEvent.changeText(screen.getByLabelText('Apelido'), 'PC da sala');

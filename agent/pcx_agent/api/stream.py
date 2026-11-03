@@ -118,6 +118,9 @@ def register_stream(app: FastAPI, ctx, hub: StreamHub, auth_timeout_s: float) ->
         try:
             first = await asyncio.wait_for(ws.receive(), timeout=auth_timeout_s)
         except TimeoutError:
+            logger.info(
+                "Celular não se autenticou a tempo ip=%s", ws.client.host if ws.client else "?"
+            )
             await _close(ws, CLOSE_AUTH_TIMEOUT, "Autenticação não enviada")
             return
         if first["type"] == "websocket.disconnect":

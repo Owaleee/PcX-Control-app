@@ -21,7 +21,15 @@ pytestmark = [
 def _tk_root():
     # Um Tk por arquivo: criar varios seguidos falha de vez em quando no runner do Windows
     # ("Can't find a usable tk.tcl").
-    window = tk.Tk()
+    # O Python do runner do Windows as vezes nao encontra arquivos do Tk na primeira tentativa.
+    for attempt in range(3):
+        try:
+            window = tk.Tk()
+            break
+        except tk.TclError:
+            if attempt == 2:
+                raise
+            time.sleep(2)
     window.withdraw()
     from pcx_agent.tray.widgets import apply_style
 

@@ -25,14 +25,21 @@ VIRTUAL_NAMES = (
 )
 VIRTUAL_NETWORKS = tuple(
     ipaddress.ip_network(n)
-    for n in ("26.0.0.0/8", "25.0.0.0/8", "100.64.0.0/10", "169.254.0.0/16", "127.0.0.0/8")
+    for n in (
+        "26.0.0.0/8",  # Radmin VPN
+        "25.0.0.0/8",  # Hamachi
+        "100.64.0.0/10",  # Tailscale (CGNAT)
+        "169.254.0.0/16",  # sem IP do roteador (APIPA)
+        "127.0.0.0/8",
+        "192.168.137.0/24",  # Hotspot movel do Windows (ICS)
+    )
 )
 # Ordem de preferencia entre as faixas privadas quando nao ha dica da rota.
 LAN_NETWORKS = tuple(
     ipaddress.ip_network(n) for n in ("192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12")
 )
 CATEGORIES = {0: "public", 1: "private", 2: "domain"}
-PROFILE_TIMEOUT_S = 5.0
+PROFILE_TIMEOUT_S = 15.0  # a 1a consulta ao WMI pode ser lenta; roda em segundo plano
 IS_WINDOWS = sys.platform == "win32"
 # O PowerShell 5.1 escreve na pagina de codigo do console (cp850 em pt-BR): forca UTF-8 para
 # nomes com acento ("Conexao Local" com til) baterem com os do psutil.
@@ -104,6 +111,7 @@ def lan_address() -> tuple[str, str | None]:
 
 def parse_profiles(text: str) -> dict[str, str]:
     """Saida de `Get-NetConnectionProfile | ConvertTo-Json` -> {placa: public|private|domain}."""
+    text = text.lstrip("\ufeff")
     try:
         data = json.loads(text) if text.strip() else []
     except ValueError:
@@ -123,26 +131,37 @@ def parse_profiles(text: str) -> dict[str, str]:
     return profiles
 
 
-def read_profiles() -> dict[str, str]:
-    """{placa: public|private|domain} lido do Windows; vazio fora dele ou se algo falhar."""
+def run_profile_script() -> str:
+    """Saida bruta do `Get-NetConnectionProfile`; vazia fora do Windows ou se algo falhar."""
     if not IS_WINDOWS:
-        return {}
+        return ""
     command = ["powershell", "-NoProfile", "-NonInteractive", "-Command", PROFILE_SCRIPT]
     try:
-        output = subprocess.run(
+        return subprocess.run(
             command,
             capture_output=True,
             stdin=subprocess.DEVNULL,  # o .exe nao tem console: sem isso o PowerShell pode esperar
-            encoding="utf-8",
+            encoding="utf-8-sig",  # o PowerShell 5.1 pode comecar a saida com um BOM
             errors="replace",
             timeout=PROFILE_TIMEOUT_S,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             check=False,
-        ).stdout
-    except (OSError, subprocess.SubprocessError):
-        logger.debug("Não consegui ler o tipo de rede", exc_info=True)
-        return {}
-    return parse_profiles(output or "")
+        ).stdout or ""
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("Não consegui ler o tipo de rede do Windows: %s", exc)
+        return ""
+
+
+def read_profiles() -> dict[str, str]:
+    """{placa: public|private|domain} lido do Windows; vazio fora dele ou se algo falhar."""
+    return parse_profiles(run_profile_script())
+
+
+def profile_output_status(raw: str) -> str:
+    """"vazio" (sem redes ainda), "ok" ou "ilegivel" (havia redes e o agente nao leu)."""
+    if "InterfaceAlias" not in raw:
+        return "vazio"
+    return "ok" if parse_profiles(raw) else "ilegivel"
 
 
 def network_category(interface: str | None) -> str | None:
