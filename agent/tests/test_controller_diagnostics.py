@@ -276,3 +276,14 @@ def test_watch_sensor_failures_sets_sampler_hook(make):
     callback = lambda: None
     controller.watch_sensor_failures(callback)
     assert controller._ctx.sampler.on_sensor_failure is callback
+
+
+def test_real_sources_read_gpu_failed_from_the_provider(tmp_path):
+    ctx = build_context(load_settings(data_dir=tmp_path), FakeSensorProvider())
+    try:
+        sources = AgentController(ctx, 8765)._real_sources()
+        assert sources.gpu_failed() is False  # provider sem o atributo
+        ctx.provider.gpu_failed = True
+        assert sources.gpu_failed() is True
+    finally:
+        ctx.db.close()

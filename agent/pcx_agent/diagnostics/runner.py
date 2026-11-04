@@ -52,6 +52,8 @@ class Sources:
     # (erro de inicio do servidor, servidor rodando)
     server_state: Callable[[], tuple[str | None, bool]] = lambda: (None, True)
     previous_session: Callable[[], PreviousSession | None] = lambda: None
+    # O provider registrou falha na leitura da GPU (uso ou temperatura).
+    gpu_failed: Callable[[], bool] = lambda: False
 
 
 def probe_agent(address: str, agent_id: str, timeout: float = PROBE_TIMEOUT_S) -> AgentProbe:
@@ -96,8 +98,10 @@ def run_all(sources: Sources, only: set[str] | None = None) -> list[CheckResult]
 
     def gpus() -> list[CheckResult]:
         snapshot, _ = sources.reading()
-        gpu_list: list[GpuReading] = snapshot.gpus if snapshot is not None else []
-        return checks.check_gpus(gpu_list)
+        if not sources.server_state()[1]:
+            snapshot = None  # leitura antiga de antes do servidor parar: nao vale
+        gpu_list: list[GpuReading] | None = snapshot.gpus if snapshot is not None else None
+        return checks.check_gpus(gpu_list, failed=bool(sources.gpu_failed()))
 
     def agent() -> list[CheckResult]:
         server_error, server_running = sources.server_state()

@@ -25,6 +25,7 @@ from pcx_agent.sensors.windows.gpu import (
 logger = logging.getLogger("pcx_agent.sensors.windows")
 ADAPTER_CACHE_S = 60.0
 RETRY_S = 60.0
+GPU_FAILURE_KEYS = frozenset({"gpu", "d3dkmt", "nvml"})
 MAX_INSTANCES = 500
 
 
@@ -56,6 +57,8 @@ class WindowsSensorProvider:
         # Falha que foi para o log desde o ultimo `take_failure` (a bandeja confere depois da leitura).
         self._failure_lock = threading.Lock()
         self._failure_pending = False
+        # Fontes da GPU em falha ("gpu" = PDH, "d3dkmt", "nvml"); cada uma sai quando volta a ler.
+        self._gpu_failures: set[str] = set()
         self._adapters: dict[str, AdapterInfo] = {}
         # Temperatura de alerta por LUID: lida uma vez por lista de placas, nao a cada leitura.
         self._warnings: dict[str, float] = {}
@@ -110,7 +113,15 @@ class WindowsSensorProvider:
             self._d3d_retry_at = now + RETRY_S
             self._load_warnings()
 
+    @property
+    def gpu_failed(self) -> bool:
+        """True enquanto a leitura da GPU (uso ou temperatura) estiver em falha; o diagnostico
+        oferece "Reiniciar sensores". Volta a False no reset ou quando a fonte le de novo."""
+        return bool(self._gpu_failures)
+
     def _report_failure(self, key: str, msg: str, *args: object, exc_info: bool = False) -> None:
+        if key in GPU_FAILURE_KEYS:
+            self._gpu_failures.add(key)
         if self._failures.report(key, msg, *args, exc_info=exc_info):
             with self._failure_lock:
                 self._failure_pending = True
@@ -138,6 +149,7 @@ class WindowsSensorProvider:
         self._adapters_at = float("-inf")
         self._warnings = {}
         self._driver_has_temp = False
+        self._gpu_failures.clear()
         if self._d3d is not None:
             self._probe_driver_temperature()
 
@@ -220,6 +232,7 @@ class WindowsSensorProvider:
             )
             self._drop("_d3d", "D3DKMT")
             return {}
+        self._gpu_failures.discard("d3dkmt")
         self._driver_has_temp = bool(temps)
         return temps
 
@@ -227,7 +240,7 @@ class WindowsSensorProvider:
         if self._nvml is None:
             return {}
         try:
-            return self._nvml.read()
+            temps = self._nvml.read()
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
             self._report_failure(
                 "nvml",
@@ -237,6 +250,8 @@ class WindowsSensorProvider:
             )
             self._drop("_nvml", "NVML")
             return {}
+        self._gpu_failures.discard("nvml")
+        return temps
 
     def _log_adapters(self) -> None:
         """Uma linha por placa ao abrir e quando a lista muda (placa nova, driver trocado)."""
@@ -274,6 +289,7 @@ class WindowsSensorProvider:
             )
             self._drop("_pdh", "contadores de GPU")
             return []
+        self._gpu_failures.discard("gpu")
         # A temperatura e opcional: se falhar, o uso e a VRAM continuam aparecendo.
         # Primeiro o driver (por LUID, duas placas iguais nao se confundem); o NVML completa.
         by_luid = self._driver_temperatures()

@@ -280,3 +280,20 @@ def test_check_shutdown_message_and_fix():
     assert result.fix == "salvar_pacote"
     assert checks.check_shutdown(PreviousSession(False, seen)) == []
     assert checks.check_shutdown(None) == []
+
+
+def test_gpu_failure_is_a_problem_with_restart_sensors():
+    result = only(checks.check_gpus([gpu("AMD Radeon RX 7600", "amd", 8)], failed=True))
+    assert (result.status, result.fix) == ("problema", "reiniciar_sensores")
+    assert result.detail == "A leitura da placa de vídeo falhou."
+
+
+def test_gpu_failure_without_cards_is_also_a_problem():
+    result = only(checks.check_gpus([], failed=True))
+    assert (result.status, result.fix) == ("problema", "reiniciar_sensores")
+
+
+def test_no_reading_yet_is_info_without_alert():
+    """Servidor parado ou sem leitura ainda: nao da para dizer que falta placa."""
+    result = only(checks.check_gpus(None))
+    assert result.status == "info" and result.fix is None

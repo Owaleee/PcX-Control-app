@@ -238,3 +238,20 @@ def test_all_checks_lists_every_plan_id():
     assert runner.ALL_CHECKS >= {r.id for r in runner.run_all(sources())}
     assert runner.QUICK_CHECKS <= runner.ALL_CHECKS
     assert len(runner.ALL_CHECKS) == 9
+
+
+def test_gpu_failure_from_the_provider_reaches_the_check():
+    failed = runner.run_all(sources(gpu_failed=lambda: True), only={"sensores.gpu"})
+    assert [(r.status, r.fix) for r in failed] == [("problema", "reiniciar_sensores")]
+    fine = runner.run_all(sources(), only={"sensores.gpu"})
+    assert [r.status for r in fine] == ["info"]
+
+
+def test_gpu_without_reading_is_info():
+    results = runner.run_all(sources(reading=lambda: (None, "ainda sem leitura")), only={"sensores.gpu"})
+    assert [r.status for r in results] == ["info"]
+
+
+def test_gpu_with_server_stopped_is_info_even_with_an_old_reading():
+    results = runner.run_all(sources(server_state=lambda: ("port_in_use", False)), only={"sensores.gpu"})
+    assert [(r.status, r.title) for r in results] == [("info", "Placa de vídeo")]

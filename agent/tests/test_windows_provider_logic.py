@@ -480,3 +480,45 @@ def test_capabilities_answer_while_another_thread_holds_the_lock(make):
     finally:
         release.set()
         holder.join(5)
+
+
+def test_gpu_failed_follows_the_pdh_failure_until_it_reads_again(make):
+    provider, clock = make()
+    provider.read()
+    assert provider.gpu_failed is False
+    FakePdh.instances[0].fail = True
+    provider.read()
+    assert provider.gpu_failed is True
+    provider.read()  # PDH fechado esperando a nova tentativa: continua em falha
+    assert provider.gpu_failed is True
+    clock.now += 61
+    assert provider.read().gpus
+    assert provider.gpu_failed is False
+
+
+def test_gpu_failed_on_temperature_failure_until_the_source_reads_again(make):
+    provider, clock = make()
+    FakeNvml.instances[0].fail = True
+    provider.read()
+    assert provider.gpu_failed is True
+    provider.read()  # NVML fechado: o uso da GPU le, mas a temperatura ainda nao voltou
+    assert provider.gpu_failed is True
+    clock.now += 61
+    provider.read()
+    assert provider.gpu_failed is False
+
+
+def test_gpu_failed_on_driver_temperature_failure(make):
+    provider, _ = make()
+    FakeD3d.instances[0].fail = True
+    provider.read()
+    assert provider.gpu_failed is True
+
+
+def test_reset_sensors_clears_gpu_failed(make):
+    provider, _ = make()
+    FakePdh.instances[0].fail = True
+    provider.read()
+    assert provider.gpu_failed is True
+    provider.reset_sensors()
+    assert provider.gpu_failed is False

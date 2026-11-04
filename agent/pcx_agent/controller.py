@@ -265,6 +265,7 @@ class AgentController:
             server_state=server_state,
             reading_age=self._ctx.sampler.reading_age,
             previous_session=lambda: self._previous_session,
+            gpu_failed=lambda: bool(getattr(self._ctx.provider, "gpu_failed", False)),
         )
 
     def clear_crash_notice(self) -> None:

@@ -207,7 +207,18 @@ def check_antivirus(products: list[SecurityProduct] | None) -> list[CheckResult]
     ]
 
 
-def check_gpus(gpus: list[GpuReading]) -> list[CheckResult]:
+def check_gpus(gpus: list[GpuReading] | None, failed: bool = False) -> list[CheckResult]:
+    """`gpus` None = sem leitura ainda (ou servidor parado); `failed` = o provider registrou falha."""
+    if failed:
+        return _result(
+            "sensores.gpu", GROUP_SENSORS, "Placa de vídeo", "problema",
+            "A leitura da placa de vídeo falhou.", "reiniciar_sensores",
+        )
+    if gpus is None:
+        return _result(
+            "sensores.gpu", GROUP_SENSORS, "Placa de vídeo", "info",
+            "Sem leitura dos sensores agora: a placa de vídeo aparece depois da próxima leitura.",
+        )
     if not gpus:
         return _result(
             "sensores.gpu", GROUP_SENSORS, "Placa de vídeo", "atencao",
