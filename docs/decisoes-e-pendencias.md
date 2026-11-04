@@ -380,6 +380,17 @@ Origem: [spec](specs/2026-11-03-agente-0.6-suporte-design.md) e
    "Atualize o app" sem precisar de um agente de protocolo 2.
 9. **O aviso de versão no app mostra também a versão do agente** ("Versão no PC"), mesmo fora do
    texto previsto no spec: ajuda quem for pedir suporte.
+10. **Desligar com a Inicialização rápida:** o horário do boot não muda nesse caso, então a regra
+    do boot não basta. A bandeja trata o fim da sessão do Windows (`WM_SAVE_YOURSELF` no Tk, que
+    vem do `WM_QUERYENDSESSION`), grava "encerrado normalmente" uma vez só
+    (`crashlog.mark_normal_exit()`) e sai como o **Sair**. Item A32b no roteiro manual.
+11. **Falha na GPU oferece "Reiniciar sensores":** o provider expõe `gpu_failed` (PDH, D3DKMT ou
+    NVML em falha até a fonte ler de novo ou o reset). Com falha, `sensores.gpu` vira `problema`;
+    sem leitura (servidor parado ou iniciando) vira `info`, sem acender o alerta.
+12. **Antivírus de terceiros fora do alerta automático**, como a VPN: continua na janela. As
+    notificações pendentes saem com `problema` antes de `atencao` (depois pelo `id`).
+13. **A rodada de 5 minutos confere a regra do firewall** (`rede.firewall`), para cumprir o
+    critério 1 do spec (regra apagada acende o alerta em até 5 minutos).
 
 ## Achados da revisão independente (corrigidos)
 
@@ -389,6 +400,25 @@ Origem: [spec](specs/2026-11-03-agente-0.6-suporte-design.md) e
 3. A pasta de logs e o zip do pacote podiam deixar sobras se a gravação falhasse.
 4. A falha de um sensor era avisada antes de a leitura ser publicada, e dois pedidos de
    verificação simultâneos rodavam duas vezes.
+
+## Achados da revisão final (corrigidos)
+
+1. **Leituras paravam depois de reiniciar o servidor:** os eventos internos do coletor ficavam
+   presos ao primeiro laço do servidor; depois de **Reiniciar servidor** ou **Trocar a porta** a
+   leitura não voltava e o encerramento pulava o fechamento dos sensores. Agora nascem a cada
+   início do coletor.
+2. **Driver travado congelava o servidor:** a consulta das capacidades dos sensores esperava a
+   leitura em andamento; agora só lê o que já sabe, sem a trava.
+3. **Segunda execução escrevia no `crash.log`:** a trava de instância única vem antes de qualquer
+   log.
+4. **Desligar com a Inicialização rápida virava "fechou inesperadamente"** (decisão 10).
+5. **Falha na GPU não oferecia "Reiniciar sensores"** (decisão 11).
+6. **Antivírus acendia o alerta automático e a ordem das notificações era alfabética**
+   (decisão 12).
+7. **A regra do firewall apagada só aparecia ao abrir a janela** (decisão 13).
+8. Menores: no app, uma `temp_warn_c` inválida descartava a placa inteira (agora vira vazia);
+   **Trocar a porta** dizia que trocou mesmo sem o servidor subir na porta nova; o roteiro A31
+   citava o texto errado do aviso.
 
 ## Pendências fechadas neste plano
 
@@ -400,15 +430,11 @@ Origem: [spec](specs/2026-11-03-agente-0.6-suporte-design.md) e
 
 ## Pendências (Plano 6)
 
-- Abrir o programa uma segunda vez ("já está rodando") ainda escreve no `crash.log` antes de
-  desistir, o que pode esconder uma queda real da primeira cópia. A conferência de instância única
-  deveria vir antes do registro de travamentos.
 - A "leitura parada" só é percebida na verificação de 5 minutos; não há aviso imediato.
-- Trocar a porta usa sempre todas as placas de rede (`0.0.0.0`); se a troca falhar, o agente diz
-  que trocou mesmo assim e a porta nova fica gravada.
+- Trocar a porta usa sempre todas as placas de rede (`0.0.0.0`); se a troca falhar, a porta nova
+  fica gravada no `config.json` (o aviso de sucesso não aparece mais nesse caso).
 - Entre as verificações, o monitor do alerta não tem trava própria: hoje tudo passa pela thread da
   interface, mas qualquer chamada nova de outro lugar precisa seguir isso.
-- Os alertas pendentes saem em ordem alfabética, não com o problema na frente.
 - O `crash.log` pode ficar sem registro por um instante curto durante a manutenção, e a rotação
   pode apagar o arquivo recém-gravado se o relógio do PC voltar no tempo.
 - Falha do D3DKMT ou do NVML lista todas as placas; a falha da versão do driver só aparece no nível
@@ -424,6 +450,7 @@ Origem: [spec](specs/2026-11-03-agente-0.6-suporte-design.md) e
   sintéticos.
 - No app: o aviso de versão não some ao trocar entre QR e digitar IP; não há teste de ir para
   segundo plano e voltar com o aviso aberto, nem do aviso em paisagem no modo painel.
-- Itens do roteiro que só um PC e um celular de verdade confirmam: A23 a A32 (bandeja, clique
-  duplo com alerta, notificação, troca de porta, pacote de suporte, aviso de fechamento) e o item
+- Itens do roteiro que só um PC e um celular de verdade confirmam: A23 a A32b (bandeja, clique
+  duplo com alerta, notificação, troca de porta, pacote de suporte, aviso de fechamento,
+  desligamento com a Inicialização rápida) e o item
   27 (aviso com `PCX_TEST_PROTOCOL=2`).

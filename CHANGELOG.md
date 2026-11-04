@@ -20,17 +20,22 @@ Suporte mais fácil: o agente confere a conexão sozinho, avisa na bandeja e mon
 quem está ajudando. Compatível com o app 0.2.0 ou mais novo (protocolo 1).
 
 ### Adicionado
-- **Verificação automática** a cada 5 minutos (a primeira 10 segundos depois de abrir). Se algo
-  sai do normal, o ícone da bandeja muda, chega uma notificação (no máximo uma a cada 10 minutos)
-  e o clique duplo no ícone passa a abrir **Verificar conexão**.
+- **Verificação automática** a cada 5 minutos (a primeira 10 segundos depois de abrir), incluindo
+  a regra do firewall. Se algo sai do normal, o ícone da bandeja muda, chega uma notificação (no
+  máximo uma a cada 10 minutos, problemas antes de atenções) e o clique duplo no ícone passa a
+  abrir **Verificar conexão**. VPN e antivírus de terceiros aparecem só na janela, sem acender o
+  alerta.
+- Falha na leitura da placa de vídeo aparece no **Verificar conexão** como problema, com
+  **Reiniciar sensores**.
 - **Pacote de suporte** (`.zip`) no lugar do **Copiar relatório**: relatório do diagnóstico, logs
   e versões, sem banco de dados, senha, código, token nem o nome do usuário do Windows.
 - Novas verificações e correções num clique no **Verificar conexão**: leitura de sensores parada
   (mais de 30 s sem leitura nova) com **Reiniciar sensores**, porta ocupada por outro programa com
-  **Trocar porta** (tenta de `porta + 1` até 20 vezes), antivírus de terceiros com
+  **Trocar a porta** (tenta de `porta + 1` até 20 vezes), antivírus de terceiros com
   **Copiar caminho do programa** (para liberar no antivírus). A janela também mostra se o servidor do agente está no ar.
 - **Aviso de fechamento inesperado** na abertura seguinte, com o horário da última atividade.
-  Reiniciar ou desligar o PC não conta como fechamento inesperado.
+  Reiniciar ou desligar o PC (também com a Inicialização rápida do Windows) não conta como
+  fechamento inesperado.
 - `crash.log` com um arquivo por travamento (ficam os 10 mais recentes).
 - `gpu.log` (2 arquivos de 512 KiB) com a versão do driver e de onde vem a temperatura de cada
   placa de vídeo.
@@ -49,6 +54,12 @@ quem está ajudando. Compatível com o app 0.2.0 ou mais novo (protocolo 1).
 - O `crash.log` só era cortado ao iniciar; agora é mantido durante a execução.
 - A linha de início do log agora diz de onde vem a temperatura de cada placa.
 - VPN com nome desconhecido ou renomeado podia entrar no QR code no lugar da rede local.
+- Depois de reiniciar o servidor (**Reiniciar servidor** ou **Trocar a porta**), as leituras dos
+  sensores paravam e o encerramento pulava o fechamento dos sensores.
+- Um driver de vídeo travado numa leitura podia congelar o servidor ao conectar um celular.
+- Abrir o programa uma segunda vez ("já está rodando") escrevia no `crash.log` e podia esconder
+  uma queda real da primeira cópia.
+- **Trocar a porta** dizia que trocou mesmo quando o servidor não subia na porta nova.
 
 ## [app 0.5.0] - 2026-11-04
 
@@ -60,7 +71,8 @@ Compatível com o agente 0.2.0 ou mais novo (protocolo 1). A temperatura de aler
   "Atualize o app" com o botão para baixar a versão nova, no pareamento, na tela do PC e no modo
   painel, em vez de só falhar. Se o PC é que anuncia um protocolo mais antigo, o aviso pede para
   atualizar o programa no PC. Os dois mostram a versão do agente.
-- O app lê `temp_warn_c` de cada GPU (campo opcional).
+- O app lê `temp_warn_c` de cada GPU (campo opcional; um valor inválido é ignorado sem
+  descartar a placa).
 
 ## [agente 0.5.0] - 2026-11-03
 
