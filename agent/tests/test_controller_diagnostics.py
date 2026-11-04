@@ -174,6 +174,22 @@ def test_trocar_porta_keeps_old_port_when_save_fails(with_server, monkeypatch):
     assert controller.last_fix_message is None
 
 
+def test_trocar_porta_without_message_when_the_new_port_fails_too(with_server, monkeypatch):
+    """O restart na porta nova tambem falhou: nada de "Porta trocada", a verificacao mostra o erro."""
+
+    class FailingServer(_FakeServer):
+        def restart(self, port=None):
+            super().restart(port)
+            self.start_error, self.running = "other", False
+
+    server = FailingServer(8765)
+    controller, _ = with_server(server)
+    monkeypatch.setattr(fixes, "find_free_port", lambda start: start)
+    assert controller.apply_fix("trocar_porta") is False
+    assert server.restarts == [8766]
+    assert controller.last_fix_message is None
+
+
 def test_trocar_porta_without_free_port_fails(with_server, monkeypatch):
     server = _FakeServer(8765)
     controller, _ = with_server(server)

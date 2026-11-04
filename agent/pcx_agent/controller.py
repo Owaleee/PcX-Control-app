@@ -169,6 +169,8 @@ class AgentController:
         if new is None or not save_port(self._ctx.settings.config_path, new):
             return False  # fica na porta antiga
         self._server.restart(new)
+        if self._server.start_error is not None:
+            return False  # nem a porta nova subiu: a verificacao do agente mostra o motivo
         self.last_fix_message = texts.DIAG_PORT_CHANGED.format(porta=new)
         return True
 
