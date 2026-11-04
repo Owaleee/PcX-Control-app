@@ -12,11 +12,13 @@ import tempfile
 import threading
 from pathlib import Path
 
+import psutil
+
 from pcx_agent import __version__
 from pcx_agent.api.app import build_context
 from pcx_agent.config import DEFAULT_PORT, default_data_dir, load_settings
 from pcx_agent.controller import NO_NETWORK_WARNING
-from pcx_agent.crashlog import install_crash_logging, log_startup
+from pcx_agent.crashlog import install_crash_logging, log_startup, previous_session
 from pcx_agent.logs import setup_logging
 from pcx_agent.network import lan_address
 from pcx_agent.pairing_uri import pairing_uri, print_pairing
@@ -114,6 +116,8 @@ def run_tray(args) -> int:
     from pcx_agent.winsys.instance import acquire_single_instance
 
     data_dir = Path(args.data_dir) if args.data_dir is not None else default_data_dir()
+    # Antes de abrir os logs desta execucao: ainda mostram como a anterior terminou.
+    previous = previous_session(data_dir / "logs", psutil.boot_time())
     setup_logging(data_dir / "logs")
     install_crash_logging(data_dir / "logs")
     log_startup()
@@ -134,7 +138,7 @@ def run_tray(args) -> int:
             logger.warning("Porta %s em uso; seguindo sem servidor", settings.port)
         from pcx_agent.tray.app import TrayApp
 
-        controller = AgentController(ctx, settings.port, server=server)
+        controller = AgentController(ctx, settings.port, server=server, previous_session=previous)
         autostart = AutoStart(WinRegistryRunStore(), launch_command())
         return TrayApp(settings, server, controller, autostart).run()
     except Exception:

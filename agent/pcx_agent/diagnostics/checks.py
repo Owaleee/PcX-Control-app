@@ -6,6 +6,7 @@ esta acontecendo e o que fazer, em portugues simples.
 
 import ipaddress
 import ntpath
+from typing import TYPE_CHECKING
 
 from pcx_agent.diagnostics.model import (
     GROUP_AGENT,
@@ -19,6 +20,9 @@ from pcx_agent.diagnostics.model import (
 )
 from pcx_agent.network import NetInterface, is_virtual
 from pcx_agent.sensors.base import GpuReading, Snapshot
+
+if TYPE_CHECKING:
+    from pcx_agent.crashlog import PreviousSession
 
 RULE_NAME = "PcX Control - agente"
 # So VPNs de verdade (as placas virtuais de Hyper-V, WSL e afins nao atrapalham o celular).
@@ -233,4 +237,15 @@ def check_reading(
     return _result(
         "sensores.leitura", GROUP_SENSORS, title, "ok",
         f"CPU, memória, {len(snapshot.disks)} disco(s) e rede lidos.",
+    )
+
+
+def check_shutdown(previous: "PreviousSession | None") -> list[CheckResult]:
+    """Avisa quando a execucao anterior do agente caiu (horario local do ultimo registro)."""
+    if previous is None or not previous.crashed or previous.last_seen is None:
+        return []
+    local = previous.last_seen.astimezone()
+    detail = f"O PcX Control fechou inesperadamente em {local:%d/%m} às {local:%H:%M}."
+    return _result(
+        "agente.encerramento", GROUP_AGENT, "Fechamento inesperado", "problema", detail, "salvar_pacote"
     )

@@ -226,3 +226,31 @@ def test_sensors_stopped_while_the_agent_is_off_the_network(make):
     assert reading.status == "info"
     assert reading.detail == "Sensores parados enquanto o agente não está na rede."
     assert reading.fix is None
+
+
+def test_clear_crash_notice_hides_check(tmp_path):
+    from pcx_agent.crashlog import PreviousSession
+
+    ctx = build_context(load_settings(data_dir=tmp_path), FakeSensorProvider())
+    try:
+        previous = PreviousSession(True, datetime(2026, 11, 4, 22, 5, tzinfo=UTC))
+        controller = AgentController(ctx, 8765, previous_session=previous)
+        sources = controller._real_sources()
+        assert sources.previous_session() is previous
+        controller.clear_crash_notice()
+        assert controller._real_sources().previous_session() is None
+        from pcx_agent.diagnostics.runner import run_all
+
+        ids = {r.id for r in run_all(controller._real_sources(), only={"agente.encerramento"})}
+        assert ids == set()
+    finally:
+        ctx.db.close()
+
+
+def test_run_all_includes_the_shutdown_check(make):
+    from pcx_agent.crashlog import PreviousSession
+
+    previous = PreviousSession(True, datetime(2026, 11, 4, 22, 5, tzinfo=UTC))
+    controller, _ = make(previous_session=lambda: previous)
+    results = controller.run_diagnostics()
+    assert "agente.encerramento" in {r.id for r in results}

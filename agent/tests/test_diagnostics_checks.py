@@ -264,3 +264,19 @@ def test_antivirus_offers_copy_path():
     results = checks.check_antivirus([product("Avast Antivirus"), product("ESET Firewall", "firewall")])
     assert all(r.fix == "copiar_caminho" for r in results)
     assert "Libere este programa no Avast Antivirus." in results[0].detail
+
+
+def test_check_shutdown_message_and_fix():
+    from pcx_agent.crashlog import PreviousSession
+    from pcx_agent.diagnostics.model import GROUP_AGENT
+
+    seen = datetime(2026, 11, 4, 22, 5, 30, tzinfo=UTC)
+    (result,) = checks.check_shutdown(PreviousSession(True, seen))
+    local = seen.astimezone()
+    assert result.id == "agente.encerramento"
+    assert result.group == GROUP_AGENT
+    assert result.status == "problema"
+    assert result.detail == f"O PcX Control fechou inesperadamente em {local:%d/%m} às {local:%H:%M}."
+    assert result.fix == "salvar_pacote"
+    assert checks.check_shutdown(PreviousSession(False, seen)) == []
+    assert checks.check_shutdown(None) == []

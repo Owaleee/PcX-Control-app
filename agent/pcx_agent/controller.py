@@ -10,6 +10,7 @@ from pcx_agent.api.app import AppContext
 from pcx_agent.auth.pairing import Device
 from pcx_agent.auth.passwords import MIN_LENGTH
 from pcx_agent.config import save_port
+from pcx_agent.crashlog import PreviousSession
 from pcx_agent.diagnostics import fixes
 from pcx_agent.diagnostics.model import CheckResult, Fix
 from pcx_agent.diagnostics.report import ReportFacts, build_report
@@ -95,10 +96,12 @@ class AgentController:
         diagnostics_sources: Callable[[], Sources] | None = None,
         fix_actions: dict[str, Callable[[], bool]] | None = None,
         server=None,
+        previous_session: PreviousSession | None = None,
     ) -> None:
         self._ctx = ctx
         self._port = port
         self._server = server
+        self._previous_session = previous_session
         self.last_fix_message: str | None = None
         # Resolvidos na chamada (e nao no padrao do parametro) para os testes trocarem o modulo.
         self._address_lookup = address_lookup or (lambda: lan_address())
@@ -237,7 +240,12 @@ class AgentController:
             port=self.port,
             server_state=server_state,
             reading_age=self._ctx.sampler.reading_age,
+            previous_session=lambda: self._previous_session,
         )
+
+    def clear_crash_notice(self) -> None:
+        """Esconde o aviso de fechamento inesperado (depois que o pacote foi salvo)."""
+        self._previous_session = None
 
     def run_diagnostics(self) -> list[CheckResult]:
         return run_all(self._diagnostics_sources())

@@ -8,6 +8,7 @@ import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from pcx_agent.crashlog import PreviousSession
 from pcx_agent.diagnostics import checks
 from pcx_agent.diagnostics.model import (
     GROUP_AGENT,
@@ -45,6 +46,7 @@ class Sources:
     reading_age: Callable[[], float | None] = lambda: None
     # (erro de inicio do servidor, servidor rodando)
     server_state: Callable[[], tuple[str | None, bool]] = lambda: (None, True)
+    previous_session: Callable[[], PreviousSession | None] = lambda: None
 
 
 def probe_agent(address: str, agent_id: str, timeout: float = PROBE_TIMEOUT_S) -> AgentProbe:
@@ -102,6 +104,7 @@ def run_all(sources: Sources, only: set[str] | None = None) -> list[CheckResult]
         ("rede.firewall", GROUP_NETWORK, "Regra do firewall", lambda: checks.check_firewall(sources.firewall_rules(), sources.exe_path())),
         ("rede.vpn", GROUP_NETWORK, "VPN", lambda: checks.check_vpn(interfaces)),
         ("agente.local", GROUP_AGENT, "Agente respondendo na rede", agent),
+        ("agente.encerramento", GROUP_AGENT, "Fechamento inesperado", lambda: checks.check_shutdown(sources.previous_session())),
         ("antivirus.terceiros", GROUP_ANTIVIRUS, "Antivírus e firewall de terceiros", lambda: checks.check_antivirus(sources.security())),
         ("sensores.gpu", GROUP_SENSORS, "Placa de vídeo", gpus),
         ("sensores.leitura", GROUP_SENSORS, "Leitura dos sensores", reading),
