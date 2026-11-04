@@ -575,3 +575,31 @@ def test_any_fix_runs_diagnostics_again_and_shows_the_message(root):
     assert window.status.cget("text") == "Porta trocada para 8766."
     assert controller.last_fix_message is None  # mostrada uma vez
     window.close()
+
+
+def test_windows_session_end_marks_normal_exit_once_and_quits(root, tmp_path):
+    """Desligar/sair do Windows (WM_QUERYENDSESSION vira WM_SAVE_YOURSELF no Tk): com a
+    Inicializacao rapida o boot nao muda, entao a saida normal tem que ficar gravada antes."""
+    from types import SimpleNamespace
+
+    from pcx_agent import crashlog
+    from pcx_agent.tray.app import TrayApp
+
+    stopped: list[str] = []
+    server = SimpleNamespace(stop=lambda: stopped.append("server"))
+    app = TrayApp(SimpleNamespace(log_dir=tmp_path), server, SimpleNamespace(), None)
+    app.icon = SimpleNamespace(stop=lambda: stopped.append("icon"))
+    app.root = root
+    crashlog.install_crash_logging(tmp_path)
+    try:
+        app._watch_session_end()
+        command = root.protocol("WM_SAVE_YOURSELF")
+        assert command
+        root.tk.call(command)
+        root.tk.call(command)
+    finally:
+        root.protocol("WM_SAVE_YOURSELF", "")
+        crashlog.uninstall_crash_logging()
+    lines = (tmp_path / crashlog.CRASH_FILE).read_text(encoding="utf-8").splitlines()
+    assert lines.count(crashlog.ENDED_NORMALLY) == 1
+    assert stopped[:2] == ["server", "icon"]
