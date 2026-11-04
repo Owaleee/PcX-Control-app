@@ -281,3 +281,16 @@ def test_maintenance_trims_while_running(installed):
     handle.write("depois\n")
     handle.flush()
     assert path.read_text(encoding="utf-8").endswith("depois\n")
+
+
+def test_mark_normal_exit_writes_the_marker_only_once(tmp_path):
+    crashlog.install_crash_logging(tmp_path)
+    crashlog.mark_normal_exit()
+    crashlog.mark_normal_exit()
+    crashlog.uninstall_crash_logging()  # o atexit tambem passa por aqui
+    lines = (tmp_path / crashlog.CRASH_FILE).read_text(encoding="utf-8").splitlines()
+    assert lines.count(crashlog.ENDED_NORMALLY) == 1
+
+
+def test_mark_normal_exit_without_hooks_does_nothing():
+    crashlog.mark_normal_exit()  # nao levanta

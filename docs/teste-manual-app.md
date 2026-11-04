@@ -54,8 +54,9 @@ cd agent
 | A28 | Com antivírus ou firewall de terceiros ativo, Verificar conexão → Copiar caminho do programa | O caminho do executável vai para a área de transferência. O botão aparece só nesse caso |
 | A29 | Salvar pacote de suporte e abrir o `.zip` | Tem relatório, `agent.log`, `crash.log` e `gpu.log`; **não** tem arquivo `.db`; procurar o nome do seu usuário do Windows em todos os arquivos não acha nada |
 | A30 | Renomear a placa da Radmin VPN (ou outra VPN) para "casa" e verificar | "VPN: Atenção" com o nome novo, e o QR continua com o IP do Wi-Fi ou Ethernet |
-| A31 | Encerrar o PcXControl.exe pelo Gerenciador de Tarefas e abrir de novo | Aparece "O agente fechou inesperadamente" com o horário da última atividade |
+| A31 | Encerrar o PcXControl.exe pelo Gerenciador de Tarefas e abrir de novo | Aparece "O PcX Control fechou inesperadamente" com o horário da última atividade |
 | A32 | Reiniciar o PC (com e sem "Iniciar com o Windows") | **Sem** o aviso de fechamento inesperado |
+| A32b | Desligar e ligar o PC com a Inicialização rápida ligada | **Sem** o aviso de fechamento inesperado |
 
 ## Roteiro
 

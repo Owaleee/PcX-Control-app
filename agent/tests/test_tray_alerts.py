@@ -315,3 +315,31 @@ def test_port_in_use_triggers_agent_check_on_start(tmp_path, monkeypatch, start_
     assert app.controller.on_results is not None
     hooks["cb"]()  # falha do sensor dispara a rodada dos sensores
     assert runs[-1] == {"sensores.leitura", "sensores.gpu"}
+
+
+def test_windows_session_end_marks_normal_exit_once_and_quits(tmp_path):
+    """Desligar/sair do Windows (WM_QUERYENDSESSION vira WM_SAVE_YOURSELF no Tk): com a
+    Inicializacao rapida o boot nao muda, entao a saida normal tem que ficar gravada antes."""
+    import tkinter as tk
+
+    from pcx_agent import crashlog
+
+    stopped: list[str] = []
+    server = SimpleNamespace(stop=lambda: stopped.append("server"))
+    app = make_app(tmp_path, server=server)
+    app.icon.stop = lambda: stopped.append("icon")
+    crashlog.install_crash_logging(tmp_path)
+    app.root = tk.Tk()
+    app.root.withdraw()
+    try:
+        app._watch_session_end()
+        command = app.root.protocol("WM_SAVE_YOURSELF")
+        assert command
+        app.root.tk.call(command)
+        app.root.tk.call(command)
+    finally:
+        app.root.destroy()
+    crashlog.uninstall_crash_logging()
+    lines = (tmp_path / crashlog.CRASH_FILE).read_text(encoding="utf-8").splitlines()
+    assert lines.count(crashlog.ENDED_NORMALLY) == 1
+    assert stopped[:2] == ["server", "icon"]

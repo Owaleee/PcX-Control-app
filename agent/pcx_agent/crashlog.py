@@ -146,7 +146,7 @@ def install_crash_logging(log_dir: Path) -> None:
     sys.excepthook = _excepthook
     threading.excepthook = _thread_excepthook
     faulthandler.enable(file=handle, all_threads=True)
-    atexit.register(_mark_normal_exit)
+    atexit.register(mark_normal_exit)
 
 
 def maintenance(log_dir: Path) -> None:
@@ -214,11 +214,14 @@ def previous_session(log_dir: Path, boot_time: float) -> PreviousSession:
     return PreviousSession(last_seen.timestamp() > boot_time, last_seen)
 
 
-def _mark_normal_exit() -> None:
+def mark_normal_exit() -> None:
+    """Grava ENDED_NORMALLY uma vez so por execucao (atexit, ou o fim da sessao do Windows)."""
     handle = _state.get("handle")
-    if handle is not None and not handle.closed:
-        handle.write(ENDED_NORMALLY + "\n")
-        handle.flush()
+    if handle is None or handle.closed or _state.get("marked"):
+        return
+    handle.write(ENDED_NORMALLY + "\n")
+    handle.flush()
+    _state["marked"] = True
 
 
 def uninstall_crash_logging() -> None:
@@ -226,8 +229,8 @@ def uninstall_crash_logging() -> None:
     if not _state:
         return
     faulthandler.disable()
-    atexit.unregister(_mark_normal_exit)
-    _mark_normal_exit()
+    atexit.unregister(mark_normal_exit)
+    mark_normal_exit()
     sys.excepthook = _state["excepthook"]
     threading.excepthook = _state["thread_excepthook"]
     handle = _state["handle"]

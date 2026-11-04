@@ -54,6 +54,7 @@ class TrayApp:
         )
         self.icon = build_tray_icon(self.controller, self._actions)
         self.icon.run_detached()
+        self._watch_session_end()
         self._start_alerts()
         if self.controller.needs_first_run():
             FirstRunWindow.show(self.root, self.controller)
@@ -124,6 +125,17 @@ class TrayApp:
     def open_logs(self) -> None:
         self.settings.log_dir.mkdir(parents=True, exist_ok=True)
         os.startfile(self.settings.log_dir)  # so existe no Windows
+
+    def _watch_session_end(self) -> None:
+        """Desligar ou sair do Windows: o Tk traduz WM_QUERYENDSESSION em WM_SAVE_YOURSELF.
+        Com a Inicializacao rapida o horario do boot nao muda; sem gravar a saida normal aqui,
+        o processo morto no desligamento viraria "fechou inesperadamente" no proximo inicio."""
+        self.root.protocol("WM_SAVE_YOURSELF", self._session_ending)
+
+    def _session_ending(self) -> None:
+        logger.info("Windows encerrando a sessao")
+        crashlog.mark_normal_exit()
+        self.quit()
 
     def quit(self) -> None:
         logger.info("Saindo pela bandeja")
