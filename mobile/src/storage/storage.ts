@@ -1,6 +1,7 @@
 // PCs pareados e preferencias, no armazenamento seguro do Android (o token nunca sai daqui).
 import * as SecureStore from 'expo-secure-store';
 
+import { DEFAULT_LIMITS, sanitizeLimits, type AlertLimits } from '../alerts/levels';
 import { isThemeName, type ThemeName } from '../theme/names';
 
 export type SavedPc = {
@@ -17,6 +18,7 @@ export type SavedPc = {
 const INDEX_KEY = 'pcx.index';
 const THEME_KEY = 'pcx.theme';
 const PRECISE_KEY = 'pcx.precise';
+const ALERTS_KEY = 'pcx.alerts';
 
 /** O secure-store so aceita letras, numeros, ponto, hifen e sublinhado nas chaves. */
 function pcKey(agentId: string): string {
@@ -101,4 +103,14 @@ export async function getPrecise(): Promise<boolean> {
 
 export async function setPrecise(precise: boolean): Promise<void> {
   await SecureStore.setItemAsync(PRECISE_KEY, precise ? '1' : '0');
+}
+
+/** Cores de alerta: chave e limites. Valores estranhos voltam ao padrao. */
+export async function getAlertLimits(): Promise<AlertLimits> {
+  const saved = await readJson(ALERTS_KEY);
+  return saved === null ? DEFAULT_LIMITS : sanitizeLimits(saved);
+}
+
+export async function setAlertLimits(limits: AlertLimits): Promise<void> {
+  await SecureStore.setItemAsync(ALERTS_KEY, JSON.stringify(limits));
 }

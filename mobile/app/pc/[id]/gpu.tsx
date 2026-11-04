@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { HistoryChart } from '../../../src/components/HistoryChart';
 import { RangeTabs } from '../../../src/components/RangeTabs';
-import { Screen } from '../../../src/components/ui';
+import { Body, Screen, Title } from '../../../src/components/ui';
 import { usePc } from '../../../src/hooks/PcContext';
 import type { Range } from '../../../src/protocol/types';
 
@@ -22,7 +22,15 @@ export default function GpuDetail() {
       <HistoryChart metric="gpu.vram_percent" range={range} title="VRAM" height={CHART_HEIGHT} />
       {capabilities.includes('gpu.temp') ? (
         <HistoryChart metric="gpu.temp" range={range} title="Temperatura" height={CHART_HEIGHT} />
-      ) : null}
+      ) : (
+        <>
+          <Title>Temperatura</Title>
+          <Body>
+            Temperatura indisponível nesta placa: o driver de vídeo não informa, ou o agente do PC é anterior à
+            versão 0.5.0.
+          </Body>
+        </>
+      )}
     </Screen>
   );
 }

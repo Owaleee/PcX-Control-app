@@ -290,3 +290,53 @@ fácil de atualizar. As regras do protocolo que sustentam isso estão em
 - **Agente antigo com app novo:** quando o app ganhar uma função que dependa de algo novo no
   agente, ele deve checar a capacidade no `hello` e mostrar "Atualize o PcX Control no PC para
   usar isto" em vez de um cartão vazio.
+
+---
+
+# Plano 5: diagnóstico, logs de travamento, GPU em AMD e Intel (agente 0.5.0, app 0.4.0)
+
+## Decisões que divergem ou completam o plano
+
+1. **Rede de Domínio é "Atenção", não "OK".** A regra do firewall vale só na rede Privada, e o
+   agente 0.4.0 já avisava isso na janela de pareamento; o diagnóstico ficou coerente com o aviso.
+2. **Relatório com os tipos de motor da GPU, não os nomes inteiros das instâncias PDH.** Os nomes
+   têm mais de 22 letras e números seguidos e seriam escondidos pelo filtro de segredos.
+3. **`RateLimitedLog.report`** em vez de `warning`: com o nome `warning`, o lint confundia o método
+   com o `logging.warning` e acusava argumentos a mais.
+4. **A sondagem da temperatura acontece ao criar o provider**, e não dentro de `capabilities()`,
+   que roda no laço do servidor ao mesmo tempo que o coletor.
+5. **Selos com forma curta** ("Temp. alta") só quando o nome da placa não caberia ao lado dos
+   selos por extenso; o leitor de tela continua lendo por extenso.
+6. **A borda do cartão segue só o número e os selos.** VRAM e temperatura mudam de cor sem selo,
+   e por isso não acendem a borda: um alerta nunca aparece só pela cor.
+
+## Achados da revisão independente (corrigidos)
+
+1. A sonda "Agente respondendo na rede" passava pelo proxy do Windows; agora vai direto, e um
+   outro programa respondendo com erro HTTP aparece como "Outro programa respondeu".
+2. `capabilities()` lia o hardware no laço do servidor, junto com o coletor (sondagem movida para
+   o construtor).
+3. Sair pela bandeja durante um diagnóstico esperava o PowerShell terminar (até ~45 s); o
+   diagnóstico roda numa thread daemon.
+4. No Windows, o `faulthandler` também registra exceções que um driver trata sozinho: o
+   `crash.log` ganhou a linha "encerrado normalmente" para separar alarme falso de queda.
+5. A borda do cartão da GPU acendia só pela VRAM, sem selo.
+6. A mensagem de erro dos limites ficava na tela depois de ressincronizar os campos.
+7. Criar a regra do firewall travava a janela durante o pedido de administrador e verificava de
+   novo antes do `netsh` terminar; agora roda em segundo plano, espera a regra aparecer e verifica
+   de novo sozinho.
+8. A roda do mouse ficava presa a uma lista já fechada (fechar com Esc com o ponteiro em cima).
+9. Um nome de placa longo (32 letras) com dois selos não cabia num cartão de 380 px.
+10. Dois testes passavam sem provar o que diziam (tamanho do nome da placa; tamanho das
+    estruturas ctypes).
+
+## Pendências (Plano 5)
+
+- Num celular bem estreito em paisagem (cartão abaixo de ~300 px), um nome de placa de 30 letras
+  ou mais com dois selos ainda pode ser cortado, mesmo com os selos curtos.
+- O `crash.log` só é cortado (1 MiB) ao iniciar; um driver que gere muitos alarmes falsos numa
+  sessão longa faz o arquivo crescer até o próximo início.
+- A linha de início do log não diz de onde vem a temperatura de cada placa (driver ou NVML).
+- A comparação com o Gerenciador de Tarefas na RX 7600 (item A23 do roteiro) e o pedido de
+  administrador real (A20) só podem ser conferidos num PC de verdade.
+

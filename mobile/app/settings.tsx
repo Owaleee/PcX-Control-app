@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { AlertSettings } from '../src/components/AlertSettings';
 import { Body, Screen, Title } from '../src/components/ui';
 import { THEME_NAMES, type ThemeName } from '../src/theme/names';
 import { useTheme } from '../src/theme/ThemeProvider';
@@ -61,6 +62,7 @@ export default function Settings() {
           thumbColor={theme.text}
         />
       </View>
+      <AlertSettings />
     </Screen>
   );
 }

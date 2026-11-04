@@ -10,6 +10,7 @@ import tkinter as tk
 
 from pcx_agent.tray import texts
 from pcx_agent.tray.devices import DevicesWindow
+from pcx_agent.tray.diagnostics_window import DiagnosticsWindow
 from pcx_agent.tray.dispatcher import Dispatcher
 from pcx_agent.tray.first_run import FirstRunWindow
 from pcx_agent.tray.icon import TrayActions, build_tray_icon
@@ -40,6 +41,7 @@ class TrayApp:
             TrayActions(
                 pair=lambda: ui(self.open_pairing),
                 devices=lambda: ui(lambda: DevicesWindow.show(self.root, self.controller)),
+                diagnostics=lambda: ui(lambda: DiagnosticsWindow.show(self.root, self.controller)),
                 password=lambda: ui(lambda: PasswordWindow.show(self.root, self.controller)),
                 toggle_autostart=lambda: ui(self.toggle_autostart),
                 autostart_checked=self.autostart.is_enabled,

@@ -35,3 +35,12 @@ async def pair_device(client: httpx.AsyncClient, ctx: AppContext, name: str = "M
 
 def bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def _no_crash_hooks_between_tests():
+    """Testes que rodam o main() instalam os ganchos de travamento: desfaz ao fim de cada um."""
+    yield
+    from pcx_agent import crashlog
+
+    crashlog.uninstall_crash_logging()

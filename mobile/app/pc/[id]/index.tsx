@@ -1,6 +1,7 @@
 import { Stack, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { type AlertBadge, tempBadge, tempLevel, usageBadge, usageLevel } from '../../../src/alerts/levels';
 import { MetricCard } from '../../../src/components/MetricCard';
 import { StatusPill } from '../../../src/components/StatusPill';
 import { Body, Button, CardGrid, Message, Screen } from '../../../src/components/ui';
@@ -18,7 +19,7 @@ function useSeries(metric: MetricName) {
 }
 
 export default function PcPanel() {
-  const { theme, precise } = useTheme();
+  const { theme, precise, alerts } = useTheme();
   const percent = (value: number) => formatPercent(value, { precise });
   const { pc, state, snapshot, takeover } = usePc();
   const cpu = useSeries('cpu.total');
@@ -29,6 +30,11 @@ export default function PcPanel() {
   const open = (metric: MetricName) => () => router.push(`${base}/metric/${metric}`);
   const stale = state.kind !== 'connected';
   const data = snapshot?.data;
+  const only = (...badges: (AlertBadge | null)[]) => badges.filter((b): b is AlertBadge => b !== null);
+  const usage = (value: number | null | undefined) => {
+    const level = usageLevel(value, alerts);
+    return { level, badges: only(usageBadge(level)) };
+  };
 
   return (
     <Screen wide>
@@ -67,6 +73,7 @@ export default function PcPanel() {
               title="CPU"
               value={percent(data.cpu_total)}
               percent={data.cpu_total}
+              {...usage(data.cpu_total)}
               history={cpu}
               stale={stale}
               onPress={open('cpu.total')}
@@ -75,6 +82,7 @@ export default function PcPanel() {
               title="Memória RAM"
               value={percent(data.ram_percent)}
               percent={data.ram_percent}
+              {...usage(data.ram_percent)}
               detail={`${formatUsage(data.ram_used_bytes, data.ram_total_bytes)} · ${formatFree(data.ram_used_bytes, data.ram_total_bytes)}`}
               history={ram}
               stale={stale}
@@ -92,6 +100,8 @@ export default function PcPanel() {
                   title={`GPU · ${g.name}`}
                   value={percent(g.usage_percent)}
                   percent={g.usage_percent}
+                  level={usageLevel(g.usage_percent, alerts)}
+                  badges={only(usageBadge(usageLevel(g.usage_percent, alerts)), tempBadge(tempLevel(g.temp_c, alerts)))}
                   detail={[vram, temp].filter(Boolean).join(' · ') || undefined}
                   history={index === 0 ? gpu : undefined}
                   stale={stale}
@@ -114,6 +124,7 @@ export default function PcPanel() {
                 title={`Disco ${d.mount}`}
                 value={percent(d.percent)}
                 percent={d.percent}
+                {...usage(d.percent)}
                 detail={formatUsage(d.used_bytes, d.total_bytes)}
                 stale={stale}
               />

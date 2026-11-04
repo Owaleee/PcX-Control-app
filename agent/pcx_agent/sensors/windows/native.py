@@ -117,7 +117,7 @@ def list_adapters() -> dict[str, AdapterInfo]:
                         f"0x{desc.AdapterLuid.HighPart & 0xFFFFFFFF:08x}_"
                         f"0x{desc.AdapterLuid.LowPart:08x}"
                     )
-                    found[luid] = AdapterInfo(name, int(desc.DedicatedVideoMemory))
+                    found[luid] = AdapterInfo(name, int(desc.DedicatedVideoMemory), int(desc.VendorId))
             finally:
                 _method(adapter, 2, wintypes.ULONG)(adapter)  # Release
             index += 1

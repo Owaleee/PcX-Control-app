@@ -11,12 +11,21 @@ jest.mock('../../src/storage/storage', () => ({
   setTheme: jest.fn(async () => undefined),
   getPrecise: jest.fn(async () => true),
   setPrecise: jest.fn(async () => undefined),
+  getAlertLimits: jest.fn(async () => ({
+    enabled: false,
+    usageHigh: 70,
+    usageCritical: 90,
+    tempHigh: 80,
+    tempCritical: 90,
+  })),
+  setAlertLimits: jest.fn(async () => undefined),
 }));
 const storage = jest.requireMock('../../src/storage/storage') as {
   getTheme: jest.Mock;
   setTheme: jest.Mock;
   getPrecise: jest.Mock;
   setPrecise: jest.Mock;
+  setAlertLimits: jest.Mock;
 };
 
 test('AMOLED usa fundo preto puro', () => {
@@ -30,6 +39,10 @@ test.each(THEME_NAMES)('tema %s tem contraste de leitura', (name) => {
   expect(contrastRatio(t.textMuted, t.surface)).toBeGreaterThanOrEqual(4.5);
   expect(contrastRatio(t.accent, t.surface)).toBeGreaterThanOrEqual(3);
   expect(contrastRatio(t.danger, t.surface)).toBeGreaterThanOrEqual(4.5);
+  // Cores de alerta: texto do selo e numero sobre o cartao
+  expect(contrastRatio(t.warning, t.surface)).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(t.warning, t.background)).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(t.danger, t.background)).toBeGreaterThanOrEqual(4.5);
 });
 
 test('contrastRatio conhece os extremos', () => {
@@ -116,4 +129,27 @@ test('usePercent segue a preferencia salva e a troca', async () => {
 test('sem provedor, percentual inteiro', async () => {
   await render(<PercentProbe />);
   expect(screen.getByText('51%')).toBeTruthy();
+});
+
+function AlertsProbe() {
+  const { alerts, setAlerts } = useTheme();
+  return (
+    <Pressable onPress={() => setAlerts({ ...alerts, enabled: true })}>
+      <Text>{`alertas:${alerts.enabled ? 'on' : 'off'}:${alerts.usageHigh}`}</Text>
+    </Pressable>
+  );
+}
+
+test('ThemeProvider carrega os limites de alerta salvos e persiste a troca', async () => {
+  await render(
+    <ThemeProvider>
+      <AlertsProbe />
+    </ThemeProvider>,
+  );
+  await waitFor(() => expect(screen.getByText('alertas:off:70')).toBeTruthy());
+  await act(async () => {
+    await fireEvent.press(screen.getByText('alertas:off:70'));
+  });
+  expect(screen.getByText('alertas:on:70')).toBeTruthy();
+  expect(storage.setAlertLimits).toHaveBeenCalledWith(expect.objectContaining({ enabled: true, usageHigh: 70 }));
 });

@@ -1,8 +1,16 @@
-// Preferencias de exibicao: tema e numeros precisos.
+// Preferencias de exibicao: tema, numeros precisos e cores de alerta.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { formatPercent } from '../format/format';
-import { getPrecise, getTheme, setPrecise as savePrecise, setTheme } from '../storage/storage';
+import { DEFAULT_LIMITS, type AlertLimits } from '../alerts/levels';
+import {
+  getAlertLimits,
+  getPrecise,
+  getTheme,
+  setAlertLimits,
+  setPrecise as savePrecise,
+  setTheme,
+} from '../storage/storage';
 import type { ThemeName } from './names';
 import { THEMES, type Theme } from './themes';
 
@@ -12,6 +20,8 @@ type ThemeContextValue = {
   setName: (name: ThemeName) => void;
   precise: boolean;
   setPrecise: (precise: boolean) => void;
+  alerts: AlertLimits;
+  setAlerts: (alerts: AlertLimits) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue>({
@@ -20,11 +30,14 @@ const ThemeContext = createContext<ThemeContextValue>({
   setName: () => undefined,
   precise: false,
   setPrecise: () => undefined,
+  alerts: DEFAULT_LIMITS,
+  setAlerts: () => undefined,
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [name, setNameState] = useState<ThemeName>('dark');
   const [precise, setPreciseState] = useState(false);
+  const [alerts, setAlertsState] = useState<AlertLimits>(DEFAULT_LIMITS);
 
   useEffect(() => {
     let active = true;
@@ -33,6 +46,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       .catch(() => undefined);
     getPrecise()
       .then((saved) => active && setPreciseState(saved))
+      .catch(() => undefined);
+    getAlertLimits()
+      .then((saved) => active && setAlertsState(saved))
       .catch(() => undefined);
     return () => {
       active = false;
@@ -49,9 +65,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     savePrecise(next).catch(() => undefined);
   }, []);
 
+  const setAlerts = useCallback((next: AlertLimits) => {
+    setAlertsState(next);
+    setAlertLimits(next).catch(() => undefined);
+  }, []);
+
   const value = useMemo(
-    () => ({ theme: THEMES[name], name, setName, precise, setPrecise }),
-    [name, setName, precise, setPrecise],
+    () => ({ theme: THEMES[name], name, setName, precise, setPrecise, alerts, setAlerts }),
+    [name, setName, precise, setPrecise, alerts, setAlerts],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

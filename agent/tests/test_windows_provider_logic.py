@@ -1,5 +1,6 @@
 """Logica de recuperacao do provider do Windows, com dubles no lugar do codigo nativo."""
 
+import logging
 from typing import ClassVar
 
 import pytest
@@ -61,13 +62,38 @@ class FakeNvml:
         self.closed = True
 
 
+class FakeD3d:
+    """Temperatura pelo driver (D3DKMT); por padrao, o driver nao tem o dado."""
+
+    instances: ClassVar[list] = []
+    temps: ClassVar[dict] = {}
+
+    def __init__(self) -> None:
+        FakeD3d.instances.append(self)
+        self.fail = False
+        self.closed = False
+        self.asked: list[list[str]] = []
+
+    def read(self, luids):
+        self.asked.append(list(luids))
+        if self.fail:
+            raise OSError("D3DKMT quebrou")
+        return {luid: t for luid, t in FakeD3d.temps.items() if luid in luids}
+
+    def close(self) -> None:
+        self.closed = True
+
+
 @pytest.fixture
 def make(monkeypatch):
     FakePdh.instances = []
     FakeNvml.instances = []
     FakeNvml.broken = False
+    FakeD3d.instances = []
+    FakeD3d.temps = {}
     monkeypatch.setattr(provider_module.native, "PdhGpuCounters", FakePdh)
     monkeypatch.setattr(provider_module.native, "NvmlTemperatures", FakeNvml)
+    monkeypatch.setattr(provider_module.d3dkmt, "D3dkmtTemperatures", FakeD3d)
     monkeypatch.setattr(
         provider_module.native,
         "list_adapters",
@@ -133,3 +159,156 @@ def test_machine_without_nvml_has_no_temperature_and_no_error(make):
     provider, _ = make()
     gpu = provider.read().gpus[0]
     assert gpu.temp_c is None and gpu.usage_percent == 42.0
+
+
+def _gpu_logs(caplog, level=logging.INFO):
+    return [r.getMessage() for r in caplog.records if r.name == provider_module.logger.name and r.levelno >= level]
+
+
+def test_logs_the_cards_once_and_again_when_the_list_changes(make, monkeypatch, caplog):
+    with caplog.at_level(logging.INFO, logger=provider_module.logger.name):
+        provider, clock = make()  # a sondagem no construtor ja lista as placas
+        provider.read()
+        clock.now += 61  # a lista e relida a cada minuto; igual, nao repete
+        provider.read()
+        monkeypatch.setattr(
+            provider_module.native,
+            "list_adapters",
+            lambda: {
+                LUID: AdapterInfo("NVIDIA Teste", 8 * GIB, 0x10DE),
+                "0x00000000_0x0000a1b2": AdapterInfo("Intel UHD", GIB // 2, 0x8086),
+            },
+        )
+        clock.now += 61
+        provider.read()
+    cards = [m for m in _gpu_logs(caplog) if m.startswith("Placa de video:")]
+    assert cards == [
+        "Placa de video: NVIDIA Teste | fabricante outra (VendorId 0x0000) | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
+        "Placa de video: NVIDIA Teste | fabricante nvidia (VendorId 0x10DE) | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
+        "Placa de video: Intel UHD | fabricante intel (VendorId 0x8086) | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2",
+    ]
+
+
+def test_no_cards_found_is_logged(make, monkeypatch, caplog):
+    monkeypatch.setattr(provider_module.native, "list_adapters", dict)
+    with caplog.at_level(logging.INFO, logger=provider_module.logger.name):
+        provider, _ = make()
+        provider.read()
+    assert "Nenhuma placa de video encontrada (DXGI)" in _gpu_logs(caplog)
+
+
+def test_gpu_failure_later_on_is_logged_again(make, caplog):
+    """Antes, so a primeira falha da GPU ia para o log; as seguintes sumiam para sempre."""
+    provider, clock = make()
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        FakePdh.instances[-1].fail = True
+        provider.read()  # falha, fecha e agenda nova tentativa
+        clock.now += 61
+        provider.read()  # reabre
+        FakePdh.instances[-1].fail = True
+        provider.read()  # falha de novo, 61 s depois da primeira
+    warnings = [m for m in _gpu_logs(caplog, logging.WARNING) if m.startswith("Falha ao ler a GPU")]
+    assert len(warnings) == 2
+
+
+def test_nvml_failure_is_a_warning_with_the_reason(make, caplog):
+    provider, _ = make()
+    FakeNvml.instances[-1].fail = True
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        provider.read()
+    (record,) = [r for r in caplog.records if "NVML" in r.getMessage()]
+    assert record.exc_info is not None
+
+
+def test_driver_temperature_wins_over_nvml(make):
+    FakeD3d.temps = {LUID: 52.0}
+    provider, _ = make()
+    assert provider.read().gpus[0].temp_c == 52.0
+    assert FakeD3d.instances[0].asked[-1] == [LUID]
+
+
+def test_nvml_fills_in_when_the_driver_has_no_temperature(make):
+    provider, _ = make()
+    assert provider.read().gpus[0].temp_c == 61.0
+
+
+def test_amd_card_without_nvml_gets_temperature_from_the_driver(make, monkeypatch):
+    FakeNvml.broken = True
+    FakeD3d.temps = {LUID: 52.0}
+    monkeypatch.setattr(
+        provider_module.native, "list_adapters", lambda: {LUID: AdapterInfo("AMD Radeon RX 7600", 8 * GIB, 0x1002)}
+    )
+    provider, _ = make()
+    gpu = provider.read().gpus[0]
+    assert (gpu.temp_c, gpu.vendor) == (52.0, "amd")
+    assert "gpu.temp" in provider.capabilities()
+
+
+def test_capability_is_known_before_the_first_read(make):
+    """O app recebe as capacidades no hello, que pode vir antes da primeira leitura."""
+    FakeNvml.broken = True
+    FakeD3d.temps = {LUID: 52.0}
+    provider, _ = make()
+    assert "gpu.temp" in provider.capabilities()
+
+
+def test_no_source_means_no_temperature_capability(make):
+    FakeNvml.broken = True
+    provider, _ = make()
+    assert provider.read().gpus[0].temp_c is None
+    assert "gpu.temp" not in provider.capabilities()
+
+
+def test_driver_failure_keeps_usage_and_retries(make, caplog):
+    FakeNvml.broken = True
+    FakeD3d.temps = {LUID: 52.0}
+    provider, clock = make()
+    FakeD3d.instances[-1].fail = True
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        gpu = provider.read().gpus[0]
+    assert gpu.usage_percent == 42.0 and gpu.temp_c is None
+    assert FakeD3d.instances[0].closed is True
+    assert any("D3DKMT" in r.getMessage() for r in caplog.records)
+    clock.now += 61
+    assert provider.read().gpus[0].temp_c == 52.0
+    assert len(FakeD3d.instances) == 2
+
+
+def test_two_cards_with_the_same_name_get_their_own_temperature(make, monkeypatch):
+    other = "0x00000000_0x0000beef"
+    FakeD3d.temps = {LUID: 50.0, other: 70.0}
+    monkeypatch.setattr(
+        provider_module.native,
+        "list_adapters",
+        lambda: {LUID: AdapterInfo("Mesma Placa", 8 * GIB), other: AdapterInfo("Mesma Placa", 8 * GIB)},
+    )
+
+    def read(self):
+        return (
+            [
+                {"InstanceName": ENGINE, "CookedValue": 10.0},
+                {"InstanceName": "pid_2_luid_0x00000000_0x0000BEEF_phys_0_eng_0_engtype_3D", "CookedValue": 20.0},
+            ],
+            [],
+        )
+
+    monkeypatch.setattr(FakePdh, "read", read)
+    provider, _ = make()
+    temps = {g.id: g.temp_c for g in provider.read().gpus}
+    assert temps == {f"luid_{LUID}_phys_0": 50.0, f"luid_{other}_phys_0": 70.0}
+
+
+def test_keeps_the_gpu_counter_names_for_the_report(make):
+    provider, _ = make()
+    provider.read()
+    assert provider.gpu_instances == [ENGINE]
+
+
+def test_capabilities_never_touch_the_hardware(make):
+    """capabilities() roda no laco do servidor, junto com o coletor: so le o que ja sabe."""
+    FakeD3d.temps = {LUID: 52.0}
+    provider, _ = make()
+    asked = len(FakeD3d.instances[0].asked)
+    for _ in range(3):
+        assert "gpu.temp" in provider.capabilities()
+    assert len(FakeD3d.instances[0].asked) == asked

@@ -1,5 +1,6 @@
 """Logica da bandeja, sem tkinter: as janelas so chamam este controlador."""
 
+import platform
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -7,8 +8,20 @@ from dataclasses import dataclass
 from pcx_agent.api.app import AppContext
 from pcx_agent.auth.pairing import Device
 from pcx_agent.auth.passwords import MIN_LENGTH
-from pcx_agent.network import lan_address, network_category
-from pcx_agent.pairing_uri import pairing_uri
+from pcx_agent.diagnostics import fixes
+from pcx_agent.diagnostics.model import CheckResult, Fix
+from pcx_agent.diagnostics.report import ReportFacts, build_report
+from pcx_agent.diagnostics.runner import Sources, exe_path, probe_agent, run_all
+from pcx_agent.diagnostics.windows import read_firewall_rules, read_security_products
+from pcx_agent.network import (
+    lan_address,
+    list_interfaces,
+    network_category,
+    parse_profiles,
+    profile_output_status,
+    run_profile_script,
+)
+from pcx_agent.pairing_uri import local_ipv4, pairing_uri
 
 LOOPBACK = "127.0.0.1"
 NO_NETWORK_WARNING = (
@@ -76,6 +89,8 @@ class AgentController:
         address_lookup: Callable[[], tuple[str, str | None]] | None = None,
         category_lookup: Callable[[str | None], str | None] | None = None,
         now: Callable[[], float] = time.time,
+        diagnostics_sources: Callable[[], Sources] | None = None,
+        fix_actions: dict[str, Callable[[], bool]] | None = None,
     ) -> None:
         self._ctx = ctx
         self._port = port
@@ -83,6 +98,11 @@ class AgentController:
         self._address_lookup = address_lookup or (lambda: lan_address())
         self._category_lookup = category_lookup or (lambda name: network_category(name))
         self._now = now
+        self._diagnostics_sources = diagnostics_sources or self._real_sources
+        self._fix_actions = fix_actions or {
+            "abrir_rede": fixes.open_network_settings,
+            "criar_firewall": lambda: fixes.create_firewall_rule(exe_path()),
+        }
         self.on_paired: Callable[[str], None] | None = None
         ctx.pairing.on_pair = self._handle_pair
 
@@ -149,3 +169,50 @@ class AgentController:
         if active is None:
             return "PcX Control: aguardando celular"
         return f"PcX Control: conectado a {active.device_name}"
+
+    # Diagnostico ("Verificar conexao"). Roda fora da thread da interface: chama o PowerShell.
+
+    def _real_sources(self) -> Sources:
+        def profiles() -> dict[str, str] | None:
+            raw = run_profile_script()
+            return None if profile_output_status(raw) == "ilegivel" or not raw else parse_profiles(raw)
+
+        def reading():
+            snapshot = self._ctx.sampler.latest
+            return (snapshot, None) if snapshot is not None else (None, "ainda sem leitura")
+
+        return Sources(
+            interfaces=list_interfaces,
+            route=local_ipv4,
+            profiles=profiles,
+            firewall_rules=read_firewall_rules,
+            exe_path=exe_path,
+            security=read_security_products,
+            probe=lambda address: probe_agent(address, self._ctx.db.agent_id),
+            reading=reading,
+            port=self._port,
+        )
+
+    def run_diagnostics(self) -> list[CheckResult]:
+        return run_all(self._diagnostics_sources())
+
+    def diagnostics_report(self, results: list[CheckResult]) -> str:
+        sources = self._diagnostics_sources()
+        snapshot, _ = sources.reading()
+        try:
+            interfaces = sources.interfaces()
+        except OSError:
+            interfaces = []
+        facts = ReportFacts(
+            agent_version=self._ctx.settings.version,
+            windows_version=f"{platform.system()} {platform.release()} ({platform.version()})",
+            interfaces=interfaces,
+            gpus=snapshot.gpus if snapshot is not None else [],
+            pdh_instances=list(getattr(self._ctx.provider, "gpu_instances", [])),
+        )
+        return build_report(results, facts)
+
+    def apply_fix(self, fix: Fix) -> bool:
+        """Abre a correcao; o diagnostico roda de novo quando a pessoa volta para a janela."""
+        return self._fix_actions[fix]()
+

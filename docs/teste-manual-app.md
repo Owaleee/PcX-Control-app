@@ -41,6 +41,13 @@ cd agent
 | A15 | Marcar a rede do PC como Pública e abrir "Parear celular" | Faixa "A rede deste PC está como Pública…" com o botão que abre as configurações de rede; o QR, o endereço e os botões continuam visíveis |
 | A16 | PC com VPN (Radmin, Hamachi) ligada | O endereço da janela é o IP do Wi-Fi ou Ethernet, não o da VPN |
 | A17 | Parear com senha errada e depois certa; conectar e sair do app | `agent.log` tem uma linha por tentativa (IP, método, resultado) e as linhas de conexão e desconexão, sem a senha |
+| A18 | Bandeja → Verificar conexão, com a rede Privada e a regra criada | "Nenhum problema encontrado" (ou só pontos de atenção); placas de vídeo listadas com fabricante e VRAM |
+| A19 | Marcar a rede como Pública e verificar de novo | "Tipo de rede no Windows: Problema" com "Abrir configurações de rede"; ao mudar para Privada e voltar à janela, verifica de novo sozinho |
+| A20 | Apagar a regra "PcX Control - agente" e verificar | "Regra do firewall: Problema"; "Criar regra do firewall" pede administrador e, ao voltar, fica OK |
+| A21 | Com a Radmin VPN ligada, verificar | "VPN: Atenção" com o nome da Radmin |
+| A22 | Copiar relatório e colar no bloco de notas | Versões, resultados, placas de rede e de vídeo; sem senha, código ou token |
+| A23 | PC com placa AMD (RX 7600): comparar com o Gerenciador de Tarefas por 2 min, com e sem jogo | Uso da GPU a até 5 pontos e temperatura a até 2 °C do Gerenciador |
+| A24 | Conferir a pasta `logs` depois de abrir o agente | `crash.log` com o cabeçalho da versão; `agent.log` com as linhas "Placa de video:" e a de início com as versões |
 
 ## Roteiro
 
@@ -69,6 +76,10 @@ cd agent
 | 20 | Modo painel: cartão da GPU | Um cartão só com uso, "VRAM x / y GiB · z%" e "Temperatura" (sem cartão de temperatura separado) |
 | 21 | Tocar no cartão da GPU (modo painel e retrato) | Abre o histórico com Uso da GPU, VRAM e Temperatura; as abas 15 min, 1 h e 24 h mudam os três |
 | 22 | Digitar o IP no pareamento manual: `192168`, depois `.18.22` | O campo mostra `192.168.18.22`, com os pontos colocados sozinho |
+| 23 | Modo painel com a GPU acima de 80% de uso e acima de 75 °C (jogo pesado) | Selos "Uso alto" e "Temperatura alta" empilhados no canto do cartão da GPU, número e borda em amarelo; o nome da placa continua inteiro |
+| 24 | Configurações → Alertas: mudar "Temperatura alta" para 60 | Com a GPU acima de 60 °C, o selo aparece sem reiniciar o app; número fora da faixa mostra o erro e não salva |
+| 25 | Desligar "Cores de alerta" | Modo painel e tela do PC sem cores, selos nem bordas; ao religar, os limites escolhidos voltam |
+| 26 | Celular deitado na tela do PC e no pareamento | Cartões em duas colunas; o quadro da câmera cabe na tela |
 
 Anote o modelo do celular, a versão do Android e a versão do Windows junto com o resultado.
 

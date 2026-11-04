@@ -16,6 +16,8 @@ COLORS = {
     "accent_hover": "#7DD3FC",
     "on_accent": "#0F172A",
     "danger": "#FDA4AF",
+    "warning": "#FCD34D",  # mesmo "warning" do app (cores de alerta)
+    "ok": "#86EFAC",
     "selected": "#12304A",
     "qr_background": "#FFFFFF",
 }
@@ -39,6 +41,7 @@ WINDOW_SIZES = {
     "pairing": (460, 640),
     "devices": (640, 460),
     "password": (460, 460),
+    "diagnostics": (560, 640),
 }
 
 QR_SIZE = 264

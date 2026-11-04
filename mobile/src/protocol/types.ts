@@ -21,6 +21,8 @@ export type GpuReading = {
   vram_used_bytes: number | null;
   vram_total_bytes: number | null;
   temp_c: number | null;
+  /** Agente 0.5.0+: "nvidia", "amd", "intel" ou "outra". So para relatorio; a tela nao mostra. */
+  vendor?: string | null;
 };
 
 export type DiskVolume = {

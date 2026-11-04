@@ -8,6 +8,8 @@ export type Theme = {
   textMuted: string;
   accent: string;
   danger: string;
+  /** Alerta de nivel alto (cores de alerta); o critico usa `danger`. */
+  warning: string;
   track: string;
   border: string;
   statusBar: 'light' | 'dark';
@@ -22,6 +24,7 @@ export const THEMES: Record<ThemeName, Theme> = {
     textMuted: '#CBD5E1',
     accent: '#38BDF8',
     danger: '#FDA4AF',
+    warning: '#FCD34D',
     track: '#475569',
     border: '#334155',
     statusBar: 'light',
@@ -34,6 +37,7 @@ export const THEMES: Record<ThemeName, Theme> = {
     textMuted: '#475569',
     accent: '#0369A1',
     danger: '#BE123C',
+    warning: '#B45309',
     track: '#CBD5E1',
     border: '#E2E8F0',
     statusBar: 'dark',
@@ -46,6 +50,7 @@ export const THEMES: Record<ThemeName, Theme> = {
     textMuted: '#A3A3A3',
     accent: '#22D3EE',
     danger: '#FB7185',
+    warning: '#FBBF24',
     track: '#262626',
     border: '#1F1F1F',
     statusBar: 'light',

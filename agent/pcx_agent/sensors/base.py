@@ -28,6 +28,8 @@ class GpuReading(BaseModel):
     vram_used_bytes: int | None = None
     vram_total_bytes: int | None = None
     temp_c: float | None = None
+    # Acrescimo do protocolo 1 (agente 0.5.0): "nvidia", "amd", "intel" ou "outra".
+    vendor: str | None = None
 
 
 class DiskVolume(BaseModel):
