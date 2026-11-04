@@ -163,3 +163,45 @@ def test_restart_clears_start_error_and_can_change_port(ctx):
         assert server.start_error is None and server.running and server.port == 0
     finally:
         server.stop()
+
+
+class _CountingProvider(FakeSensorProvider):
+    def __init__(self) -> None:
+        super().__init__(seed=5)
+        self.closed = 0
+
+    def close(self) -> None:
+        self.closed += 1
+
+
+def _wait_fresh(ctx, limit: float = 0.5, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        age = ctx.sampler.reading_age()
+        if age is not None and age < limit:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_restart_keeps_sampler_reading_and_shuts_down_cleanly(tmp_path, caplog):
+    """Depois de restart() (novo laco do Uvicorn) as leituras continuam e o desligamento e limpo."""
+    provider = _CountingProvider()
+    context = build_context(
+        load_settings(data_dir=tmp_path), provider, idle_interval=0.05, active_interval=0.05
+    )
+    server = AgentServer(context, "127.0.0.1", 0)
+    try:
+        server.start()
+        assert _wait_fresh(context)
+        server.restart(0)
+        assert server.start_error is None
+        time.sleep(0.6)  # deixa a leitura antiga envelhecer
+        assert _wait_fresh(context, limit=0.3)
+        server.stop()
+        assert provider.closed == 2
+        assert "Application shutdown failed" not in caplog.text
+        assert "different event loop" not in caplog.text
+    finally:
+        server.stop()
+        context.db.close()

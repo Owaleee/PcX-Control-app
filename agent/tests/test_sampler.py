@@ -258,3 +258,25 @@ async def test_sensor_failure_hook_error_does_not_break_tick(parts):
     sampler.on_sensor_failure = broken
     await sampler.tick()
     assert sampler.latest is not None
+
+
+def test_run_works_again_in_a_new_event_loop(parts):
+    """O restart do servidor roda o Sampler num laco novo; stop/nudge antes do run nao quebram."""
+    sampler, provider = build(parts, [10.0], idle_interval=0.01)
+    sampler.stop()
+    sampler.nudge()
+
+    async def run_once() -> None:
+        task = asyncio.create_task(sampler.run())
+        before = provider.calls
+        for _ in range(100):
+            if provider.calls > before:
+                break
+            await asyncio.sleep(0.01)
+        sampler.stop()
+        await asyncio.wait_for(task, timeout=1.0)
+
+    asyncio.run(run_once())
+    first = provider.calls
+    asyncio.run(run_once())
+    assert first >= 1 and provider.calls > first

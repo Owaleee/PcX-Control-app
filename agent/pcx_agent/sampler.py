@@ -37,8 +37,10 @@ class Sampler:
         self._acc: dict[str, list[float]] = {}  # metrica -> [soma, quantidade, maximo]
         self._last_flush = clock()
         self._last_prune = clock()
-        self._stop = asyncio.Event()
-        self._nudge = asyncio.Event()
+        # Os eventos nascem em run(): cada restart do servidor roda num laco de eventos novo,
+        # e um asyncio.Event fica preso ao laco em que foi usado pela primeira vez.
+        self._stop: asyncio.Event | None = None
+        self._nudge: asyncio.Event | None = None
         self.latest: Snapshot | None = None
         self.latest_at: float | None = None  # relogio do Sampler na ultima leitura boa
         # Chamado depois de publicar uma leitura em que o provider registrou uma falha.
@@ -107,19 +109,24 @@ class Sampler:
             self._history.prune(ts)
 
     async def run(self) -> None:
-        self._stop.clear()
-        while not self._stop.is_set():
-            self._nudge.clear()
+        stop = self._stop = asyncio.Event()
+        nudge = self._nudge = asyncio.Event()
+        while not stop.is_set():
+            nudge.clear()
             await self.tick()
             try:
-                await asyncio.wait_for(self._nudge.wait(), timeout=self.current_interval())
+                await asyncio.wait_for(nudge.wait(), timeout=self.current_interval())
             except TimeoutError:
                 pass
 
     def nudge(self) -> None:
         """Acorda o laco para ler agora (por exemplo, quando uma sessao comeca)."""
-        self._nudge.set()
+        if self._nudge is not None:
+            self._nudge.set()
 
     def stop(self) -> None:
-        self._stop.set()
-        self._nudge.set()
+        """Para o laco em andamento; sem laco rodando nao faz nada."""
+        if self._stop is not None:
+            self._stop.set()
+        if self._nudge is not None:
+            self._nudge.set()
