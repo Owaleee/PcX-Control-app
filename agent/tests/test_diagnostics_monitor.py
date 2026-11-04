@@ -27,7 +27,7 @@ class Harness:
 
 def test_constants() -> None:
     assert ALERT_STATUSES == frozenset({"problema", "atencao"})
-    assert ALERT_EXCLUDED == frozenset({"rede.vpn"})
+    assert ALERT_EXCLUDED == frozenset({"rede.vpn", "antivirus.terceiros"})
 
 
 def test_problem_enters_alert_and_notifies_once() -> None:
@@ -103,11 +103,42 @@ def test_multiple_results_same_id_uses_worst() -> None:
     h = Harness()
     h.update(
         [
-            res("antivirus.terceiros", "ok"),
-            res("antivirus.terceiros", "problema", "pior"),
-            res("antivirus.terceiros", "atencao"),
+            res("sensores.gpu", "ok"),
+            res("sensores.gpu", "problema", "pior"),
+            res("sensores.gpu", "atencao"),
         ]
     )
-    assert h.monitor.alert_ids == frozenset({"antivirus.terceiros"})
+    assert h.monitor.alert_ids == frozenset({"sensores.gpu"})
     assert h.notified[0].status == "problema"
     assert h.notified[0].detail == "pior"
+
+
+def test_third_party_antivirus_never_alerts() -> None:
+    """O antivirus aparece na janela do diagnostico, mas nao acende o alerta sozinho."""
+    h = Harness()
+    h.update([res("antivirus.terceiros", "atencao"), res("antivirus.terceiros", "atencao")])
+    assert h.monitor.alert_ids == frozenset()
+    assert h.notified == []
+
+
+def test_pending_problems_are_notified_before_warnings_then_by_id() -> None:
+    h = Harness()
+    h.update([
+        res("rede.tipo", "atencao"),
+        res("sensores.gpu", "problema"),
+        res("agente.local", "atencao"),
+        res("rede.firewall", "problema"),
+    ])
+    for _ in range(3):
+        h.now += 601
+        h.update([], ran=set())
+    assert [r.id for r in h.notified] == ["rede.firewall", "sensores.gpu", "agente.local", "rede.tipo"]
+
+
+def test_new_problem_jumps_ahead_of_pending_warnings() -> None:
+    h = Harness()
+    h.update([res("a", "atencao"), res("b", "atencao")])
+    h.update([res("z", "problema")], ran={"z"})
+    h.now += 601
+    h.update([], ran=set())
+    assert [r.id for r in h.notified] == ["a", "z"]

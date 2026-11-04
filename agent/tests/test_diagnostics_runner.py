@@ -222,7 +222,8 @@ def test_run_all_only_runs_selected():
 
 
 def test_quick_checks_ids():
-    assert runner.QUICK_CHECKS == frozenset({"rede.ip", "rede.tipo", "sensores.leitura"})
+    # A regra do firewall apagada tem que acender o alerta em ate 5 min (criterio 1 do spec).
+    assert runner.QUICK_CHECKS == frozenset({"rede.ip", "rede.tipo", "rede.firewall", "sensores.leitura"})
 
 
 def test_reading_age_and_server_state_reach_the_checks():

@@ -6,8 +6,9 @@ from collections.abc import Callable
 from pcx_agent.diagnostics.model import CheckResult
 
 ALERT_STATUSES = frozenset({"problema", "atencao"})
-# A VPN e informativa: nunca acende o alerta.
-ALERT_EXCLUDED = frozenset({"rede.vpn"})
+# A VPN e o antivirus de terceiros sao informativos: aparecem na janela do diagnostico, mas
+# nunca acendem o alerta sozinhos.
+ALERT_EXCLUDED = frozenset({"rede.vpn", "antivirus.terceiros"})
 
 _SEVERITY = {"problema": 2, "atencao": 1}
 
@@ -47,8 +48,9 @@ class DiagnosticsMonitor:
             if current is None or _SEVERITY[r.status] > _SEVERITY[current.status]:
                 self._worst[r.id] = r
         after = self.alert_ids
-        self._pending = [i for i in self._pending if i in after]
-        self._pending.extend(sorted(after - before))
+        # Avisa primeiro os problemas, depois as atencoes; no empate, pela ordem do id.
+        waiting = {i for i in self._pending if i in after} | (after - before)
+        self._pending = sorted(waiting, key=lambda i: (-_SEVERITY[self._worst[i].status], i))
         if after != before:
             self._on_alert_change(after)
         self._notify_next()

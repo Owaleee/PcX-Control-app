@@ -25,9 +25,10 @@ from pcx_agent.sensors.base import GpuReading, Snapshot
 
 logger = logging.getLogger("pcx_agent.diagnostics")
 PROBE_TIMEOUT_S = 3.0
-# Verificacoes baratas, sem PowerShell nem rede: rodam logo e a qualquer hora.
 SENSORS_STOPPED = "Sensores parados enquanto o agente não está na rede."
-QUICK_CHECKS = frozenset({"rede.ip", "rede.tipo", "sensores.leitura"})
+# Rodada rapida a cada 5 min, em segundo plano: so leituras locais e leves (sem sondar a rede
+# nem listar antivirus). A regra do firewall entra para que apaga-la acenda o alerta em ate 5 min.
+QUICK_CHECKS = frozenset({"rede.ip", "rede.tipo", "rede.firewall", "sensores.leitura"})
 # Todos os ids do plano de `run_all`: uma rodada completa substitui o alerta de cada um deles.
 ALL_CHECKS = frozenset({
     "rede.ip", "rede.tipo", "rede.firewall", "rede.vpn", "agente.local",
