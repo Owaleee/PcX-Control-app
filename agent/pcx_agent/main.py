@@ -118,19 +118,21 @@ def run_tray(args) -> int:
     from pcx_agent.winsys.instance import acquire_single_instance
 
     data_dir = Path(args.data_dir) if args.data_dir is not None else default_data_dir()
-    # Antes de abrir os logs desta execucao: ainda mostram como a anterior terminou.
-    previous = previous_session(data_dir / "logs", psutil.boot_time())
-    setup_logging(data_dir / "logs")
-    install_crash_logging(data_dir / "logs")
-    log_startup()
-    settings = load_settings(data_dir=data_dir, port=args.port)
-    lock = acquire_single_instance(settings.data_dir)
+    # A trava vem antes de qualquer log: uma segunda execucao ("ja esta rodando") nao pode
+    # escrever no crash.log da primeira e esconder uma queda dela.
+    lock = acquire_single_instance(data_dir)
     if lock is None:
         show_message(texts.APP_NAME, texts.ALREADY_RUNNING)
         return 0
     ctx = None
     server = None
     try:
+        # Antes de abrir os logs desta execucao: ainda mostram como a anterior terminou.
+        previous = previous_session(data_dir / "logs", psutil.boot_time())
+        setup_logging(data_dir / "logs")
+        install_crash_logging(data_dir / "logs")
+        log_startup()
+        settings = load_settings(data_dir=data_dir, port=args.port)
         ctx = build_context(settings, _provider(demo=False))
         server = AgentServer(ctx, args.host, settings.port)
         try:
@@ -148,7 +150,7 @@ def run_tray(args) -> int:
         return TrayApp(settings, server, controller, autostart).run()
     except Exception:
         logger.exception("Falha ao iniciar o agente")
-        show_message(texts.APP_NAME, texts.STARTUP_ERROR.format(pasta=settings.log_dir), error=True)
+        show_message(texts.APP_NAME, texts.STARTUP_ERROR.format(pasta=data_dir / "logs"), error=True)
         return 1
     finally:
         if server is not None:

@@ -82,3 +82,29 @@ def test_run_tray_continues_when_port_in_use(tmp_path, monkeypatch):
     assert received["server"].start_error == "port_in_use"
     assert not received["server"].running
     assert shown == []
+
+
+def test_second_instance_leaves_the_logs_of_the_first_untouched(tmp_path, monkeypatch):
+    """A segunda execucao ("ja esta rodando") nao escreve no crash.log nem no agent.log: uma
+    queda posterior da primeira continua sendo detectada."""
+    from pcx_agent.winsys.instance import acquire_single_instance
+
+    shown = []
+    monkeypatch.setattr("pcx_agent.winsys.dialogs.show_message",
+                        lambda title, text, error=False: shown.append(text))
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    crash = logs / "crash.log"
+    crash.write_text("=== PcX Control 0.6.0 iniciado em 2026-11-04T10:00:00Z ===\n", encoding="utf-8")
+    agent_log = logs / "agent.log"
+    agent_log.write_text('{"ts": "2026-11-04T10:00:01+00:00", "msg": "rodando"}\n', encoding="utf-8")
+    before = (crash.read_bytes(), agent_log.read_bytes())
+
+    first = acquire_single_instance(tmp_path)
+    assert first is not None
+    try:
+        assert cli.run_tray(_args(tmp_path)) == 0
+    finally:
+        first.release()
+    assert shown  # avisou "ja esta rodando"
+    assert (crash.read_bytes(), agent_log.read_bytes()) == before
