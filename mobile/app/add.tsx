@@ -4,8 +4,10 @@ import { Stack, router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { baseUrl, pair, userMessage } from '../src/api/http';
+import { baseUrl, getInfo, pair, userMessage } from '../src/api/http';
+import { OutdatedNotice } from '../src/components/OutdatedNotice';
 import { Body, Button, Field, Message, Screen, Title } from '../src/components/ui';
+import { checkProtocol } from '../src/protocol/compat';
 import { formatIpInput, normalizeIpv4, portFromAddress } from '../src/protocol/ip';
 import { parsePairingUri } from '../src/protocol/qr';
 import { getPc, savePc } from '../src/storage/storage';
@@ -25,6 +27,7 @@ export default function AddPc() {
   const [deviceName, setDeviceName] = useState(Device.modelName ?? 'Celular Android');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [outdated, setOutdated] = useState<{ who: 'app' | 'agent'; agentVersion: string } | null>(null);
   const inFlight = useRef(false);
   // O ultimo QR que deu erro: a camera o le varias vezes por segundo, e cada tentativa
   // conta no limite de tentativas do PC.
@@ -40,7 +43,16 @@ export default function AddPc() {
     inFlight.current = true;
     setBusy(true);
     setMessage(null);
+    setOutdated(null);
     try {
+      // Versao do protocolo antes de pedir a senha ou gastar o codigo. Falha de rede aqui segue
+      // para o pair, que mostra o erro de sempre.
+      const info = await getInfo(baseUrl(target.host, target.port)).catch(() => null);
+      const side = info ? checkProtocol(info.protocol) : 'ok';
+      if (info && side !== 'ok') {
+        setOutdated({ who: side, agentVersion: info.version });
+        return false;
+      }
       const result = await pair(baseUrl(target.host, target.port), { device_name: name, ...credentials });
       if (expectedAgentId && result.agent.id !== expectedAgentId) {
         setMessage('O QR code não corresponde a este PC.');
@@ -125,6 +137,7 @@ export default function AddPc() {
             </>
           ) : null}
           <Message text={message} />
+          {outdated ? <OutdatedNotice {...outdated} /> : null}
           <Field label="Nome deste celular" value={deviceName} onChangeText={setDeviceName} maxLength={64} />
           <Button title="Digitar IP e senha" variant="link" onPress={() => { setMode('manual'); setMessage(null); }} />
         </>
@@ -147,6 +160,7 @@ export default function AddPc() {
           <Field label="Senha do PC" value={password} onChangeText={setPassword} secureTextEntry />
           <Field label="Nome deste celular" value={deviceName} onChangeText={setDeviceName} maxLength={64} />
           <Message text={message} />
+          {outdated ? <OutdatedNotice {...outdated} /> : null}
           <Button title={busy ? 'Conectando…' : 'Conectar'} onPress={onManual} disabled={busy} />
           <Button title="Ler QR code" variant="link" onPress={() => { setMode('qr'); setMessage(null); }} />
         </>

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { type AlertBadge, tempBadge, tempLevel, usageBadge, usageLevel } from '../../../src/alerts/levels';
 import { MetricCard } from '../../../src/components/MetricCard';
+import { OutdatedNotice } from '../../../src/components/OutdatedNotice';
 import { StatusPill } from '../../../src/components/StatusPill';
 import { Body, Button, CardGrid, Message, Screen } from '../../../src/components/ui';
 import { formatFree, formatPercent, formatRate, formatTemp, formatUptime, formatUsage } from '../../../src/format/format';
@@ -55,6 +56,7 @@ export default function PcPanel() {
           <Button title="Assumir de volta" variant="secondary" onPress={takeover} />
         </View>
       ) : null}
+      {state.kind === 'outdated' ? <OutdatedNotice who={state.who} agentVersion={state.agentVersion} /> : null}
       {state.kind === 'busy' ? (
         <View style={styles.notice}>
           <Message text={`PC em uso por ${state.activeDevice}.`} tone="info" />

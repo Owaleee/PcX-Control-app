@@ -6,7 +6,7 @@ import type { SnapshotMessage } from '../protocol/types';
 import type { SavedPc } from '../storage/storage';
 
 /** Estados em que o app nao reconecta sozinho ao voltar do segundo plano. */
-const FINAL: ReadonlySet<ConnState['kind']> = new Set(['revoked', 'taken_over', 'busy']);
+const FINAL: ReadonlySet<ConnState['kind']> = new Set(['revoked', 'taken_over', 'busy', 'outdated']);
 
 export function usePcConnection(pc: SavedPc | null) {
   const [state, setState] = useState<ConnState>({ kind: 'stopped' });

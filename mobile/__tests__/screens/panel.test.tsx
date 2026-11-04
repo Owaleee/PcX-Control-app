@@ -358,3 +358,14 @@ describe('cores de alerta', () => {
     expect(StyleSheet.flatten(vram.props.style).color).toBe(THEMES.dark.warning);
   });
 });
+
+test('estado outdated mostra o aviso de versao', async () => {
+  (usePc as jest.Mock).mockReturnValue({
+    pc: { agentId: 'a1', name: 'PC-DEMO' },
+    state: { kind: 'outdated', who: 'agent', agentVersion: '0.1.0' },
+    snapshot: null,
+    capabilities: [],
+  });
+  await render(<PanelMode />);
+  expect(screen.getByText('Este PC usa uma versão antiga do PcX Control. Atualize o programa no PC.')).toBeTruthy();
+});

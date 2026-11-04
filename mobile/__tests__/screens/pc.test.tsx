@@ -126,6 +126,13 @@ describe('painel', () => {
     expect(takeover).toHaveBeenCalled();
   });
 
+  test('estado outdated mostra o aviso de versao', async () => {
+    setConnection({ kind: 'outdated', who: 'app', agentVersion: '9.0.0' }, null);
+    await renderWith(<Panel />);
+    expect(screen.getByText('Este PC usa uma versão mais nova do PcX Control. Atualize o app.')).toBeTruthy();
+    expect(screen.getByText('Baixar a versão nova')).toBeTruthy();
+  });
+
   test('sessao assumida mostra aviso com botao para assumir de volta', async () => {
     setConnection({ kind: 'taken_over' });
     await renderWith(<Panel />);

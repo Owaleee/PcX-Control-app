@@ -10,6 +10,7 @@ const LABELS: Record<ConnState['kind'], string> = {
   busy: 'Em uso por outro celular',
   taken_over: 'Sessão assumida por outro aparelho',
   revoked: 'Desconectado no PC',
+  outdated: 'Versão incompatível',
   stopped: 'Desconectado',
 };
 

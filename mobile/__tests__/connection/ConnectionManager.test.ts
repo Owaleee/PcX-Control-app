@@ -230,3 +230,44 @@ describe('conexao meio-aberta (PC suspenso, roteador reiniciado)', () => {
     expect(FakeSocket.all).toHaveLength(1);
   });
 });
+
+describe('protocolo incompativel', () => {
+  test('hello com protocol 2 vira outdated(app), fecha o socket e nunca reconecta', () => {
+    const { manager, last } = setup();
+    manager.start();
+    FakeSocket.last.open();
+    const socket = FakeSocket.last;
+    const count = FakeSocket.all.length;
+    socket.receive({ ...fx.clone(fx.hello), protocol: 2, agent: { ...fx.hello.agent, version: '9.0.0' } });
+    expect(last()).toEqual({ kind: 'outdated', who: 'app', agentVersion: '9.0.0' });
+    expect(socket.closedWith).not.toBeNull();
+    jest.advanceTimersByTime(60_000);
+    expect(FakeSocket.all.length).toBe(count);
+    expect(manager.state.kind).toBe('outdated');
+  });
+
+  test('protocol 0 vira outdated(agent)', () => {
+    const { manager, last } = setup();
+    manager.start();
+    FakeSocket.last.open();
+    FakeSocket.last.receive({ ...fx.clone(fx.hello), protocol: 0 });
+    expect(last()).toMatchObject({ kind: 'outdated', who: 'agent' });
+  });
+
+  test('sem informacao do agente usa "desconhecida"', () => {
+    const { manager, last } = setup();
+    manager.start();
+    FakeSocket.last.open();
+    FakeSocket.last.receive({ type: 'hello', protocol: 2 });
+    expect(last()).toEqual({ kind: 'outdated', who: 'app', agentVersion: 'desconhecida' });
+  });
+
+  test('start() depois de outdated tenta de novo', () => {
+    const { manager, last } = setup();
+    manager.start();
+    FakeSocket.last.open();
+    FakeSocket.last.receive({ ...fx.clone(fx.hello), protocol: 2 });
+    manager.start();
+    expect(last()).toEqual({ kind: 'connecting' });
+  });
+});
