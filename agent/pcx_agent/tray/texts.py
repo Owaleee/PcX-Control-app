@@ -17,7 +17,6 @@ MENU_QUIT = "Sair"
 
 # Avisos fora das janelas
 ALREADY_RUNNING = "O PcX Control já está rodando."
-PORT_IN_USE = "A porta {porta} já está em uso por outro programa. Feche-o ou mude a porta em {arquivo}."
 NOTIFY_PAIRED = "Celular {nome} pareado."
 STARTUP_ERROR = "O PcX Control não conseguiu iniciar. Os detalhes estão em {pasta}."
 

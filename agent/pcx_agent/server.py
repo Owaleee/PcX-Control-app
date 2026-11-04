@@ -1,13 +1,17 @@
 """Servidor do agente numa thread: a bandeja e o terminal sobem e param o Uvicorn por aqui."""
 
+import logging
 import socket
 import sys
 import threading
 import time
+from typing import Literal
 
 import uvicorn
 
 from pcx_agent.api.app import AppContext, create_app
+
+logger = logging.getLogger("pcx_agent.server")
 
 # Limites do servidor: o celular so manda mensagens pequenas (auth).
 WS_MAX_SIZE = 16_384
@@ -78,8 +82,36 @@ class AgentServer:
         self._port = port
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
+        self.start_error: Literal["port_in_use", "other"] | None = None
+
+    @property
+    def port(self) -> int:
+        """A porta configurada (a de fato, quando a configurada e 0, esta em bound_port)."""
+        return self._port
 
     def start(self, timeout: float = 10.0) -> None:
+        """Sobe o servidor. Levanta PortInUseError/StartupError e grava start_error."""
+        self.start_error = None
+        try:
+            self._start(timeout)
+        except PortInUseError:
+            self.start_error = "port_in_use"
+            raise
+        except Exception:
+            self.start_error = "other"
+            raise
+
+    def restart(self, port: int | None = None) -> None:
+        """Para e sobe de novo (opcionalmente em outra porta); a falha fica em start_error."""
+        self.stop()
+        if port is not None:
+            self._port = port
+        try:
+            self.start()
+        except Exception:
+            logger.warning("Nao foi possivel reiniciar o servidor (%s)", self.start_error, exc_info=True)
+
+    def _start(self, timeout: float) -> None:
         if self._port != 0:
             _ensure_port_free(self._host, self._port)
         server = uvicorn.Server(uvicorn_config(create_app(self._ctx), self._host, self._port))

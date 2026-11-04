@@ -191,6 +191,7 @@ class AgentController:
             probe=lambda address: probe_agent(address, self._ctx.db.agent_id),
             reading=reading,
             port=self._port,
+            reading_age=self._ctx.sampler.reading_age,
         )
 
     def run_diagnostics(self) -> list[CheckResult]:

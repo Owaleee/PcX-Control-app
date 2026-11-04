@@ -144,13 +144,29 @@ def check_vpn(interfaces: list[NetInterface]) -> list[CheckResult]:
     )
 
 
-def check_agent(probe: AgentProbe, address: str) -> list[CheckResult]:
+def check_agent(
+    probe: AgentProbe, address: str, server_error: str | None = None, server_running: bool = True
+) -> list[CheckResult]:
     title = "Agente respondendo na rede"
+    if server_error == "port_in_use":
+        return _result(
+            "agente.local", GROUP_AGENT, title, "problema",
+            "A porta do PcX Control já está em uso por outro programa, então o agente não está "
+            "no ar. Troque a porta.",
+            "trocar_porta",
+        )
+    if not server_running:
+        return _result(
+            "agente.local", GROUP_AGENT, title, "problema",
+            "O servidor do agente está parado. Reinicie o servidor.",
+            "reiniciar_servidor",
+        )
     note = " (teste feito de dentro do PC: não prova o caminho até o celular)"
     if probe.reachable and probe.same_agent:
         return _result("agente.local", GROUP_AGENT, title, "ok", f"O agente responde em {address}{note}.")
     if probe.reachable:
         detail = f"Outro programa respondeu em {address}. Feche-o ou troque a porta do PcX Control."
+        return _result("agente.local", GROUP_AGENT, title, "problema", detail, "trocar_porta")
     else:
         detail = f"O agente não respondeu em {address}: {probe.error or 'sem resposta'}."
     return _result("agente.local", GROUP_AGENT, title, "problema", detail)
@@ -175,7 +191,8 @@ def check_antivirus(products: list[SecurityProduct] | None) -> list[CheckResult]
         CheckResult(
             "antivirus.terceiros", GROUP_ANTIVIRUS, name, "atencao",
             f"{'Firewall' if kind == 'firewall' else 'Antivírus'} de terceiros ativo. "
-            "Se o celular não conectar, libere o PcX Control nele.",
+            f"Libere este programa no {name}.",
+            "copiar_caminho",
         )
         for name, kind in others
     ]
@@ -199,10 +216,20 @@ def check_gpus(gpus: list[GpuReading]) -> list[CheckResult]:
     return results
 
 
-def check_reading(snapshot: Snapshot | None, error: str | None) -> list[CheckResult]:
+def check_reading(
+    snapshot: Snapshot | None, error: str | None, age_s: float | None = None, stale_after_s: float = 30.0
+) -> list[CheckResult]:
     title = "Leitura dos sensores"
     if snapshot is None:
-        return _result("sensores.leitura", GROUP_SENSORS, title, "problema", f"A leitura falhou: {error or 'sem dados'}.")
+        return _result(
+            "sensores.leitura", GROUP_SENSORS, title, "problema",
+            f"A leitura falhou: {error or 'sem dados'}.", "reiniciar_sensores",
+        )
+    if age_s is not None and age_s > stale_after_s:
+        return _result(
+            "sensores.leitura", GROUP_SENSORS, title, "problema",
+            f"Os sensores pararam de responder há {age_s:.0f} s.", "reiniciar_sensores",
+        )
     return _result(
         "sensores.leitura", GROUP_SENSORS, title, "ok",
         f"CPU, memória, {len(snapshot.disks)} disco(s) e rede lidos.",

@@ -127,3 +127,39 @@ def test_server_shutdown_is_bounded():
     from pcx_agent.server import uvicorn_config
 
     assert uvicorn_config(object(), "127.0.0.1", 0).timeout_graceful_shutdown <= 3
+
+
+def test_restart_records_port_in_use(ctx):
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        server = AgentServer(ctx, "127.0.0.1", port)
+        server.restart()  # nao levanta
+        assert server.start_error == "port_in_use"
+        assert not server.running
+        assert server.port == port
+
+
+def test_start_sets_start_error_and_still_raises(ctx):
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        server = AgentServer(ctx, "127.0.0.1", busy.getsockname()[1])
+        with pytest.raises(PortInUseError):
+            server.start()
+        assert server.start_error == "port_in_use"
+
+
+def test_restart_clears_start_error_and_can_change_port(ctx):
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        server = AgentServer(ctx, "127.0.0.1", busy.getsockname()[1])
+        server.restart()
+        assert server.start_error == "port_in_use"
+        server.restart(0)
+    try:
+        assert server.start_error is None and server.running and server.port == 0
+    finally:
+        server.stop()

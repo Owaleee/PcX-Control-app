@@ -178,7 +178,7 @@ def test_each_third_party_product_is_a_warning():
         [product("Avast Antivirus"), product("ESET Firewall", "firewall"), product("Microsoft Defender Antivirus", from_windows=True)]
     )
     assert [(r.title, r.status) for r in results] == [("Avast Antivirus", "atencao"), ("ESET Firewall", "atencao")]
-    assert "libere o PcX Control" in results[0].detail
+    assert "Libere este programa no Avast Antivirus." in results[0].detail
     assert results[1].detail.startswith("Firewall")
 
 
@@ -221,3 +221,46 @@ def test_reading_ok_and_failed():
     assert only(checks.check_reading(snapshot, None)).status == "ok"
     failed = only(checks.check_reading(None, "OSError: PDH"))
     assert failed.status == "problema" and "OSError: PDH" in failed.detail
+
+
+# Tarefa 2: leitura parada, estado do servidor, copiar caminho
+
+
+@pytest.mark.parametrize("age,status", [(29.0, "ok"), (31.0, "problema")])
+def test_reading_stale_after_30s(age, status):
+    snapshot = Snapshot(
+        t=datetime.now(UTC), cpu_total=1, ram_percent=1, ram_used_bytes=1, ram_total_bytes=2,
+        disks=[], disk_read_bps=0, disk_write_bps=0, net_down_bps=0, net_up_bps=0, gpus=[],
+        host_name="PC", uptime_s=1,
+    )
+    r = only(checks.check_reading(snapshot, None, age_s=age))
+    assert r.status == status
+    if status == "problema":
+        assert r.fix == "reiniciar_sensores" and "pararam de responder há 31 s" in r.detail
+    else:
+        assert r.fix is None
+
+
+def test_reading_failed_offers_restart_sensors():
+    assert only(checks.check_reading(None, "x")).fix == "reiniciar_sensores"
+
+
+def test_agent_port_in_use_offers_trocar_porta():
+    r = only(checks.check_agent(AgentProbe(reachable=False), "1.2.3.4:8765", server_error="port_in_use", server_running=False))
+    assert r.status == "problema" and r.fix == "trocar_porta"
+
+
+def test_agent_stopped_offers_restart():
+    r = only(checks.check_agent(AgentProbe(reachable=False), "1.2.3.4:8765", server_running=False))
+    assert r.status == "problema" and r.fix == "reiniciar_servidor"
+
+
+def test_other_program_on_the_port_offers_trocar_porta():
+    r = only(checks.check_agent(AgentProbe(reachable=True, same_agent=False), "1.2.3.4:8765"))
+    assert r.fix == "trocar_porta"
+
+
+def test_antivirus_offers_copy_path():
+    results = checks.check_antivirus([product("Avast Antivirus"), product("ESET Firewall", "firewall")])
+    assert all(r.fix == "copiar_caminho" for r in results)
+    assert "Libere este programa no Avast Antivirus." in results[0].detail

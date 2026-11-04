@@ -200,3 +200,20 @@ async def test_slow_history_write_does_not_block_the_event_loop(parts):
 
     await asyncio.gather(sampler.tick(), heartbeat())
     assert max(gaps) < 0.1
+
+
+async def test_latest_at_updates_on_good_read_only(parts):
+    _, clock, _ = parts
+    sampler, _ = build(parts, [10.0, RuntimeError("falhou"), 20.0])
+    assert sampler.latest_at is None
+    assert sampler.reading_age() is None
+    clock.now = 100.0
+    await sampler.tick()
+    assert sampler.latest_at == 100.0
+    clock.now = 105.0
+    await sampler.tick()  # leitura falhou: continua com a hora da ultima boa
+    assert sampler.latest_at == 100.0
+    assert sampler.reading_age() == 5.0
+    clock.now = 110.0
+    await sampler.tick()
+    assert sampler.latest_at == 110.0

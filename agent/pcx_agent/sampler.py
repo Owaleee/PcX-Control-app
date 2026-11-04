@@ -40,6 +40,11 @@ class Sampler:
         self._stop = asyncio.Event()
         self._nudge = asyncio.Event()
         self.latest: Snapshot | None = None
+        self.latest_at: float | None = None  # relogio do Sampler na ultima leitura boa
+
+    def reading_age(self) -> float | None:
+        """Segundos desde a ultima leitura boa; None se ainda nao houve nenhuma."""
+        return None if self.latest_at is None else self._clock() - self.latest_at
 
     def current_interval(self) -> float:
         return self._active if self._has_active() else self._idle
@@ -51,6 +56,7 @@ class Sampler:
             logger.exception("Falha ao ler os sensores; mantendo a ultima leitura")
             return
         self.latest = snapshot
+        self.latest_at = self._clock()
         self._accumulate(snapshot)
         if self.on_snapshot is not None and self._has_active():
             self.on_snapshot(snapshot)

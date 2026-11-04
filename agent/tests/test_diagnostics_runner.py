@@ -206,3 +206,30 @@ def test_probe_other_agent_id():
 def test_report_shows_the_card_luid():
     text = build_report([], ReportFacts("0.5.0", "10", gpus=[GPU]))
     assert "| LUID 0x00000000_0x00009962 phys 0" in text
+
+
+def test_run_all_only_runs_selected():
+    calls = []
+
+    def probe(address):
+        calls.append(address)
+        return AgentProbe(reachable=True, same_agent=True)
+
+    results = runner.run_all(sources(probe=probe), only={"rede.ip", "sensores.leitura"})
+    assert [r.id for r in results] == ["rede.ip", "sensores.leitura"]
+    assert calls == []
+    assert len(runner.run_all(sources())) > 2
+
+
+def test_quick_checks_ids():
+    assert runner.QUICK_CHECKS == frozenset({"rede.ip", "rede.tipo", "sensores.leitura"})
+
+
+def test_reading_age_and_server_state_reach_the_checks():
+    results = runner.run_all(
+        sources(reading_age=lambda: 45.0, server_state=lambda: ("port_in_use", False)),
+        only={"sensores.leitura", "agente.local"},
+    )
+    found = by_id(results)
+    assert found["sensores.leitura"][0].fix == "reiniciar_sensores"
+    assert found["agente.local"][0].fix == "trocar_porta"

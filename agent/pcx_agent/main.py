@@ -129,10 +129,9 @@ def run_tray(args) -> int:
         server = AgentServer(ctx, args.host, settings.port)
         try:
             server.start()
-        except PortInUseError as exc:
-            text = texts.PORT_IN_USE.format(porta=exc.port, arquivo=settings.config_path)
-            show_message(texts.APP_NAME, text, error=True)
-            return 1
+        except PortInUseError:
+            # Segue para a bandeja sem servidor: o alerta do diagnostico avisa e oferece trocar a porta.
+            logger.warning("Porta %s em uso; seguindo sem servidor", settings.port)
         from pcx_agent.tray.app import TrayApp
 
         controller = AgentController(ctx, settings.port)

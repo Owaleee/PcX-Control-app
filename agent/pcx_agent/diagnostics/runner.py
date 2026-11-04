@@ -24,6 +24,8 @@ from pcx_agent.sensors.base import GpuReading, Snapshot
 
 logger = logging.getLogger("pcx_agent.diagnostics")
 PROBE_TIMEOUT_S = 3.0
+# Verificacoes baratas, sem PowerShell nem rede: rodam logo e a qualquer hora.
+QUICK_CHECKS = frozenset({"rede.ip", "rede.tipo", "sensores.leitura"})
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,9 @@ class Sources:
     probe: Callable[[str], AgentProbe]
     reading: Callable[[], tuple[Snapshot | None, str | None]]
     port: int
+    reading_age: Callable[[], float | None] = lambda: None
+    # (erro de inicio do servidor, servidor rodando)
+    server_state: Callable[[], tuple[str | None, bool]] = lambda: (None, True)
 
 
 def probe_agent(address: str, agent_id: str, timeout: float = PROBE_TIMEOUT_S) -> AgentProbe:
@@ -70,32 +75,38 @@ def _guarded(check_id: str, group: str, title: str, run: Callable[[], list[Check
         return [CheckResult(check_id, group, title, "info", f"Não deu para verificar: {type(exc).__name__}: {exc}")]
 
 
-def run_all(sources: Sources) -> list[CheckResult]:
+def run_all(sources: Sources, only: set[str] | None = None) -> list[CheckResult]:
     interfaces = _guarded_value(sources.interfaces, [])
     chosen = choose_lan(interfaces, preferred=_guarded_value(sources.route, None))
     address = f"{chosen.ipv4 if chosen else '127.0.0.1'}:{sources.port}"
 
     def reading() -> list[CheckResult]:
         snapshot, error = sources.reading()
-        return checks.check_reading(snapshot, error)
+        return checks.check_reading(snapshot, error, age_s=sources.reading_age())
 
     def gpus() -> list[CheckResult]:
         snapshot, _ = sources.reading()
         gpu_list: list[GpuReading] = snapshot.gpus if snapshot is not None else []
         return checks.check_gpus(gpu_list)
 
+    def agent() -> list[CheckResult]:
+        server_error, server_running = sources.server_state()
+        return checks.check_agent(sources.probe(address), address, server_error, server_running)
+
     plan = [
         ("rede.ip", GROUP_NETWORK, "IP da rede local", lambda: checks.check_ip(interfaces, chosen)),
         ("rede.tipo", GROUP_NETWORK, "Tipo de rede no Windows", lambda: checks.check_network_type(chosen, sources.profiles())),
         ("rede.firewall", GROUP_NETWORK, "Regra do firewall", lambda: checks.check_firewall(sources.firewall_rules(), sources.exe_path())),
         ("rede.vpn", GROUP_NETWORK, "VPN", lambda: checks.check_vpn(interfaces)),
-        ("agente.local", GROUP_AGENT, "Agente respondendo na rede", lambda: checks.check_agent(sources.probe(address), address)),
+        ("agente.local", GROUP_AGENT, "Agente respondendo na rede", agent),
         ("antivirus.terceiros", GROUP_ANTIVIRUS, "Antivírus e firewall de terceiros", lambda: checks.check_antivirus(sources.security())),
         ("sensores.gpu", GROUP_SENSORS, "Placa de vídeo", gpus),
         ("sensores.leitura", GROUP_SENSORS, "Leitura dos sensores", reading),
     ]
     results: list[CheckResult] = []
     for check_id, group, title, run in plan:
+        if only is not None and check_id not in only:
+            continue
         results.extend(_guarded(check_id, group, title, run))
     for result in results:
         logger.info("Diagnostico %s (%s): %s - %s", result.id, result.title, result.status, result.detail)

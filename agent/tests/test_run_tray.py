@@ -53,3 +53,32 @@ def test_lock_is_released_after_startup_error(tmp_path, monkeypatch):
     lock = acquire_single_instance(tmp_path)
     assert lock is not None
     lock.release()
+
+
+def test_run_tray_continues_when_port_in_use(tmp_path, monkeypatch):
+    import socket
+    import sys
+    import types
+
+    shown = []
+    monkeypatch.setattr("pcx_agent.winsys.dialogs.show_message",
+                        lambda title, text, error=False: shown.append(text))
+    received = {}
+
+    class FakeTray:
+        def __init__(self, settings, server, controller, autostart):
+            received["server"] = server
+
+        def run(self):
+            return 0
+
+    monkeypatch.setitem(sys.modules, "pcx_agent.tray.app", types.SimpleNamespace(TrayApp=FakeTray))
+    monkeypatch.setattr(cli, "_provider", lambda demo: __import__("pcx_agent.sensors.fake", fromlist=["x"]).FakeSensorProvider())
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        args = argparse.Namespace(data_dir=tmp_path, port=busy.getsockname()[1], host="127.0.0.1")
+        assert cli.run_tray(args) == 0
+    assert received["server"].start_error == "port_in_use"
+    assert not received["server"].running
+    assert shown == []
