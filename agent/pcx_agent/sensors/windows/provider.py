@@ -53,6 +53,8 @@ class WindowsSensorProvider:
         self._last = time.monotonic()
         # Falhas repetidas da GPU: no maximo uma linha por minuto por tipo.
         self._failures = RateLimitedLog(logger, interval_s=60.0, clock=clock)
+        # A bandeja liga aqui a verificacao dos sensores; chamado so quando a falha vai para o log.
+        self.on_sensor_failure: Callable[[], None] | None = None
         self._adapters: dict[str, AdapterInfo] = {}
         # Temperatura de alerta por LUID: lida uma vez por lista de placas, nao a cada leitura.
         self._warnings: dict[str, float] = {}
@@ -107,6 +109,15 @@ class WindowsSensorProvider:
             self._d3d_retry_at = now + RETRY_S
             self._load_warnings()
 
+    def _report_failure(self, key: str, msg: str, *args: object, exc_info: bool = False) -> None:
+        logged = self._failures.report(key, msg, *args, exc_info=exc_info)
+        callback = self.on_sensor_failure
+        if logged and callback is not None:
+            try:
+                callback()
+            except Exception:
+                logger.debug("on_sensor_failure falhou", exc_info=True)
+
     @_locked
     def adapter_drivers(self) -> dict[str, str | None]:
         """Versao do driver de cada placa, por LUID (a mesma chave de `temperature_source`)."""
@@ -157,7 +168,7 @@ class WindowsSensorProvider:
         try:
             self._warnings = self._d3d.read_warnings(list(self._adapters))
         except Exception:  # noqa: BLE001 - opcional; registrado pelo RateLimitedLog
-            self._failures.report(
+            self._report_failure(
                 "d3dkmt_caps",
                 "Falha ao ler a temperatura de alerta (D3DKMT) de %s",
                 self._boards(),
@@ -197,7 +208,7 @@ class WindowsSensorProvider:
         try:
             temps = self._d3d.read(list(self._adapters))
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
-            self._failures.report(
+            self._report_failure(
                 "d3dkmt",
                 "Falha ao ler a temperatura (D3DKMT) de %s; tentando de novo em 60 s",
                 self._boards(),
@@ -214,7 +225,7 @@ class WindowsSensorProvider:
         try:
             return self._nvml.read()
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
-            self._failures.report(
+            self._report_failure(
                 "nvml",
                 "Falha ao ler a temperatura (NVML) de %s; tentando de novo em 60 s",
                 self._boards(),
@@ -254,7 +265,7 @@ class WindowsSensorProvider:
             self.gpu_instances = [str(sample.get("InstanceName", "")) for sample in engines[:MAX_INSTANCES]]
             readings = parse_gpu_usage(engines, self._adapters, parse_vram_usage(memory))
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
-            self._failures.report(
+            self._report_failure(
                 "gpu", "Falha ao ler a GPU (PDH); tentando de novo em 60 s", exc_info=True
             )
             self._drop("_pdh", "contadores de GPU")

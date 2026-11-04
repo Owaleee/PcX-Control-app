@@ -21,3 +21,7 @@ def test_tray_png_is_64_rgba():
 def test_assets_path_points_to_existing_files():
     assert assets_path("icon.ico").is_file()
     assert assets_path("tray.png").is_file()
+
+
+def test_alert_tray_png_exists():
+    assert assets_path("tray-alert.png").is_file()

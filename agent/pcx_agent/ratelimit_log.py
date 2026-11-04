@@ -23,11 +23,13 @@ class RateLimitedLog:
         self._clock = clock
         self._last: dict[str, float] = {}
 
-    def report(self, key: str, msg: str, *args: object, exc_info: bool = False) -> None:
+    def report(self, key: str, msg: str, *args: object, exc_info: bool = False) -> bool:
+        """True quando a linha foi como aviso (e nao como depuracao)."""
         now = self._clock()
         last = self._last.get(key)
         if last is None or now - last >= self._interval:
             self._last[key] = now
             self._logger.warning(msg, *args, exc_info=exc_info)
-        else:
-            self._logger.debug(msg, *args, exc_info=exc_info)
+            return True
+        self._logger.debug(msg, *args, exc_info=exc_info)
+        return False

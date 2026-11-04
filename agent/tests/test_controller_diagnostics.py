@@ -10,7 +10,7 @@ from pcx_agent.config import load_settings
 from pcx_agent.controller import AgentController
 from pcx_agent.diagnostics import fixes
 from pcx_agent.diagnostics.model import AgentProbe
-from pcx_agent.diagnostics.runner import Sources
+from pcx_agent.diagnostics.runner import ALL_CHECKS, Sources
 from pcx_agent.network import NetInterface
 from pcx_agent.sensors.base import GpuReading, Snapshot
 from pcx_agent.sensors.fake import FakeSensorProvider
@@ -254,3 +254,26 @@ def test_run_all_includes_the_shutdown_check(make):
     controller, _ = make(previous_session=lambda: previous)
     results = controller.run_diagnostics()
     assert "agente.encerramento" in {r.id for r in results}
+
+
+def test_run_checks_filters_by_id(make):
+    controller, _ = make()
+    assert {r.id for r in controller.run_checks({"rede.ip"})} == {"rede.ip"}
+    assert len({r.id for r in controller.run_checks(None)}) > 3
+
+
+def test_run_diagnostics_reports_full_results_to_hook(make):
+    controller, _ = make()
+    seen = []
+    controller.on_results = lambda results, ran: seen.append((results, ran))
+    results = controller.run_diagnostics()
+    assert seen and seen[0][0] == results
+    assert seen[0][1] == set(ALL_CHECKS)
+
+
+def test_watch_sensor_failures_sets_provider_hook(make):
+    controller, _ = make()
+    controller._ctx.provider.on_sensor_failure = None
+    callback = lambda: None
+    controller.watch_sensor_failures(callback)
+    assert controller._ctx.provider.on_sensor_failure is callback

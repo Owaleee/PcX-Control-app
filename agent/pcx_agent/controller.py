@@ -19,7 +19,7 @@ from pcx_agent.crashlog import PreviousSession
 from pcx_agent.diagnostics import fixes
 from pcx_agent.diagnostics.model import CheckResult, Fix
 from pcx_agent.diagnostics.report import ReportFacts, build_report
-from pcx_agent.diagnostics.runner import Sources, exe_path, probe_agent, run_all
+from pcx_agent.diagnostics.runner import ALL_CHECKS, Sources, exe_path, probe_agent, run_all
 from pcx_agent.diagnostics.support import build_support_zip, choose_dest
 from pcx_agent.diagnostics.windows import read_firewall_rules, read_security_products
 from pcx_agent.network import (
@@ -138,6 +138,8 @@ class AgentController:
             "salvar_pacote": self._save_package_fix,
         }
         self.on_paired: Callable[[str], None] | None = None
+        # (resultados, ids que rodaram): alimenta o monitor da bandeja com a rodada da janela.
+        self.on_results: Callable[[list[CheckResult], set[str]], None] | None = None
         ctx.pairing.on_pair = self._handle_pair
 
     @property
@@ -269,8 +271,22 @@ class AgentController:
         """Esconde o aviso de fechamento inesperado (depois que o pacote foi salvo)."""
         self._previous_session = None
 
+    def run_checks(self, ids: set[str] | None) -> list[CheckResult]:
+        """Roda so as verificacoes de `ids` (None = todas), sem avisar a bandeja."""
+        return run_all(self._diagnostics_sources(), only=ids)
+
     def run_diagnostics(self) -> list[CheckResult]:
-        return run_all(self._diagnostics_sources())
+        results = self.run_checks(None)
+        hook = self.on_results
+        if hook is not None:
+            hook(results, set(ALL_CHECKS))
+        return results
+
+    def watch_sensor_failures(self, callback: Callable[[], None]) -> None:
+        """Liga `callback` as falhas de leitura do provider (so o do Windows tem o gancho)."""
+        provider = self._ctx.provider
+        if hasattr(provider, "on_sensor_failure"):
+            provider.on_sensor_failure = callback
 
     def diagnostics_report(self, results: list[CheckResult]) -> str:
         sources = self._diagnostics_sources()

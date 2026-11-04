@@ -232,3 +232,9 @@ def test_reading_age_and_server_state_reach_the_checks():
         sources(server_state=lambda: ("port_in_use", False)), only={"agente.local"}
     )
     assert by_id(down)["agente.local"][0].fix == "trocar_porta"
+
+
+def test_all_checks_lists_every_plan_id():
+    assert runner.ALL_CHECKS >= {r.id for r in runner.run_all(sources())}
+    assert runner.QUICK_CHECKS <= runner.ALL_CHECKS
+    assert len(runner.ALL_CHECKS) == 9

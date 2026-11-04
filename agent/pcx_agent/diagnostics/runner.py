@@ -28,6 +28,11 @@ PROBE_TIMEOUT_S = 3.0
 # Verificacoes baratas, sem PowerShell nem rede: rodam logo e a qualquer hora.
 SENSORS_STOPPED = "Sensores parados enquanto o agente não está na rede."
 QUICK_CHECKS = frozenset({"rede.ip", "rede.tipo", "sensores.leitura"})
+# Todos os ids do plano de `run_all`: uma rodada completa substitui o alerta de cada um deles.
+ALL_CHECKS = frozenset({
+    "rede.ip", "rede.tipo", "rede.firewall", "rede.vpn", "agente.local",
+    "agente.encerramento", "antivirus.terceiros", "sensores.gpu", "sensores.leitura",
+})
 
 
 @dataclass(frozen=True)
