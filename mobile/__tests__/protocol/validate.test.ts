@@ -41,7 +41,7 @@ describe('parseSnapshotMessage', () => {
     expect(parseSnapshotMessage(noTemp)?.data.gpus[0]?.temp_c).toBeNull();
   });
 
-  test('temp_warn_c da GPU: ausente, null ou numero aceitos; texto recusado', () => {
+  test('temp_warn_c da GPU: ausente, null ou numero aceitos; valor estranho vira null', () => {
     expect(parseSnapshotMessage(fx.snapshotMessage)?.data.gpus[0]?.temp_warn_c).toBe(83);
     const absent = fx.clone(fx.snapshotMessage);
     delete absent.data.gpus[0].temp_warn_c;
@@ -51,7 +51,12 @@ describe('parseSnapshotMessage', () => {
     expect(parseSnapshotMessage(nul)?.data.gpus[0]?.temp_warn_c).toBeNull();
     const text = fx.clone(fx.snapshotMessage);
     text.data.gpus[0].temp_warn_c = '83';
-    expect(parseSnapshotMessage(text)).toBeNull();
+    const parsed = parseSnapshotMessage(text);
+    expect(parsed?.data.gpus[0]?.usage_percent).toBe(fx.snapshotMessage.data.gpus[0]!.usage_percent);
+    expect(parsed?.data.gpus[0]?.temp_warn_c).toBeNull();
+    const infinite = fx.clone(fx.snapshotMessage);
+    infinite.data.gpus[0].temp_warn_c = Number.POSITIVE_INFINITY;
+    expect(parseSnapshotMessage(infinite)?.data.gpus[0]?.temp_warn_c).toBeNull();
   });
 
   test('vendor da GPU (agente 0.5.0) e opcional e nao derruba a leitura', () => {
