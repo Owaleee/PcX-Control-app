@@ -9,7 +9,9 @@ from pcx_agent.ratelimit_log import RateLimitedLog
 from pcx_agent.sensors.windows.gpu import (
     AdapterInfo,
     describe_adapters,
+    format_umd_version,
     parse_gpu_usage,
+    temperature_sources,
     vendor_name,
 )
 
@@ -73,8 +75,8 @@ def test_describe_adapters_one_line_per_card_dedicated_first():
         DEDICATED: AdapterInfo("AMD Radeon RX 7600", 8 * GIB, 0x1002),
     }
     assert describe_adapters(adapters) == [
-        "AMD Radeon RX 7600 | fabricante amd (VendorId 0x1002) | VRAM 8.0 GiB | LUID 0x00000000_0x00009962",
-        "Intel UHD Graphics 770 | fabricante intel (VendorId 0x8086) | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2",
+        "AMD Radeon RX 7600 | fabricante amd (VendorId 0x1002) | DeviceId 0x0000 | driver desconhecido | VRAM 8.0 GiB | LUID 0x00000000_0x00009962",
+        "Intel UHD Graphics 770 | fabricante intel (VendorId 0x8086) | DeviceId 0x0000 | driver desconhecido | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2",
     ]
 
 
@@ -122,3 +124,37 @@ def test_rate_limited_log_passes_exception_info(caplog):
         except OSError:
             log.report("dxgi", "DXGI falhou", exc_info=True)
     assert caplog.records[0].exc_info is not None
+
+
+def test_format_umd_version():
+    assert format_umd_version(0x001F_0000_000F_1B5A) == "31.0.15.7002"
+    assert format_umd_version(0) == "0.0.0.0"
+
+
+def test_describe_adapters_has_driver_and_device():
+    adapters = {
+        DEDICATED: AdapterInfo("AMD Radeon RX 7600", 8 * GIB, 0x1002, 0x7480, "31.0.15.7002"),
+        INTEGRATED: AdapterInfo("Intel UHD Graphics 770", 512 * MIB, 0x8086, 0x4688),
+    }
+    assert describe_adapters(adapters) == [
+        (
+            "AMD Radeon RX 7600 | fabricante amd (VendorId 0x1002) | DeviceId 0x7480 "
+            "| driver 31.0.15.7002 | VRAM 8.0 GiB | LUID 0x00000000_0x00009962"
+        ),
+        (
+            "Intel UHD Graphics 770 | fabricante intel (VendorId 0x8086) | DeviceId 0x4688 "
+            "| driver desconhecido | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2"
+        ),
+    ]
+
+
+def test_temperature_sources_picks_driver_then_nvml_then_none():
+    adapters = {
+        DEDICATED: AdapterInfo("Placa A", 8 * GIB),
+        INTEGRATED: AdapterInfo("Placa B", GIB),
+        "0x00000000_0x0000beef": AdapterInfo("Placa C", GIB),
+    }
+    samples = [engine(DEDICATED, 1.0), engine(INTEGRATED, 1.0), engine("0x00000000_0x0000beef", 1.0)]
+    readings = parse_gpu_usage(samples, adapters)
+    sources = temperature_sources(readings, {DEDICATED: 50.0}, {"Placa A": 60.0, "Placa B": 55.0})
+    assert sources == {DEDICATED: "driver", INTEGRATED: "nvml", "0x00000000_0x0000beef": "nenhuma"}

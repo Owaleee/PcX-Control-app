@@ -91,3 +91,42 @@ def test_console_handler_is_optional(tmp_path):
     kinds = {type(h).__name__ for h in logging.getLogger().handlers}
     assert "StreamHandler" in kinds
     assert "RotatingFileHandler" in kinds
+
+
+def _gpu_lines(log_dir):
+    _flush()
+    return (log_dir / "gpu.log").read_text(encoding="utf-8").splitlines()
+
+
+def test_sensor_logs_go_to_gpu_log_and_agent_log(tmp_path):
+    setup_logging(tmp_path)
+    logging.getLogger("pcx_agent.sensors.windows").info("Placa de video: Teste")
+    logging.getLogger("pcx_agent.server").info("so no agent.log")
+    gpu = [json.loads(line)["msg"] for line in _gpu_lines(tmp_path)]
+    agent = [json.loads(line)["msg"] for line in _lines(tmp_path)]
+    assert gpu == ["Placa de video: Teste"]  # so o logger dos sensores
+    assert agent == ["Placa de video: Teste", "so no agent.log"]  # e continua propagando
+
+
+def test_gpu_log_redacts(tmp_path):
+    setup_logging(tmp_path)
+    token = secrets.token_urlsafe(32)
+    logging.getLogger("pcx_agent.sensors.windows").info("token %s", token)
+    text = (tmp_path / "gpu.log").read_text(encoding="utf-8")
+    assert token not in text
+    assert "[oculto]" in text
+
+
+def test_setup_twice_does_not_duplicate_gpu_log_lines(tmp_path):
+    setup_logging(tmp_path)
+    setup_logging(tmp_path)
+    logging.getLogger("pcx_agent.sensors.windows").info("uma vez")
+    assert len(_gpu_lines(tmp_path)) == 1
+    sensors = logging.getLogger("pcx_agent.sensors")
+    assert sum(1 for h in sensors.handlers if getattr(h, "_pcx_handler", False)) == 1
+
+
+def test_gpu_log_rotation_limits():
+    from pcx_agent import logs
+
+    assert (logs.GPU_LOG_FILE, logs.GPU_MAX_BYTES, logs.GPU_BACKUP_COUNT) == ("gpu.log", 524_288, 1)

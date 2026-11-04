@@ -228,9 +228,9 @@ def test_logs_the_cards_once_and_again_when_the_list_changes(make, monkeypatch, 
         provider.read()
     cards = [m for m in _gpu_logs(caplog) if m.startswith("Placa de video:")]
     assert cards == [
-        "Placa de video: NVIDIA Teste | fabricante outra (VendorId 0x0000) | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
-        "Placa de video: NVIDIA Teste | fabricante nvidia (VendorId 0x10DE) | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
-        "Placa de video: Intel UHD | fabricante intel (VendorId 0x8086) | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2",
+        "Placa de video: NVIDIA Teste | fabricante outra (VendorId 0x0000) | DeviceId 0x0000 | driver desconhecido | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
+        "Placa de video: NVIDIA Teste | fabricante nvidia (VendorId 0x10DE) | DeviceId 0x0000 | driver desconhecido | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
+        "Placa de video: Intel UHD | fabricante intel (VendorId 0x8086) | DeviceId 0x0000 | driver desconhecido | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2",
     ]
 
 
@@ -263,6 +263,53 @@ def test_nvml_failure_is_a_warning_with_the_reason(make, caplog):
         provider.read()
     (record,) = [r for r in caplog.records if "NVML" in r.getMessage()]
     assert record.exc_info is not None
+
+
+def _source_lines(caplog):
+    return [m for m in _gpu_logs(caplog) if m.startswith("Temperatura de")]
+
+
+def test_temperature_sources_logged_once_and_on_change(make, caplog):
+    FakeD3d.temps = {LUID: 52.0}
+    with caplog.at_level(logging.INFO, logger=provider_module.logger.name):
+        provider, _ = make()
+        provider.read()
+        provider.read()  # igual: nao repete
+        assert provider.temperature_source == {LUID: "driver"}
+        FakeD3d.temps = {}  # o driver perde o dado e o NVML assume
+        provider.read()
+        provider.read()
+        assert provider.temperature_source == {LUID: "nvml"}
+    assert _source_lines(caplog) == [
+        "Temperatura de NVIDIA Teste: driver",
+        "Temperatura de NVIDIA Teste: nvml",
+    ]
+
+
+def test_temperature_source_is_nenhuma_without_any_source(make):
+    FakeNvml.broken = True
+    provider, _ = make()
+    provider.read()
+    assert provider.temperature_source == {LUID: "nenhuma"}
+
+
+def test_failure_messages_name_the_board_and_the_source(make, caplog):
+    provider, _ = make()
+    FakeNvml.instances[-1].fail = True
+    FakeD3d.instances[-1].fail = True
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        provider.read()
+    messages = _gpu_logs(caplog, logging.WARNING)
+    assert any("(NVML)" in m and "NVIDIA Teste" in m for m in messages)
+    assert any("(D3DKMT)" in m and "NVIDIA Teste" in m for m in messages)
+
+
+def test_pdh_failure_names_the_source(make, caplog):
+    provider, _ = make()
+    FakePdh.instances[-1].fail = True
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        provider.read()
+    assert any("(PDH)" in m for m in _gpu_logs(caplog, logging.WARNING))
 
 
 def test_driver_temperature_wins_over_nvml(make):

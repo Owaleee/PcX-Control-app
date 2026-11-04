@@ -5,7 +5,7 @@ import logging
 import uuid
 from ctypes import wintypes
 
-from pcx_agent.sensors.windows.gpu import AdapterInfo
+from pcx_agent.sensors.windows.gpu import AdapterInfo, format_umd_version
 
 logger = logging.getLogger("pcx_agent.sensors.windows")
 
@@ -79,6 +79,25 @@ def _check(result: int, operation: str) -> None:
         raise OSError(f"{operation} falhou: 0x{result & 0xFFFFFFFF:08x}")
 
 
+_IID_IDXGIDEVICE = uuid.UUID("54ec77fa-1377-44e6-8c32-88fd5f44c84c")
+
+
+def _driver_version(adapter) -> str | None:
+    """Versao do driver (UMD) pelo `CheckInterfaceSupport`; qualquer falha devolve None."""
+    try:
+        iid = (ct.c_ubyte * 16).from_buffer_copy(_IID_IDXGIDEVICE.bytes_le)
+        version = ct.c_int64(0)
+        check = _method(
+            adapter, 9, wintypes.LONG, ct.POINTER(ct.c_ubyte * 16), ct.POINTER(ct.c_int64)
+        )  # IDXGIAdapter::CheckInterfaceSupport
+        if check(adapter, ct.byref(iid), ct.byref(version)) < 0:
+            return None
+        return format_umd_version(version.value)
+    except Exception:  # informacao opcional, so para o log
+        logger.debug("Sem versao do driver (CheckInterfaceSupport)", exc_info=True)
+        return None
+
+
 def list_adapters() -> dict[str, AdapterInfo]:
     """{LUID minusculo: AdapterInfo} dos adaptadores DXGI que nao sao de software."""
     dxgi = ct.WinDLL("dxgi.dll")
@@ -117,7 +136,13 @@ def list_adapters() -> dict[str, AdapterInfo]:
                         f"0x{desc.AdapterLuid.HighPart & 0xFFFFFFFF:08x}_"
                         f"0x{desc.AdapterLuid.LowPart:08x}"
                     )
-                    found[luid] = AdapterInfo(name, int(desc.DedicatedVideoMemory), int(desc.VendorId))
+                    found[luid] = AdapterInfo(
+                        name,
+                        int(desc.DedicatedVideoMemory),
+                        int(desc.VendorId),
+                        int(desc.DeviceId),
+                        _driver_version(adapter),
+                    )
             finally:
                 _method(adapter, 2, wintypes.ULONG)(adapter)  # Release
             index += 1

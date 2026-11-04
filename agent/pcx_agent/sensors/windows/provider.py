@@ -16,8 +16,10 @@ from pcx_agent.sensors.windows import d3dkmt, native
 from pcx_agent.sensors.windows.gpu import (
     AdapterInfo,
     describe_adapters,
+    luid_of,
     parse_gpu_usage,
     parse_vram_usage,
+    temperature_sources,
 )
 
 logger = logging.getLogger("pcx_agent.sensors.windows")
@@ -35,11 +37,6 @@ def _locked(method):
             return method(self, *args, **kwargs)
 
     return wrapper
-
-
-def _luid_of(reading_id: str) -> str:
-    """'luid_0x..._0x..._phys_0' -> '0x..._0x...'."""
-    return reading_id.removeprefix("luid_").split("_phys_")[0]
 
 
 def _pct(value: float) -> float:
@@ -60,6 +57,9 @@ class WindowsSensorProvider:
         # Temperatura de alerta por LUID: lida uma vez por lista de placas, nao a cada leitura.
         self._warnings: dict[str, float] = {}
         self._logged_adapters: dict[str, AdapterInfo] | None = None
+        # Fonte da temperatura por LUID ("driver", "nvml" ou "nenhuma"), para o log e o relatorio.
+        self.temperature_source: dict[str, str] = {}
+        self._logged_sources: dict[str, str] | None = None
         # Nomes das instancias do ultimo contador de GPU, para o relatorio do diagnostico.
         self.gpu_instances: list[str] = []
         self._adapters_at = float("-inf")
@@ -139,6 +139,11 @@ class WindowsSensorProvider:
             self._log_adapters()
             self._load_warnings()
 
+    def _boards(self) -> str:
+        """Nomes das placas conhecidas, para as mensagens de falha."""
+        names = [info.name for info in self._adapters.values()]
+        return ", ".join(names) if names else "placa desconhecida"
+
     def _load_warnings(self) -> None:
         """Le a temperatura de alerta de cada placa; falha aqui nunca derruba a leitura."""
         self._warnings = {}
@@ -148,7 +153,10 @@ class WindowsSensorProvider:
             self._warnings = self._d3d.read_warnings(list(self._adapters))
         except Exception:  # noqa: BLE001 - opcional; registrado pelo RateLimitedLog
             self._failures.report(
-                "d3dkmt_caps", "Falha ao ler a temperatura de alerta (D3DKMT)", exc_info=True
+                "d3dkmt_caps",
+                "Falha ao ler a temperatura de alerta (D3DKMT) de %s",
+                self._boards(),
+                exc_info=True,
             )
 
     def _probe_driver_temperature(self) -> None:
@@ -185,7 +193,10 @@ class WindowsSensorProvider:
             temps = self._d3d.read(list(self._adapters))
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
             self._failures.report(
-                "d3dkmt", "Falha ao ler a temperatura (D3DKMT); tentando de novo em 60 s", exc_info=True
+                "d3dkmt",
+                "Falha ao ler a temperatura (D3DKMT) de %s; tentando de novo em 60 s",
+                self._boards(),
+                exc_info=True,
             )
             self._drop("_d3d", "D3DKMT")
             return {}
@@ -199,7 +210,10 @@ class WindowsSensorProvider:
             return self._nvml.read()
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
             self._failures.report(
-                "nvml", "Falha ao ler a temperatura (NVML); tentando de novo em 60 s", exc_info=True
+                "nvml",
+                "Falha ao ler a temperatura (NVML) de %s; tentando de novo em 60 s",
+                self._boards(),
+                exc_info=True,
             )
             self._drop("_nvml", "NVML")
             return {}
@@ -215,6 +229,16 @@ class WindowsSensorProvider:
         for line in lines:
             logger.info("Placa de video: %s", line)
 
+    def _log_temperature_sources(self, sources: dict[str, str]) -> None:
+        """Uma linha por placa na primeira leitura e quando a fonte da temperatura muda."""
+        self.temperature_source = sources
+        if sources == self._logged_sources:
+            return
+        self._logged_sources = dict(sources)
+        for luid, source in sources.items():
+            info = self._adapters.get(luid)
+            logger.info("Temperatura de %s: %s", info.name if info else luid, source)
+
     def _gpus(self) -> list[GpuReading]:
         self._maybe_reopen()
         if self._pdh is None:
@@ -225,18 +249,21 @@ class WindowsSensorProvider:
             self.gpu_instances = [str(sample.get("InstanceName", "")) for sample in engines[:MAX_INSTANCES]]
             readings = parse_gpu_usage(engines, self._adapters, parse_vram_usage(memory))
         except Exception:  # noqa: BLE001 - registrado com o traceback pelo RateLimitedLog
-            self._failures.report("gpu", "Falha ao ler a GPU; tentando de novo em 60 s", exc_info=True)
+            self._failures.report(
+                "gpu", "Falha ao ler a GPU (PDH); tentando de novo em 60 s", exc_info=True
+            )
             self._drop("_pdh", "contadores de GPU")
             return []
         # A temperatura e opcional: se falhar, o uso e a VRAM continuam aparecendo.
         # Primeiro o driver (por LUID, duas placas iguais nao se confundem); o NVML completa.
         by_luid = self._driver_temperatures()
         by_name = self._temperatures()
+        self._log_temperature_sources(temperature_sources(readings, by_luid, by_name))
         return [
             r.model_copy(
                 update={
-                    "temp_c": by_luid.get(_luid_of(r.id), by_name.get(r.name)),
-                    "temp_warn_c": self._warnings.get(_luid_of(r.id)),
+                    "temp_c": by_luid.get(luid_of(r.id), by_name.get(r.name)),
+                    "temp_warn_c": self._warnings.get(luid_of(r.id)),
                 }
             )
             for r in readings

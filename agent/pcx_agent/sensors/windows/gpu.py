@@ -24,11 +24,18 @@ class AdapterInfo:
     name: str
     vram_total_bytes: int
     vendor_id: int = 0
+    device_id: int = 0
+    driver_version: str | None = None
 
 
 def vendor_name(vendor_id: int) -> str:
     """Fabricante pelo `VendorId` do PCI: so para logs e relatorio, o app nao mostra."""
     return _VENDORS.get(vendor_id, "outra")
+
+
+def format_umd_version(value: int) -> str:
+    """Versao do driver de usuario (UMD): quatro blocos de 16 bits, do mais alto ao mais baixo."""
+    return ".".join(str((value >> shift) & 0xFFFF) for shift in (48, 32, 16, 0))
 
 
 def _dedicated_first(item: tuple[str, AdapterInfo]) -> tuple[int, str]:
@@ -41,9 +48,31 @@ def describe_adapters(adapters: dict[str, AdapterInfo]) -> list[str]:
     """Uma linha por placa para o log, na mesma ordem em que o app recebe as placas."""
     return [
         f"{info.name} | fabricante {vendor_name(info.vendor_id)} (VendorId 0x{info.vendor_id:04X}) "
+        f"| DeviceId 0x{info.device_id:04X} | driver {info.driver_version or 'desconhecido'} "
         f"| VRAM {info.vram_total_bytes / GIB:.1f} GiB | LUID {luid}"
         for luid, info in sorted(adapters.items(), key=_dedicated_first)
     ]
+
+
+def luid_of(reading_id: str) -> str:
+    """'luid_0x..._0x..._phys_0' -> '0x..._0x...'."""
+    return reading_id.removeprefix("luid_").split("_phys_")[0]
+
+
+def temperature_sources(
+    readings: list[GpuReading], by_luid: dict[str, float], by_name: dict[str, float]
+) -> dict[str, str]:
+    """Quem deu a temperatura de cada placa (chave: LUID): "driver", "nvml" ou "nenhuma"."""
+    sources = {}
+    for reading in readings:
+        luid = luid_of(reading.id)
+        if luid in by_luid:
+            sources[luid] = "driver"
+        elif reading.name in by_name:
+            sources[luid] = "nvml"
+        else:
+            sources[luid] = "nenhuma"
+    return sources
 
 
 def _valid(value: object) -> bool:
