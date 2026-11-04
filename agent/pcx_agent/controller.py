@@ -297,9 +297,9 @@ class AgentController:
         sources = getattr(provider, "temperature_source", {})
         lines = [f"CPU: {platform.processor() or 'desconhecida'}"]
         for gpu in snapshot.gpus if snapshot is not None else []:
-            luid = gpu.id.removeprefix("luid_").split("_phys_")[0]
+            luid = gpu.id.removeprefix("luid_").split("_phys_")[0].lower()
             lines.append(
-                f"{gpu.name}: driver {drivers.get(gpu.id) or 'desconhecido'}, "
+                f"{gpu.name}: driver {drivers.get(luid) or 'desconhecido'}, "
                 f"temperatura por {sources.get(luid, 'desconhecida')}"
             )
         lines.append(f"Porta: {self.port}")

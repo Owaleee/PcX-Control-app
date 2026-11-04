@@ -1,5 +1,6 @@
 """Pacote de suporte: um zip com relatorio, logs e configuracao, sem banco e sem segredos."""
 
+import os
 import re
 import zipfile
 from collections.abc import Callable
@@ -65,19 +66,26 @@ def build_support_zip(
     """Monta o zip em `dest_dir`. Arquivo que nao abre vai para a lista de fora, no relatorio."""
     contents: dict[str, str] = {}
     left_out: list[str] = []
-    for path in [*_log_files(log_dir), config_path]:
+    entries = [(f"logs/{p.name}", p) for p in _log_files(log_dir)] + [(config_path.name, config_path)]
+    for entry, path in entries:
         if path.suffix == ".db" or path.name.endswith(("-wal", "-shm")):
             continue
         try:
-            contents[path.name] = path.read_bytes().decode("utf-8", errors="replace")
+            contents[entry] = path.read_bytes().decode("utf-8", errors="replace")
         except OSError as exc:
-            left_out.append(f"- {path.name}: {exc.strerror or exc}")
+            left_out.append(f"- {entry}: {exc.strerror or exc}")
     text = report.rstrip() + "\n"
     if left_out:
         text += f"\n{LEFT_OUT}\n" + "\n".join(left_out) + "\n"
     target = dest_dir / SUPPORT_NAME.format(now)
-    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("relatorio.txt", scrub(text, home, user))
-        for name, body in contents.items():
-            archive.writestr(name, scrub(body, home, user))
+    temp = target.with_name(target.name + ".part")
+    try:  # nome temporario: falha no meio nao deixa um .zip truncado
+        with zipfile.ZipFile(temp, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("relatorio.txt", scrub(text, home, user))
+            for name, body in contents.items():
+                archive.writestr(name, scrub(body, home, user))
+        os.replace(temp, target)
+    except BaseException:
+        temp.unlink(missing_ok=True)
+        raise
     return target

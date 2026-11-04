@@ -109,7 +109,7 @@ class WindowsSensorProvider:
 
     @_locked
     def adapter_drivers(self) -> dict[str, str | None]:
-        """Versao do driver de cada placa, pelo mesmo id das leituras (para o relatorio)."""
+        """Versao do driver de cada placa, por LUID (a mesma chave de `temperature_source`)."""
         return {key: info.driver_version for key, info in self._adapters.items()}
 
     @_locked

@@ -1,5 +1,6 @@
 """Pacote de suporte: zip com relatorio, logs e configuracao, sem banco e sem segredos."""
 
+import dataclasses
 import sys
 import zipfile
 from datetime import datetime
@@ -45,8 +46,8 @@ def test_zip_has_report_logs_config_and_no_db(tmp_path):
     assert path.name == "PcXControl-suporte-20261103-1405.zip"
     with zipfile.ZipFile(path) as z:
         names = set(z.namelist())
-    assert {"relatorio.txt", "config.json", "agent.log", "agent.log.1", "gpu.log", "crash.log",
-            "crash-20261103.log"} <= names
+    assert {"relatorio.txt", "config.json", "logs/agent.log", "logs/agent.log.1", "logs/gpu.log",
+            "logs/crash.log", "logs/crash-20261103.log"} <= names
     assert not [n for n in names if ".db" in n]
 
 
@@ -60,7 +61,7 @@ def test_zip_contents_scrubbed(tmp_path):
     dest.mkdir()
     path = build_support_zip(dest, f"rel {TOKEN}", logs, config, NOW, HOME, "Alexandre")
     with zipfile.ZipFile(path) as z:
-        log = z.read("agent.log").decode()
+        log = z.read("logs/agent.log").decode()
         rel = z.read("relatorio.txt").decode()
     assert "[oculto]" in log and TOKEN not in log and "[oculto]" in rel
     assert "%USERPROFILE%\\AppData" in log
@@ -86,11 +87,11 @@ def test_unreadable_log_listed_and_zip_still_created(tmp_path, monkeypatch):
     dest.mkdir()
     path = build_support_zip(dest, "rel", logs, config, NOW, HOME, "Alexandre")
     with zipfile.ZipFile(path) as z:
-        assert "gpu.log" not in z.namelist()
+        assert "logs/gpu.log" not in z.namelist()
         rel = z.read("relatorio.txt").decode()
-        assert "agent.log" in z.namelist()
+        assert "logs/agent.log" in z.namelist()
     assert "[Arquivos que ficaram de fora]" in rel
-    assert "gpu.log" in rel and "em uso" in rel
+    assert "logs/gpu.log" in rel and "em uso" in rel
 
 
 def test_choose_dest_falls_back_to_documents_then_logs(tmp_path):
@@ -166,3 +167,44 @@ def test_known_folders_none_outside_windows():
     if sys.platform != "win32":
         assert folders.desktop_dir() is None and folders.documents_dir() is None
 
+
+
+def test_failed_build_leaves_no_partial_file(tmp_path, monkeypatch):
+    from pcx_agent.diagnostics import support
+
+    logs, config = _setup(tmp_path)
+    dest = tmp_path / "out"
+    dest.mkdir()
+
+    def boom(*args):
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr(support, "scrub", boom)
+    with pytest.raises(OSError):
+        build_support_zip(dest, "rel", logs, config, NOW, HOME, "Alexandre")
+    assert list(dest.iterdir()) == []
+
+
+def test_report_extra_driver_and_source_by_luid(tmp_path):
+    from pcx_agent.sensors.base import GpuReading, Snapshot
+
+    class Provider(FakeSensorProvider):
+        def __init__(self):
+            super().__init__()
+            self.temperature_source = {"0x0_0x1": "driver"}
+
+        def adapter_drivers(self):
+            return {"0x0_0x1": "31.0.101.5"}
+
+    gpu = GpuReading(id="luid_0x0_0x1_phys_0", name="Placa X", usage_percent=1, vram_total_bytes=1, vendor="amd")
+    snap = Snapshot(
+        t=NOW, cpu_total=1, ram_percent=1, ram_used_bytes=1, ram_total_bytes=2, disks=[], disk_read_bps=0,
+        disk_write_bps=0, net_down_bps=0, net_up_bps=0, gpus=[gpu], host_name="PC", uptime_s=1,
+    )
+    ctx = build_context(load_settings(data_dir=tmp_path), Provider())
+    try:
+        sources = dataclasses.replace(_sources()(), reading=lambda: (snap, None))
+        controller = AgentController(ctx, 8765, diagnostics_sources=lambda: sources)
+        assert "Placa X: driver 31.0.101.5, temperatura por driver" in controller.diagnostics_report([])
+    finally:
+        ctx.db.close()

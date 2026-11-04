@@ -109,21 +109,26 @@ class DiagnosticsWindow(BaseWindow):
             self.status.configure(text=texts.DIAG_PATH_COPIED, fg=COLORS["ok"])
             return
         if fix == "salvar_pacote":
-            self.save_package()
+            if str(self.save_button.cget("state")) != "disabled":  # um pacote por vez
+                self.save_package()
             return
         # O pedido de administrador segura a chamada: fora da thread da interface.
         done = in_background(lambda: self.controller.apply_fix(fix))
         if fix == "abrir_rede":
             self._rerun_on_focus = True  # ao voltar das Configuracoes de rede
         else:
-            self.after(POLL_MS, self._after_fix, done)  # a correcao terminou: verifica de novo
+            self.after(POLL_MS, self._when_done, done, self._after_fix)  # a correcao terminou: verifica de novo
 
-    def _after_fix(self, done: Future) -> None:
+    def _when_done(self, future: Future, then: Callable[[Future], None]) -> None:
+        """Espera a tarefa em segundo plano sem travar a interface; depois chama `then`."""
         if not self.winfo_exists():
             return
-        if not done.done():
-            self.after(POLL_MS, self._after_fix, done)
+        if not future.done():
+            self.after(POLL_MS, self._when_done, future, then)
             return
+        then(future)
+
+    def _after_fix(self, done: Future) -> None:
         self.run()
         message = getattr(self.controller, "last_fix_message", None)
         if message:
@@ -140,14 +145,9 @@ class DiagnosticsWindow(BaseWindow):
         self.save_button.configure(state="disabled")
         self.status.configure(text=texts.DIAG_SAVING, fg=COLORS["text"])
         saving = in_background(lambda: self.controller.save_support_package(self.results))
-        self.after(POLL_MS, self._after_save, saving)
+        self.after(POLL_MS, self._when_done, saving, self._after_save)
 
     def _after_save(self, saving: Future) -> None:
-        if not self.winfo_exists():
-            return
-        if not saving.done():
-            self.after(POLL_MS, self._after_save, saving)
-            return
         self.save_button.configure(state="normal")
         try:
             path = saving.result()
