@@ -343,9 +343,15 @@ class _DiagnosticsController:
     def diagnostics_report(self, results):
         return f"relatorio com {len(results)} itens"
 
+    last_fix_message = None
+    program = r"C:\Programa\PcXControl.exe"
+
     def apply_fix(self, fix):
         self.fixes.append(fix)
         return True
+
+    def program_path(self):
+        return self.program
 
 
 def _diag_results():
@@ -481,4 +487,57 @@ def test_firewall_fix_runs_in_background_and_checks_again_when_done(root):
         time.sleep(0.02)
     assert controller.fixes == ["criar_firewall"]
     assert controller.runs == 2  # verificou de novo sem precisar voltar o foco
+    window.close()
+
+
+def test_rows_show_new_fix_buttons(root):
+    from pcx_agent.diagnostics.model import CheckResult
+    from pcx_agent.tray import texts
+
+    results = [
+        CheckResult("sensores.leitura", "Sensores", "Leitura", "problema", "Parada.", "reiniciar_sensores"),
+        CheckResult("agente.local", "Agente acessível", "Agente", "problema", "Fora.", "reiniciar_servidor"),
+        CheckResult("agente.porta", "Agente acessível", "Porta", "problema", "Em uso.", "trocar_porta"),
+        CheckResult("antivirus.terceiros", "Antivírus", "Avast", "atencao", "Libere.", "copiar_caminho"),
+    ]
+    window = _open_diagnostics(root, _DiagnosticsController(results))
+    assert [b.cget("text") for b in window.results_list.fix_buttons] == [
+        texts.DIAG_FIX_SENSORS, texts.DIAG_FIX_RESTART, texts.DIAG_FIX_PORT, texts.DIAG_FIX_COPY_PATH,
+    ]
+    window.close()
+
+
+def test_copy_path_puts_exe_in_clipboard(root):
+    from pcx_agent.diagnostics.model import CheckResult
+    from pcx_agent.tray import texts
+
+    results = [CheckResult("antivirus.terceiros", "Antivírus", "Avast", "atencao", "Libere.", "copiar_caminho")]
+    controller = _DiagnosticsController(results)
+    window = _open_diagnostics(root, controller)
+    window.results_list.fix_buttons[0].invoke()
+    assert root.clipboard_get() == controller.program
+    assert window.status.cget("text") == texts.DIAG_PATH_COPIED
+    assert controller.fixes == []  # a janela cuida da area de transferencia
+    window.close()
+
+
+def test_any_fix_runs_diagnostics_again_and_shows_the_message(root):
+    from pcx_agent.diagnostics.model import CheckResult
+
+    results = [CheckResult("agente.porta", "Agente acessível", "Porta", "problema", "Em uso.", "trocar_porta")]
+    controller = _DiagnosticsController(results)
+    controller.last_fix_message = "Porta trocada para 8766."
+    window = _open_diagnostics(root, controller)
+    window.results_list.fix_buttons[0].invoke()
+    deadline = time.monotonic() + 5
+    while controller.runs < 2 and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.02)
+    for _ in range(10):
+        root.update()
+        time.sleep(0.02)
+    assert controller.fixes == ["trocar_porta"]
+    assert controller.runs == 2
+    assert window.status.cget("text") == "Porta trocada para 8766."
+    assert controller.last_fix_message is None  # mostrada uma vez
     window.close()

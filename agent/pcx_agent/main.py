@@ -134,7 +134,7 @@ def run_tray(args) -> int:
             logger.warning("Porta %s em uso; seguindo sem servidor", settings.port)
         from pcx_agent.tray.app import TrayApp
 
-        controller = AgentController(ctx, settings.port)
+        controller = AgentController(ctx, settings.port, server=server)
         autostart = AutoStart(WinRegistryRunStore(), launch_command())
         return TrayApp(settings, server, controller, autostart).run()
     except Exception:

@@ -63,5 +63,8 @@ class FakeSensorProvider:
         self._step += 1
         return snapshot
 
+    def reset_sensors(self) -> None:
+        return None
+
     def close(self) -> None:
         return None

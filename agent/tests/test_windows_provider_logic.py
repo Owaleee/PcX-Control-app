@@ -312,3 +312,12 @@ def test_capabilities_never_touch_the_hardware(make):
     for _ in range(3):
         assert "gpu.temp" in provider.capabilities()
     assert len(FakeD3d.instances[0].asked) == asked
+
+
+def test_reset_sensors_reopens_now(make):
+    provider, _ = make()
+    first = (FakePdh.instances[0], FakeNvml.instances[0], FakeD3d.instances[0])
+    provider.reset_sensors()  # sem esperar a janela de 60 s
+    assert all(resource.closed for resource in first)
+    assert (len(FakePdh.instances), len(FakeNvml.instances), len(FakeD3d.instances)) == (2, 2, 2)
+    assert provider.read().gpus[0].usage_percent == 42.0

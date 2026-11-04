@@ -25,6 +25,7 @@ from pcx_agent.sensors.base import GpuReading, Snapshot
 logger = logging.getLogger("pcx_agent.diagnostics")
 PROBE_TIMEOUT_S = 3.0
 # Verificacoes baratas, sem PowerShell nem rede: rodam logo e a qualquer hora.
+SENSORS_STOPPED = "Sensores parados enquanto o agente não está na rede."
 QUICK_CHECKS = frozenset({"rede.ip", "rede.tipo", "sensores.leitura"})
 
 
@@ -81,6 +82,8 @@ def run_all(sources: Sources, only: set[str] | None = None) -> list[CheckResult]
     address = f"{chosen.ipv4 if chosen else '127.0.0.1'}:{sources.port}"
 
     def reading() -> list[CheckResult]:
+        if not sources.server_state()[1]:  # o sampler so roda dentro do servidor
+            return [CheckResult("sensores.leitura", GROUP_SENSORS, "Leitura dos sensores", "info", SENSORS_STOPPED)]
         snapshot, error = sources.reading()
         return checks.check_reading(snapshot, error, age_s=sources.reading_age())
 

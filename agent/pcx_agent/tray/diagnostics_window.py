@@ -70,6 +70,7 @@ class DiagnosticsWindow(BaseWindow):
         self.results: list[CheckResult] = []
         self._running: Future | None = None
         self._rerun_on_focus = False
+        self._fix_message: str | None = None
         self.bind("<FocusIn>", self._focus_back)
         self.run()
 
@@ -95,16 +96,23 @@ class DiagnosticsWindow(BaseWindow):
             self.status.configure(text=texts.DIAG_SUMMARY_PROBLEMS.format(n=1), fg=COLORS["danger"])
             return
         text, color = summary(self.results)
+        if self._fix_message:  # o aviso da correcao ocupa o lugar do resumo uma vez
+            text, color, self._fix_message = self._fix_message, "ok", None
         self.status.configure(text=text, fg=COLORS[color])
         self.results_list.show(self.results)
 
     def _fix(self, fix: str) -> None:
+        if fix == "copiar_caminho":  # area de transferencia do Tk: so na thread da interface
+            self.clipboard_clear()
+            self.clipboard_append(self.controller.program_path())
+            self.status.configure(text=texts.DIAG_PATH_COPIED, fg=COLORS["ok"])
+            return
         # O pedido de administrador segura a chamada: fora da thread da interface.
         done = in_background(lambda: self.controller.apply_fix(fix))
-        if fix == "criar_firewall":
-            self.after(POLL_MS, self._after_fix, done)  # o netsh terminou: verifica de novo
-        else:
+        if fix == "abrir_rede":
             self._rerun_on_focus = True  # ao voltar das Configuracoes de rede
+        else:
+            self.after(POLL_MS, self._after_fix, done)  # a correcao terminou: verifica de novo
 
     def _after_fix(self, done: Future) -> None:
         if not self.winfo_exists():
@@ -113,6 +121,10 @@ class DiagnosticsWindow(BaseWindow):
             self.after(POLL_MS, self._after_fix, done)
             return
         self.run()
+        message = getattr(self.controller, "last_fix_message", None)
+        if message:
+            self.controller.last_fix_message = None
+            self._fix_message = message
 
     def _focus_back(self, event) -> None:
         if event.widget is self and self._rerun_on_focus:

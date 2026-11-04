@@ -90,6 +90,19 @@ class WindowsSensorProvider:
             self._d3d = self._open(d3dkmt.D3dkmtTemperatures, "D3DKMT", quiet=True)
             self._d3d_retry_at = now + RETRY_S
 
+    def reset_sensors(self) -> None:
+        """Fecha e reabre PDH, NVML e D3DKMT na hora (correcao "Reiniciar sensores")."""
+        self.close()
+        self._pdh = self._open(native.PdhGpuCounters, "contadores de GPU")
+        self._nvml = self._open(native.NvmlTemperatures, "temperatura NVIDIA (NVML)")
+        self._d3d = self._open(d3dkmt.D3dkmtTemperatures, "temperatura pelo driver (D3DKMT)")
+        now = self._clock()
+        self._pdh_retry_at = self._nvml_retry_at = self._d3d_retry_at = now + RETRY_S
+        self._adapters_at = float("-inf")
+        self._driver_has_temp = False
+        if self._d3d is not None:
+            self._probe_driver_temperature()
+
     def capabilities(self) -> set[str]:
         caps = {"cpu", "ram", "disk", "net"}
         if self._pdh is not None:
@@ -223,4 +236,8 @@ class WindowsSensorProvider:
     def close(self) -> None:
         for resource in (self._pdh, self._nvml, self._d3d):
             if resource is not None:
-                resource.close()
+                try:
+                    resource.close()
+                except Exception:
+                    logger.debug("Falha ao fechar um sensor", exc_info=True)
+        self._pdh = self._nvml = self._d3d = None

@@ -4,11 +4,36 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path, PureWindowsPath
+
+from pcx_agent.server import PortInUseError, _ensure_port_free
 
 logger = logging.getLogger("pcx_agent.diagnostics")
 NETWORK_SETTINGS_URI = "ms-settings:network-status"
 FIREWALL_SCRIPT = "firewall.cmd"  # instalado ao lado do .exe (packaging/installer.iss)
+PORT_ATTEMPTS = 20
+
+
+def port_is_free(port: int, host: str = "0.0.0.0") -> bool:
+    """Mesmo teste de bind que o servidor faz antes de subir."""
+    try:
+        _ensure_port_free(host, port)
+    except PortInUseError:
+        return False
+    except OSError:
+        return False
+    return True
+
+
+def find_free_port(
+    start: int, attempts: int = PORT_ATTEMPTS, is_free: Callable[[int], bool] = port_is_free
+) -> int | None:
+    """Primeira porta livre a partir de `start`; None depois de `attempts` tentativas."""
+    for port in range(start, min(start + attempts, 65536)):
+        if is_free(port):
+            return port
+    return None
 
 
 def open_network_settings() -> bool:

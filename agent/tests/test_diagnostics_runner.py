@@ -226,10 +226,9 @@ def test_quick_checks_ids():
 
 
 def test_reading_age_and_server_state_reach_the_checks():
-    results = runner.run_all(
-        sources(reading_age=lambda: 45.0, server_state=lambda: ("port_in_use", False)),
-        only={"sensores.leitura", "agente.local"},
+    stale = runner.run_all(sources(reading_age=lambda: 45.0), only={"sensores.leitura"})
+    assert by_id(stale)["sensores.leitura"][0].fix == "reiniciar_sensores"
+    down = runner.run_all(
+        sources(server_state=lambda: ("port_in_use", False)), only={"agente.local"}
     )
-    found = by_id(results)
-    assert found["sensores.leitura"][0].fix == "reiniciar_sensores"
-    assert found["agente.local"][0].fix == "trocar_porta"
+    assert by_id(down)["agente.local"][0].fix == "trocar_porta"
