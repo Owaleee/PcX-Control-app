@@ -14,6 +14,54 @@ conversam pelo **protocolo**, versionado à parte (hoje: `protocol: 1`).
 ### Planejado
 - Versão `1.0.0` (agente e app): lançamento público, com README e GIF do modo painel.
 
+## [agente 0.6.0] - 2026-11-04
+
+Suporte mais fácil: o agente confere a conexão sozinho, avisa na bandeja e monta um pacote para
+quem está ajudando. Compatível com o app 0.2.0 ou mais novo (protocolo 1).
+
+### Adicionado
+- **Verificação automática** a cada 5 minutos (a primeira 10 segundos depois de abrir). Se algo
+  sai do normal, o ícone da bandeja muda, chega uma notificação (no máximo uma a cada 10 minutos)
+  e o clique duplo no ícone passa a abrir **Verificar conexão**.
+- **Pacote de suporte** (`.zip`) no lugar do **Copiar relatório**: relatório do diagnóstico, logs
+  e versões, sem banco de dados, senha, código, token nem o nome do usuário do Windows.
+- Novas verificações e correções num clique no **Verificar conexão**: leitura de sensores parada
+  (mais de 30 s sem leitura nova) com **Reiniciar sensores**, porta ocupada por outro programa com
+  **Trocar porta** (tenta de `porta + 1` até 20 vezes), antivírus de terceiros e **Copiar caminho**
+  da pasta de logs. A janela também mostra se o servidor do agente está no ar.
+- **Aviso de fechamento inesperado** na abertura seguinte, com o horário da última atividade.
+  Reiniciar ou desligar o PC não conta como fechamento inesperado.
+- `crash.log` com um arquivo por travamento (ficam os 10 mais recentes).
+- `gpu.log` (2 arquivos de 512 KiB) com a versão do driver e de onde vem a temperatura de cada
+  placa de vídeo.
+- `temp_warn_c` em cada GPU no protocolo (temperatura de alerta informada pelo driver), como
+  acréscimo opcional.
+- Variável `PCX_TEST_PROTOCOL`, só no modo `--demo`, para testar o aviso "Atualize" do app.
+
+### Mudado
+- A placa de rede é escolhida pelo tipo e pela descrição do driver, não só pelo nome: VPNs
+  renomeadas (Radmin, por exemplo) e adaptadores do Hyper-V e do WSL deixam de ser confundidos
+  com a rede local.
+- A falha de um sensor só é avisada depois que a leitura foi publicada, e pedidos de
+  verificação feitos ao mesmo tempo se juntam numa só rodada.
+
+### Corrigido
+- O `crash.log` só era cortado ao iniciar; agora é mantido durante a execução.
+- A linha de início do log agora diz de onde vem a temperatura de cada placa.
+- VPN com nome desconhecido ou renomeado podia entrar no QR code no lugar da rede local.
+
+## [app 0.5.0] - 2026-11-04
+
+Compatível com o agente 0.2.0 ou mais novo (protocolo 1). A temperatura de alerta da GPU
+(`temp_warn_c`) vem do agente 0.6.0; sem ela, nada muda na tela.
+
+### Adicionado
+- **Aviso de versão:** se o PC anuncia um protocolo mais novo que o do app, a tela mostra
+  "Atualize o app" com o botão para baixar a versão nova, no pareamento, na tela do PC e no modo
+  painel, em vez de só falhar. Se o PC é que anuncia um protocolo mais antigo, o aviso pede para
+  atualizar o programa no PC. Os dois mostram a versão do agente.
+- O app lê `temp_warn_c` de cada GPU (campo opcional).
+
 ## [agente 0.5.0] - 2026-11-03
 
 Diagnóstico de conexão, registro de travamentos e temperatura da GPU em placas AMD e Intel.

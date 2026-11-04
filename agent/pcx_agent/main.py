@@ -10,13 +10,14 @@ import logging
 import sys
 import tempfile
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import psutil
 
 from pcx_agent import __version__
 from pcx_agent.api.app import build_context
-from pcx_agent.config import DEFAULT_PORT, default_data_dir, load_settings
+from pcx_agent.config import DEFAULT_PORT, announced_protocol, default_data_dir, load_settings
 from pcx_agent.controller import NO_NETWORK_WARNING
 from pcx_agent.crashlog import install_crash_logging, log_startup, previous_session
 from pcx_agent.logs import setup_logging
@@ -75,6 +76,7 @@ def run_console(args) -> int:
     install_crash_logging(data_dir / "logs")
     log_startup()
     settings = load_settings(data_dir=data_dir, port=args.port)
+    settings = replace(settings, protocol=announced_protocol(args.demo))
     ctx = build_context(settings, _provider(args.demo))
     try:
         if not ctx.passwords.is_set():

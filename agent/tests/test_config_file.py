@@ -92,3 +92,39 @@ def test_save_port_read_only_folder_returns_false(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "replace", refuse)
     assert save_port(path, 8770) is False
     assert json.loads(path.read_text(encoding="utf-8")) == {"port": 8765}
+
+
+def test_announced_protocol_ignores_env_outside_demo():
+    from pcx_agent.config import announced_protocol
+
+    assert announced_protocol(False, {"PCX_TEST_PROTOCOL": "2"}) == 1
+
+
+@pytest.mark.parametrize(("raw", "expected"), [("2", 2), (" 3 ", 3), ("", 1), ("x", 1), ("0", 1), ("-2", 1)])
+def test_announced_protocol_in_demo(raw, expected):
+    from pcx_agent.config import announced_protocol
+
+    assert announced_protocol(True, {"PCX_TEST_PROTOCOL": raw}) == expected
+    assert announced_protocol(True, {}) == 1
+
+
+def test_settings_protocol_reaches_info_and_hello(tmp_path):
+    from dataclasses import replace
+
+    from starlette.testclient import TestClient
+
+    from pcx_agent.api.app import build_context, create_app
+    from pcx_agent.sensors.fake import FakeSensorProvider
+
+    settings = replace(load_settings(data_dir=tmp_path), protocol=2)
+    ctx = build_context(settings, FakeSensorProvider(seed=1))
+    try:
+        with TestClient(create_app(ctx)) as client:
+            assert client.get("/v1/info").json()["protocol"] == 2
+            paired = client.post("/v1/pair", json={"device_name": "X", "code": ctx.pairing.new_code()}).json()
+            assert paired["agent"]["protocol"] == 2
+            with client.websocket_connect("/v1/stream") as ws:
+                ws.send_json({"type": "auth", "token": paired["token"]})
+                assert ws.receive_json()["protocol"] == 2
+    finally:
+        ctx.db.close()

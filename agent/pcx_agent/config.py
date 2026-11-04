@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from pcx_agent import __version__
+from pcx_agent import PROTOCOL, __version__
 
 DEFAULT_PORT = 8765
 CONFIG_FILE = "config.json"
@@ -20,6 +20,7 @@ class Settings:
     data_dir: Path
     port: int = DEFAULT_PORT
     version: str = __version__
+    protocol: int = PROTOCOL
 
     @property
     def config_path(self) -> Path:
@@ -65,6 +66,14 @@ def load_settings(data_dir: Path | None = None, port: int | None = None) -> Sett
     folder.mkdir(parents=True, exist_ok=True)
     file_port = _port_from_file(folder / CONFIG_FILE)
     return Settings(data_dir=folder, port=port if port is not None else file_port)
+
+
+def announced_protocol(demo: bool, environ: dict[str, str] | None = None) -> int:
+    """Protocolo anunciado. PCX_TEST_PROTOCOL so vale em --demo (teste do aviso "Atualize" do app)."""
+    raw = (os.environ if environ is None else environ).get("PCX_TEST_PROTOCOL", "").strip()
+    if not demo or not raw.isdigit() or int(raw) < 1:
+        return PROTOCOL
+    return int(raw)
 
 
 def save_port(path: Path, port: int) -> bool:

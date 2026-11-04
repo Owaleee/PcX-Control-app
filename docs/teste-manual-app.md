@@ -45,9 +45,17 @@ cd agent
 | A19 | Marcar a rede como Pública e verificar de novo | "Tipo de rede no Windows: Problema" com "Abrir configurações de rede"; ao mudar para Privada e voltar à janela, verifica de novo sozinho |
 | A20 | Apagar a regra "PcX Control - agente" e verificar | "Regra do firewall: Problema"; "Criar regra do firewall" pede administrador e, ao voltar, fica OK |
 | A21 | Com a Radmin VPN ligada, verificar | "VPN: Atenção" com o nome da Radmin |
-| A22 | Copiar relatório e colar no bloco de notas | Versões, resultados, placas de rede e de vídeo; sem senha, código ou token |
+| A22 | Salvar pacote de suporte (agente 0.6.0; antes era "Copiar relatório") e abrir o `.zip` | Relatório com versões, resultados, placas de rede e de vídeo, e os logs; sem senha, código ou token |
 | A23 | PC com placa AMD (RX 7600): comparar com o Gerenciador de Tarefas por 2 min, com e sem jogo | Uso da GPU a até 5 pontos e temperatura a até 2 °C do Gerenciador |
 | A24 | Conferir a pasta `logs` depois de abrir o agente | `crash.log` com o cabeçalho da versão; `agent.log` com as linhas "Placa de video:" e a de início com as versões |
+| A25 | Marcar a rede como Pública e apagar a regra do firewall, sem abrir a janela | Em até 5 minutos o ícone da bandeja muda e chega **uma** notificação; o clique duplo no ícone abre o Verificar conexão. Corrigir os dois apaga o alerta e o clique duplo volta a abrir "Parear celular" |
+| A26 | Verificar conexão → Reiniciar sensores | Os sensores voltam em poucos segundos e o app continua recebendo leituras |
+| A27 | Abrir outro programa na porta 8765 (por exemplo `python -m http.server 8765`), fechar o agente e abri-lo de novo | O agente avisa que a porta está ocupada; **Trocar porta** escolhe a próxima livre, o QR passa a usar a nova e o celular pareia de novo |
+| A28 | Verificar conexão → Copiar caminho | O caminho da pasta de logs vai para a área de transferência (colar no Explorer abre a pasta) |
+| A29 | Salvar pacote de suporte e abrir o `.zip` | Tem relatório, `agent.log`, `crash.log` e `gpu.log`; **não** tem arquivo `.db`; procurar o nome do seu usuário do Windows em todos os arquivos não acha nada |
+| A30 | Renomear a placa da Radmin VPN (ou outra VPN) para "casa" e verificar | "VPN: Atenção" com o nome novo, e o QR continua com o IP do Wi-Fi ou Ethernet |
+| A31 | Encerrar o PcXControl.exe pelo Gerenciador de Tarefas e abrir de novo | Aparece "O agente fechou inesperadamente" com o horário da última atividade |
+| A32 | Reiniciar o PC (com e sem "Iniciar com o Windows") | **Sem** o aviso de fechamento inesperado |
 
 ## Roteiro
 
@@ -80,6 +88,13 @@ cd agent
 | 24 | Configurações → Alertas: mudar "Temperatura alta" para 60 | Com a GPU acima de 60 °C, o selo aparece sem reiniciar o app; número fora da faixa mostra o erro e não salva |
 | 25 | Desligar "Cores de alerta" | Modo painel e tela do PC sem cores, selos nem bordas; ao religar, os limites escolhidos voltam |
 | 26 | Celular deitado na tela do PC e no pareamento | Cartões em duas colunas; o quadro da câmera cabe na tela |
+| 27 | App com um agente de teste que anuncia `protocol: 2` (veja abaixo) | No pareamento e na tela do PC aparece "Este PC usa uma versão mais nova do PcX Control. Atualize o app." com o botão de baixar; o modo painel mostra o mesmo aviso; nada fica carregando para sempre |
+
+**Agente de teste com `protocol: 2` (item 27).** Em qualquer computador com o código do agente,
+rode `PCX_TEST_PROTOCOL=2 python -m pcx_agent --demo` (no Windows, `set PCX_TEST_PROTOCOL=2` antes).
+A variável só vale com `--demo`: sem ele, ou com o valor vazio, menor que 1 ou que não seja
+número, o agente anuncia o protocolo real (1). Pareie o app pelo QR ou pelo IP com a senha
+`demo-password`. Não use isto no agente instalado.
 
 Anote o modelo do celular, a versão do Android e a versão do Windows junto com o resultado.
 
