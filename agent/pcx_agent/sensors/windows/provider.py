@@ -1,7 +1,9 @@
 """SensorProvider real para Windows (psutil + PDH + DXGI + D3DKMT + NVML)."""
 
+import functools
 import logging
 import socket
+import threading
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -24,6 +26,17 @@ RETRY_S = 60.0
 MAX_INSTANCES = 500
 
 
+def _locked(method):
+    """Serializa o metodo com os demais: o sampler le numa thread e a janela reinicia noutra."""
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
 def _luid_of(reading_id: str) -> str:
     """'luid_0x..._0x..._phys_0' -> '0x..._0x...'."""
     return reading_id.removeprefix("luid_").split("_phys_")[0]
@@ -36,6 +49,7 @@ def _pct(value: float) -> float:
 class WindowsSensorProvider:
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
         self._clock = clock
+        self._lock = threading.RLock()
         psutil.cpu_percent(interval=None)  # a primeira chamada devolve 0 e serve de referencia
         self._net = psutil.net_io_counters()
         self._disk_io = psutil.disk_io_counters()
@@ -90,6 +104,7 @@ class WindowsSensorProvider:
             self._d3d = self._open(d3dkmt.D3dkmtTemperatures, "D3DKMT", quiet=True)
             self._d3d_retry_at = now + RETRY_S
 
+    @_locked
     def reset_sensors(self) -> None:
         """Fecha e reabre PDH, NVML e D3DKMT na hora (correcao "Reiniciar sensores")."""
         self.close()
@@ -103,6 +118,7 @@ class WindowsSensorProvider:
         if self._d3d is not None:
             self._probe_driver_temperature()
 
+    @_locked
     def capabilities(self) -> set[str]:
         caps = {"cpu", "ram", "disk", "net"}
         if self._pdh is not None:
@@ -204,6 +220,7 @@ class WindowsSensorProvider:
             for r in readings
         ]
 
+    @_locked
     def read(self) -> Snapshot:
         now = time.monotonic()
         elapsed = max(now - self._last, 1e-3)
@@ -233,6 +250,7 @@ class WindowsSensorProvider:
             uptime_s=max(0.0, time.time() - psutil.boot_time()),
         )
 
+    @_locked
     def close(self) -> None:
         for resource in (self._pdh, self._nvml, self._d3d):
             if resource is not None:

@@ -502,7 +502,7 @@ def test_rows_show_new_fix_buttons(root):
     ]
     window = _open_diagnostics(root, _DiagnosticsController(results))
     assert [b.cget("text") for b in window.results_list.fix_buttons] == [
-        texts.DIAG_FIX_SENSORS, texts.DIAG_FIX_RESTART, texts.DIAG_FIX_PORT, texts.DIAG_FIX_COPY_PATH,
+        texts.DIAG_FIX_RESTART, texts.DIAG_FIX_PORT, texts.DIAG_FIX_COPY_PATH, texts.DIAG_FIX_SENSORS,
     ]
     window.close()
 

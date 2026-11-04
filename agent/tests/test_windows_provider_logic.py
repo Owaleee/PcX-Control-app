@@ -321,3 +321,32 @@ def test_reset_sensors_reopens_now(make):
     assert all(resource.closed for resource in first)
     assert (len(FakePdh.instances), len(FakeNvml.instances), len(FakeD3d.instances)) == (2, 2, 2)
     assert provider.read().gpus[0].usage_percent == 42.0
+
+
+def test_reset_sensors_waits_for_an_in_flight_read(make):
+    import threading
+
+    provider, _ = make()
+    inside, release = threading.Event(), threading.Event()
+    original = FakePdh.instances[0].read
+
+    def slow_read():
+        inside.set()
+        release.wait(5)
+        return original()
+
+    FakePdh.instances[0].read = slow_read
+    reading = threading.Thread(target=provider.read)
+    reading.start()
+    assert inside.wait(5)
+    resetting = threading.Thread(target=provider.reset_sensors)
+    resetting.start()
+    resetting.join(0.3)
+    assert resetting.is_alive()  # espera a leitura em andamento
+    assert FakePdh.instances[0].closed is False
+    release.set()
+    reading.join(5)
+    resetting.join(5)
+    assert not resetting.is_alive()
+    assert FakePdh.instances[0].closed is True
+    assert len(FakePdh.instances) == 2
