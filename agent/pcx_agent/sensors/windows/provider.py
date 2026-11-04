@@ -141,8 +141,9 @@ class WindowsSensorProvider:
         if self._d3d is not None:
             self._probe_driver_temperature()
 
-    @_locked
     def capabilities(self) -> set[str]:
+        # Sem o lock de proposito: roda no laco do servidor e so le atributos; um driver
+        # travado numa leitura nao pode congelar o servidor.
         caps = {"cpu", "ram", "disk", "net"}
         if self._pdh is not None:
             caps.add("gpu")

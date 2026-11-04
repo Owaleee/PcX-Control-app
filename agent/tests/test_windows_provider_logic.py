@@ -453,3 +453,30 @@ def test_take_failure_reports_once_per_logged_failure(make):
     assert provider.take_failure() is False  # limpa ao consultar
     provider.read()  # dentro do intervalo do log: nao marca de novo
     assert provider.take_failure() is False
+
+
+def test_capabilities_answer_while_another_thread_holds_the_lock(make):
+    """capabilities() roda no laco do servidor: um driver travado na leitura nao pode congela-lo."""
+    import threading
+
+    provider, _ = make()
+    holding, release = threading.Event(), threading.Event()
+
+    def hold():
+        with provider._lock:
+            holding.set()
+            release.wait(5)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    try:
+        assert holding.wait(5)
+        result: list[set[str]] = []
+        asking = threading.Thread(target=lambda: result.append(provider.capabilities()))
+        asking.start()
+        asking.join(0.5)
+        assert not asking.is_alive()
+        assert "gpu" in result[0]
+    finally:
+        release.set()
+        holder.join(5)
