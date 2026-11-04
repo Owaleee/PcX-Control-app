@@ -17,6 +17,7 @@ from pcx_agent.tray.widgets import (
     primary_button,
     secondary_button,
 )
+from pcx_agent.winsys import folders
 
 POLL_MS = 150
 logger = logging.getLogger("pcx_agent.tray")
@@ -62,8 +63,8 @@ class DiagnosticsWindow(BaseWindow):
         self.results_list = ResultList(self.body, self._fix)
         self.results_list.pack(fill="both", expand=True)
         row = button_row(self.body)
-        self.copy_button = secondary_button(row, texts.DIAG_COPY, self.copy_report)
-        self.copy_button.pack(side="left")
+        self.save_button = secondary_button(row, texts.DIAG_SAVE_PACKAGE, self.save_package)
+        self.save_button.pack(side="left")
         primary_button(row, texts.CLOSE, self.close).pack(side="right")
         self.again_button = secondary_button(row, texts.DIAG_AGAIN, self.run)
         self.again_button.pack(side="right", padx=(0, SPACE[1]))
@@ -107,6 +108,9 @@ class DiagnosticsWindow(BaseWindow):
             self.clipboard_append(self.controller.program_path())
             self.status.configure(text=texts.DIAG_PATH_COPIED, fg=COLORS["ok"])
             return
+        if fix == "salvar_pacote":
+            self.save_package()
+            return
         # O pedido de administrador segura a chamada: fora da thread da interface.
         done = in_background(lambda: self.controller.apply_fix(fix))
         if fix == "abrir_rede":
@@ -131,10 +135,29 @@ class DiagnosticsWindow(BaseWindow):
             self._rerun_on_focus = False
             self.run()
 
-    def copy_report(self) -> None:
-        self.clipboard_clear()
-        self.clipboard_append(self.controller.diagnostics_report(self.results))
-        self.status.configure(text=texts.DIAG_COPIED, fg=COLORS["ok"])
+    def save_package(self) -> None:
+        """Monta o zip fora da thread da interface; depois mostra a pasta e verifica de novo."""
+        self.save_button.configure(state="disabled")
+        self.status.configure(text=texts.DIAG_SAVING, fg=COLORS["text"])
+        saving = in_background(lambda: self.controller.save_support_package(self.results))
+        self.after(POLL_MS, self._after_save, saving)
+
+    def _after_save(self, saving: Future) -> None:
+        if not self.winfo_exists():
+            return
+        if not saving.done():
+            self.after(POLL_MS, self._after_save, saving)
+            return
+        self.save_button.configure(state="normal")
+        try:
+            path = saving.result()
+        except Exception:
+            logger.exception("Pacote de suporte falhou")
+            self.status.configure(text=texts.DIAG_PACKAGE_FAILED, fg=COLORS["danger"])
+            return
+        folders.reveal(path)
+        self._fix_message = texts.DIAG_PACKAGE_SAVED.format(nome=path.name)
+        self.run()  # o aviso de fechamento inesperado some
 
     def primary_action(self) -> None:
         self.close()

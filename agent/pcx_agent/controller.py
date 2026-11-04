@@ -1,10 +1,15 @@
 """Logica da bandeja, sem tkinter: as janelas so chamam este controlador."""
 
+import getpass
+import os
 import platform
 import sys
 import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 
 from pcx_agent.api.app import AppContext
 from pcx_agent.auth.pairing import Device
@@ -15,6 +20,7 @@ from pcx_agent.diagnostics import fixes
 from pcx_agent.diagnostics.model import CheckResult, Fix
 from pcx_agent.diagnostics.report import ReportFacts, build_report
 from pcx_agent.diagnostics.runner import Sources, exe_path, probe_agent, run_all
+from pcx_agent.diagnostics.support import build_support_zip, choose_dest
 from pcx_agent.diagnostics.windows import read_firewall_rules, read_security_products
 from pcx_agent.network import (
     lan_address,
@@ -26,6 +32,7 @@ from pcx_agent.network import (
 )
 from pcx_agent.pairing_uri import local_ipv4, pairing_uri
 from pcx_agent.tray import texts
+from pcx_agent.winsys import folders
 
 LOOPBACK = "127.0.0.1"
 NO_NETWORK_WARNING = (
@@ -41,6 +48,17 @@ DOMAIN_NETWORK_WARNING = (
 )
 MISMATCH_MESSAGE = "As senhas não são iguais."
 SHORT_MESSAGE = f"A senha precisa ter pelo menos {MIN_LENGTH} caracteres."
+
+
+def _can_write(folder: Path) -> bool:
+    """Da para criar arquivo na pasta? Testa de verdade: a Area de Trabalho pode estar protegida."""
+    probe = folder / f".pcx-{uuid.uuid4().hex}.tmp"
+    try:
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError:
+        return False
+    return True
 
 
 class PasswordInputError(Exception):
@@ -97,12 +115,15 @@ class AgentController:
         fix_actions: dict[str, Callable[[], bool]] | None = None,
         server=None,
         previous_session: PreviousSession | None = None,
+        autostart_enabled: Callable[[], bool] | None = None,
     ) -> None:
         self._ctx = ctx
         self._port = port
         self._server = server
         self._previous_session = previous_session
+        self._autostart_enabled = autostart_enabled
         self.last_fix_message: str | None = None
+        self.last_package: Path | None = None
         # Resolvidos na chamada (e nao no padrao do parametro) para os testes trocarem o modulo.
         self._address_lookup = address_lookup or (lambda: lan_address())
         self._category_lookup = category_lookup or (lambda name: network_category(name))
@@ -114,6 +135,7 @@ class AgentController:
             "reiniciar_sensores": self._restart_sensors,
             "reiniciar_servidor": self._restart_server,
             "trocar_porta": self._change_port,
+            "salvar_pacote": self._save_package_fix,
         }
         self.on_paired: Callable[[str], None] | None = None
         ctx.pairing.on_pair = self._handle_pair
@@ -263,8 +285,62 @@ class AgentController:
             interfaces=interfaces,
             gpus=snapshot.gpus if snapshot is not None else [],
             pdh_instances=list(getattr(self._ctx.provider, "gpu_instances", [])),
+            extra=self._report_extra(snapshot),
         )
         return build_report(results, facts)
+
+    def _report_extra(self, snapshot) -> list[str]:
+        """Linhas de [PC e agente]: so contagens e versoes, nunca nomes de aparelhos."""
+        provider = self._ctx.provider
+        drivers_of = getattr(provider, "adapter_drivers", None)
+        drivers = drivers_of() if callable(drivers_of) else {}
+        sources = getattr(provider, "temperature_source", {})
+        lines = [f"CPU: {platform.processor() or 'desconhecida'}"]
+        for gpu in snapshot.gpus if snapshot is not None else []:
+            luid = gpu.id.removeprefix("luid_").split("_phys_")[0]
+            lines.append(
+                f"{gpu.name}: driver {drivers.get(gpu.id) or 'desconhecido'}, "
+                f"temperatura por {sources.get(luid, 'desconhecida')}"
+            )
+        lines.append(f"Porta: {self.port}")
+        lines.append(f"Início com o Windows: {self._autostart_text()}")
+        lines.append(f"Celulares pareados: {len(self._ctx.pairing.list_devices())}")
+        lines.append(f"Celular conectado agora: {'sim' if self._ctx.sessions.active() else 'não'}")
+        return lines
+
+    def _autostart_text(self) -> str:
+        if self._autostart_enabled is None:
+            return "desconhecido"
+        try:
+            return "sim" if self._autostart_enabled() else "não"
+        except Exception:  # noqa: BLE001 - o relatorio sai mesmo sem esta linha
+            return "desconhecido"
+
+    def save_support_package(self, results: list[CheckResult], candidates: list[Path] | None = None) -> Path:
+        """Grava o zip na Area de Trabalho (ou Documentos, ou logs) e some o aviso de fechamento."""
+        log_dir = self._ctx.settings.log_dir
+        if candidates is None:
+            candidates = [d for d in (folders.desktop_dir(), folders.documents_dir()) if d is not None]
+            candidates.append(log_dir)
+        dest = choose_dest(candidates, _can_write)
+        try:
+            home = os.path.expanduser("~")
+        except Exception:  # noqa: BLE001
+            home = ""
+        try:
+            user = getpass.getuser()
+        except Exception:  # noqa: BLE001
+            user = ""
+        path = build_support_zip(
+            dest, self.diagnostics_report(results), log_dir, self._ctx.settings.config_path,
+            datetime.now(), home, user,
+        )
+        self.clear_crash_notice()
+        return path
+
+    def _save_package_fix(self) -> bool:
+        self.last_package = self.save_support_package(self.run_diagnostics())
+        return True
 
     def apply_fix(self, fix: Fix) -> bool:
         """Abre a correcao; o diagnostico roda de novo quando a pessoa volta para a janela."""

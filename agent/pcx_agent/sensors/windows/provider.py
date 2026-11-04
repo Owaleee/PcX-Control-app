@@ -108,6 +108,11 @@ class WindowsSensorProvider:
             self._load_warnings()
 
     @_locked
+    def adapter_drivers(self) -> dict[str, str | None]:
+        """Versao do driver de cada placa, pelo mesmo id das leituras (para o relatorio)."""
+        return {key: info.driver_version for key, info in self._adapters.items()}
+
+    @_locked
     def reset_sensors(self) -> None:
         """Fecha e reabre PDH, NVML e D3DKMT na hora (correcao "Reiniciar sensores")."""
         self.close()

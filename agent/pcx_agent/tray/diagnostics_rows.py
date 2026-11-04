@@ -23,6 +23,7 @@ FIX_TEXT = {
     "reiniciar_servidor": texts.DIAG_FIX_RESTART,
     "trocar_porta": texts.DIAG_FIX_PORT,
     "copiar_caminho": texts.DIAG_FIX_COPY_PATH,
+    "salvar_pacote": texts.DIAG_FIX_SAVE_PACKAGE,
 }
 DOT = 10
 WRAP = 400

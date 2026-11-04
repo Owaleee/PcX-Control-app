@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -335,13 +336,15 @@ class _DiagnosticsController:
         self.results = results
         self.runs = 0
         self.fixes = []
+        self.saved = []
 
     def run_diagnostics(self):
         self.runs += 1
         return self.results
 
-    def diagnostics_report(self, results):
-        return f"relatorio com {len(results)} itens"
+    def save_support_package(self, results):
+        self.saved.append(len(results))
+        return Path("/tmp/PcXControl-suporte-20261103-1405.zip")
 
     last_fix_message = None
     program = r"C:\Programa\PcXControl.exe"
@@ -420,13 +423,44 @@ def test_diagnostics_fix_buttons_call_the_controller_and_rerun_on_focus(root):
     window.close()
 
 
-def test_diagnostics_copy_report_goes_to_clipboard(root):
-    from pcx_agent.tray import texts
+def test_window_save_button_replaces_copy(root, monkeypatch):
+    from pcx_agent.tray import diagnostics_window, texts
 
-    window = _open_diagnostics(root, _DiagnosticsController(_diag_results()))
-    window.copy_report()
-    assert root.clipboard_get() == "relatorio com 8 itens"
-    assert window.status.cget("text") == texts.DIAG_COPIED
+    revealed = []
+    monkeypatch.setattr(diagnostics_window.folders, "reveal", revealed.append)
+    controller = _DiagnosticsController(_diag_results())
+    window = _open_diagnostics(root, controller)
+    assert _find(window, "Copiar relatório") is None
+    assert not hasattr(window, "copy_report")
+    window.save_button.invoke()
+    assert window.status.cget("text") == texts.DIAG_SAVING
+    deadline = time.monotonic() + 5
+    while (not revealed or controller.runs < 2 or window.status.cget("text") == texts.DIAG_RUNNING) and (
+        time.monotonic() < deadline
+    ):
+        root.update()
+        time.sleep(0.02)
+    assert controller.saved == [8]
+    assert revealed == [Path("/tmp/PcXControl-suporte-20261103-1405.zip")]
+    assert window.status.cget("text") == texts.DIAG_PACKAGE_SAVED.format(nome="PcXControl-suporte-20261103-1405.zip")
+    assert controller.runs == 2  # verifica de novo depois de salvar
+    window.close()
+
+
+def test_fix_salvar_pacote_saves_like_the_button(root, monkeypatch):
+    from pcx_agent.tray import diagnostics_window
+
+    revealed = []
+    monkeypatch.setattr(diagnostics_window.folders, "reveal", revealed.append)
+    controller = _DiagnosticsController(_diag_results())
+    window = _open_diagnostics(root, controller)
+    window._fix("salvar_pacote")
+    deadline = time.monotonic() + 5
+    while not revealed and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.02)
+    assert controller.saved == [8]
+    assert "salvar_pacote" not in controller.fixes
     window.close()
 
 
@@ -434,7 +468,7 @@ def test_diagnostics_footer_buttons_are_not_cut(root):
     from pcx_agent.tray import texts
 
     window = _open_diagnostics(root, _DiagnosticsController(_diag_results()))
-    for text in (texts.DIAG_COPY, texts.DIAG_AGAIN, texts.CLOSE):
+    for text in (texts.DIAG_SAVE_PACKAGE, texts.DIAG_AGAIN, texts.CLOSE):
         assert _fully_visible(window, _find(window, text)), text
     window.close()
 
