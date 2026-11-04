@@ -57,6 +57,8 @@ class WindowsSensorProvider:
         # Falhas repetidas da GPU: no maximo uma linha por minuto por tipo.
         self._failures = RateLimitedLog(logger, interval_s=60.0, clock=clock)
         self._adapters: dict[str, AdapterInfo] = {}
+        # Temperatura de alerta por LUID: lida uma vez por lista de placas, nao a cada leitura.
+        self._warnings: dict[str, float] = {}
         self._logged_adapters: dict[str, AdapterInfo] | None = None
         # Nomes das instancias do ultimo contador de GPU, para o relatorio do diagnostico.
         self.gpu_instances: list[str] = []
@@ -103,6 +105,7 @@ class WindowsSensorProvider:
         if self._d3d is None and now >= self._d3d_retry_at:
             self._d3d = self._open(d3dkmt.D3dkmtTemperatures, "D3DKMT", quiet=True)
             self._d3d_retry_at = now + RETRY_S
+            self._load_warnings()
 
     @_locked
     def reset_sensors(self) -> None:
@@ -114,6 +117,7 @@ class WindowsSensorProvider:
         now = self._clock()
         self._pdh_retry_at = self._nvml_retry_at = self._d3d_retry_at = now + RETRY_S
         self._adapters_at = float("-inf")
+        self._warnings = {}
         self._driver_has_temp = False
         if self._d3d is not None:
             self._probe_driver_temperature()
@@ -133,6 +137,19 @@ class WindowsSensorProvider:
             self._adapters = native.list_adapters()
             self._adapters_at = now
             self._log_adapters()
+            self._load_warnings()
+
+    def _load_warnings(self) -> None:
+        """Le a temperatura de alerta de cada placa; falha aqui nunca derruba a leitura."""
+        self._warnings = {}
+        if self._d3d is None:
+            return
+        try:
+            self._warnings = self._d3d.read_warnings(list(self._adapters))
+        except Exception:  # noqa: BLE001 - opcional; registrado pelo RateLimitedLog
+            self._failures.report(
+                "d3dkmt_caps", "Falha ao ler a temperatura de alerta (D3DKMT)", exc_info=True
+            )
 
     def _probe_driver_temperature(self) -> None:
         try:
@@ -216,7 +233,12 @@ class WindowsSensorProvider:
         by_luid = self._driver_temperatures()
         by_name = self._temperatures()
         return [
-            r.model_copy(update={"temp_c": by_luid.get(_luid_of(r.id), by_name.get(r.name))})
+            r.model_copy(
+                update={
+                    "temp_c": by_luid.get(_luid_of(r.id), by_name.get(r.name)),
+                    "temp_warn_c": self._warnings.get(_luid_of(r.id)),
+                }
+            )
             for r in readings
         ]
 

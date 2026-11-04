@@ -83,3 +83,4 @@ algo sério. As funções novas entram pelo **app**. Para isso, o protocolo segu
 | --- | --- | --- |
 | 0.5.0 | `vendor` em cada item de `gpus` (`"nvidia"`, `"amd"`, `"intel"` ou `"outra"`, a partir do `VendorId` da placa) | opcional; ausente ou inválido vira `null`. Usado em relatório e log, não aparece na tela |
 | 0.5.0 | `gpus` ordenadas pela VRAM dedicada, da maior para a menor | o app continua mostrando `gpus[0]` no painel, que agora é a placa dedicada |
+| 0.6.0 | `temp_warn_c` em cada item de `gpus` (temperatura de alerta da placa, em °C, informada pelo driver) | opcional; `null` quando o driver não informa. Ausente ou inválido vira `null` |

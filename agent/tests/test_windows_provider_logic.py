@@ -67,12 +67,18 @@ class FakeD3d:
 
     instances: ClassVar[list] = []
     temps: ClassVar[dict] = {}
+    warns: ClassVar[dict] = {}
 
     def __init__(self) -> None:
         FakeD3d.instances.append(self)
         self.fail = False
         self.closed = False
         self.asked: list[list[str]] = []
+        self.asked_warnings: list[list[str]] = []
+
+    def read_warnings(self, luids):
+        self.asked_warnings.append(list(luids))
+        return {luid: t for luid, t in FakeD3d.warns.items() if luid in luids}
 
     def read(self, luids):
         self.asked.append(list(luids))
@@ -91,6 +97,7 @@ def make(monkeypatch):
     FakeNvml.broken = False
     FakeD3d.instances = []
     FakeD3d.temps = {}
+    FakeD3d.warns = {}
     monkeypatch.setattr(provider_module.native, "PdhGpuCounters", FakePdh)
     monkeypatch.setattr(provider_module.native, "NvmlTemperatures", FakeNvml)
     monkeypatch.setattr(provider_module.d3dkmt, "D3dkmtTemperatures", FakeD3d)
@@ -117,6 +124,44 @@ def test_normal_read_has_usage_vram_and_temperature(make):
     gpu = provider.read().gpus[0]
     assert (gpu.usage_percent, gpu.temp_c) == (42.0, 61.0)
     assert (gpu.vram_used_bytes, gpu.vram_total_bytes) == (2 * GIB, 8 * GIB)
+
+
+def test_provider_fills_temp_warn_by_luid(make):
+    FakeD3d.warns = {LUID: 83.0}
+    provider, _ = make()
+    assert provider.read().gpus[0].temp_warn_c == 83.0
+
+
+def test_temp_warn_is_none_when_driver_has_no_value(make):
+    provider, _ = make()
+    assert provider.read().gpus[0].temp_warn_c is None
+
+
+def test_warnings_read_once_per_adapter_list(make):
+    FakeD3d.warns = {LUID: 83.0}
+    provider, clock = make()
+    for _ in range(3):
+        provider.read()
+    assert len(FakeD3d.instances[0].asked_warnings) == 1
+    clock.now += 61  # a lista de placas e lida de novo
+    provider.read()
+    assert len(FakeD3d.instances[0].asked_warnings) == 2
+
+
+def test_reset_sensors_reads_warnings_again(make):
+    FakeD3d.warns = {LUID: 83.0}
+    provider, _ = make()
+    FakeD3d.warns = {LUID: 90.0}
+    provider.reset_sensors()
+    assert provider.read().gpus[0].temp_warn_c == 90.0
+
+
+def test_warning_failure_keeps_the_reading(make):
+    provider, clock = make()
+    FakeD3d.instances[0].read_warnings = lambda luids: (_ for _ in ()).throw(OSError("caps"))
+    clock.now += 61
+    gpu = provider.read().gpus[0]
+    assert gpu.usage_percent == 42.0 and gpu.temp_warn_c is None
 
 
 def test_nvml_failure_keeps_gpu_usage_with_none_temperature(make):
