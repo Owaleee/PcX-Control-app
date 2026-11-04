@@ -271,9 +271,8 @@ def test_run_diagnostics_reports_full_results_to_hook(make):
     assert seen[0][1] == set(ALL_CHECKS)
 
 
-def test_watch_sensor_failures_sets_provider_hook(make):
+def test_watch_sensor_failures_sets_sampler_hook(make):
     controller, _ = make()
-    controller._ctx.provider.on_sensor_failure = None
     callback = lambda: None
     controller.watch_sensor_failures(callback)
-    assert controller._ctx.provider.on_sensor_failure is callback
+    assert controller._ctx.sampler.on_sensor_failure is callback

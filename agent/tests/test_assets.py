@@ -25,3 +25,11 @@ def test_assets_path_points_to_existing_files():
 
 def test_alert_tray_png_exists():
     assert assets_path("tray-alert.png").is_file()
+
+
+def test_alert_icon_asset_exists_and_same_size():
+    with Image.open(assets_path("tray.png")) as normal, Image.open(assets_path("tray-alert.png")) as alert:
+        assert alert.size == normal.size
+        assert alert.mode == "RGBA"
+        corner = (alert.width - 6, alert.height - 6)
+        assert alert.getpixel(corner) != normal.getpixel(corner)

@@ -4,9 +4,7 @@ from concurrent.futures import Future
 from types import SimpleNamespace
 
 import pytest
-from PIL import Image
 
-from pcx_agent import assets_path
 from pcx_agent.diagnostics.model import CheckResult
 from pcx_agent.diagnostics.monitor import DiagnosticsMonitor
 from pcx_agent.diagnostics.runner import ALL_CHECKS, QUICK_CHECKS
@@ -100,19 +98,64 @@ def test_first_full_run_after_10s_then_quick_every_5min():
     assert h.maintenance_calls == 2
 
 
-def test_trigger_while_running_keeps_only_latest():
+def test_trigger_while_running_keeps_a_single_pending_request():
     h = Harness(defer=True)
     h.scheduler.trigger({"agente.local"})
     h.scheduler.trigger({"rede.ip"})
     h.scheduler.trigger({"sensores.leitura"})
     assert len(h.queued) == 1  # sem fila: uma rodada por vez
     h.finish_next()
-    assert len(h.queued) == 1  # so o pedido mais recente sobrou
+    assert len(h.queued) == 1  # um unico pedido guardado (a uniao)
     h.finish_next()
-    assert h.runs == [{"agente.local"}, {"sensores.leitura"}]
+    assert h.runs == [{"agente.local"}, {"rede.ip", "sensores.leitura"}]
     assert h.queued == []
     h.scheduler.trigger({"rede.ip"})  # livre de novo
     assert len(h.queued) == 1
+
+
+def test_pending_full_run_survives_narrower_triggers():
+    h = Harness(defer=True)
+    h.scheduler.trigger({"rede.ip"})
+    h.scheduler.trigger(None)
+    h.scheduler.trigger({"agente.local"})  # nao troca o pedido completo
+    h.finish_next()
+    h.finish_next()
+    assert h.runs == [{"rede.ip"}, None]
+
+
+def test_pending_sets_are_merged():
+    h = Harness(defer=True)
+    h.scheduler.trigger({"rede.ip"})
+    h.scheduler.trigger({"agente.local"})
+    h.scheduler.trigger({"sensores.gpu"})
+    h.finish_next()
+    h.finish_next()
+    assert h.runs == [{"rede.ip"}, {"agente.local", "sensores.gpu"}]
+
+
+def test_launch_failure_does_not_leave_scheduler_stuck():
+    h = Harness()
+    real = h.scheduler._background
+
+    def broken(work):
+        raise RuntimeError("sem thread")
+
+    h.scheduler._background = broken
+    h.scheduler.trigger({"rede.ip"})
+    h.scheduler._background = real
+    h.scheduler.trigger({"rede.tipo"})
+    assert h.runs == [{"rede.tipo"}]
+
+
+def test_maintenance_runs_even_when_check_run_fails():
+    h = Harness()
+
+    def boom(ids):
+        raise RuntimeError("falhou")
+
+    h.scheduler._run = boom
+    h.scheduler.trigger({"rede.ip"})
+    assert h.maintenance_calls == 1
 
 
 def test_failed_run_does_not_block_next():
@@ -173,9 +216,18 @@ class FakeIcon:
     def __init__(self) -> None:
         self.icon = None
         self.title = ""
-        self.menu = None
+        self._menu = None
         self.updates = 0
         self.notices: list[tuple[str, str]] = []
+
+    @property
+    def menu(self):
+        return self._menu
+
+    @menu.setter
+    def menu(self, value) -> None:  # como o pystray: atribuir o menu ja atualiza
+        self._menu = value
+        self.update_menu()
 
     def update_menu(self) -> None:
         self.updates += 1
@@ -200,15 +252,6 @@ def items(app):
     return {item.text: item for item in app.icon.menu.items if hasattr(item, "text")}
 
 
-def test_alert_icon_asset_exists_and_same_size():
-    with Image.open(assets_path("tray.png")) as normal, Image.open(assets_path("tray-alert.png")) as alert:
-        assert alert.size == normal.size
-        assert alert.mode == "RGBA"
-        assert alert.getpixel((alert.width - 6, alert.height - 6)) != normal.getpixel(
-            (alert.width - 6, alert.height - 6)
-        )
-
-
 def test_set_alert_swaps_icon_tooltip_and_menu(tmp_path):
     app = make_app(tmp_path)
     app.set_alert(frozenset({"rede.tipo"}))
@@ -221,7 +264,7 @@ def test_set_alert_swaps_icon_tooltip_and_menu(tmp_path):
     assert texts.MENU_DIAGNOSTICS in items(app)
     assert texts.MENU_DIAGNOSTICS_ALERT not in items(app)
     assert app.icon.icon.tobytes() != alert_image.tobytes()
-    assert app.icon.updates == 2
+    assert app.icon.updates == 2  # uma por troca de menu (o setter faz o update)
 
 
 def test_default_action_is_diagnostics_while_alert(tmp_path):

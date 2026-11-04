@@ -39,7 +39,8 @@ class AlertScheduler:
         self._maintenance = maintenance
         self._lock = threading.Lock()
         self._running = False
-        self._pending: tuple[set[str] | None] | None = None  # so o pedido mais recente
+        # Pedido guardado enquanto roda outra rodada: junta os pedidos (None = tudo absorve o resto).
+        self._pending: tuple[set[str] | None] | None = None
 
     def start(self) -> None:
         """Chamar na thread da interface: `schedule` e o `after` do Tk."""
@@ -57,27 +58,45 @@ class AlertScheduler:
         """Pede uma rodada (pode vir de qualquer thread). Sem fila: guarda so o ultimo pedido."""
         with self._lock:
             if self._running:
-                self._pending = (None if ids is None else set(ids),)
+                self._pending = (self._merge(self._pending, ids),)
                 return
             self._running = True
         self._launch(ids)
+
+    @staticmethod
+    def _merge(pending: tuple[set[str] | None] | None, ids: set[str] | None) -> set[str] | None:
+        if pending is None:
+            return None if ids is None else set(ids)
+        old = pending[0]
+        if old is None or ids is None:
+            return None
+        return old | set(ids)
 
     def feed(self, results: list[CheckResult], ran: set[str]) -> None:
         """Resultado de uma rodada feita por outro caminho (a janela): alimenta o monitor."""
         self._ui(lambda: self._monitor.update(results, set(ran)))
 
     def _launch(self, ids: set[str] | None) -> None:
-        self._background(lambda: self._work(ids))
+        try:
+            self._background(lambda: self._work(ids))
+        except Exception:
+            logger.exception("Não foi possível iniciar o diagnóstico automático")
+            with self._lock:
+                self._running = False
+                self._pending = None
 
     def _work(self, ids: set[str] | None) -> None:
         try:
             results = self._run(ids)
             ran = set(ALL_CHECKS) if ids is None else set(ids)
             self._ui(lambda: self._monitor.update(results, ran))
+        except Exception:
+            logger.exception("Diagnóstico automático falhou")
+        try:
             if self._maintenance is not None:
                 self._maintenance()
         except Exception:
-            logger.exception("Diagnóstico automático falhou")
+            logger.exception("Manutenção do crash.log falhou")
         finally:
             with self._lock:
                 pending, self._pending = self._pending, None

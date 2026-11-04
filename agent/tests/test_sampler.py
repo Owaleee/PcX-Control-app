@@ -217,3 +217,44 @@ async def test_latest_at_updates_on_good_read_only(parts):
     clock.now = 110.0
     await sampler.tick()
     assert sampler.latest_at == 110.0
+
+
+class FailingProvider(ScriptedProvider):
+    """Registra uma falha de GPU durante a leitura e a entrega no `take_failure` seguinte."""
+
+    def __init__(self) -> None:
+        super().__init__([10.0])
+        self.failed = False
+
+    def read(self):
+        self.failed = True
+        return super().read()
+
+    def take_failure(self) -> bool:
+        failed, self.failed = self.failed, False
+        return failed
+
+
+async def test_sensor_failure_hook_fires_after_snapshot_is_published(parts):
+    history, clock, wall = parts
+    provider = FailingProvider()
+    sampler = Sampler(provider, history, lambda: False, clock=clock, wall=wall)
+    seen = []
+    sampler.on_sensor_failure = lambda: seen.append(sampler.latest)
+    await sampler.tick()
+    assert len(seen) == 1
+    assert seen[0] is sampler.latest and seen[0] is not None  # ja com a leitura nova
+    await sampler.tick()
+    assert len(seen) == 2
+
+
+async def test_sensor_failure_hook_error_does_not_break_tick(parts):
+    history, clock, wall = parts
+    sampler = Sampler(FailingProvider(), history, lambda: False, clock=clock, wall=wall)
+
+    def broken():
+        raise RuntimeError("x")
+
+    sampler.on_sensor_failure = broken
+    await sampler.tick()
+    assert sampler.latest is not None

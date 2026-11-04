@@ -283,10 +283,8 @@ class AgentController:
         return results
 
     def watch_sensor_failures(self, callback: Callable[[], None]) -> None:
-        """Liga `callback` as falhas de leitura do provider (so o do Windows tem o gancho)."""
-        provider = self._ctx.provider
-        if hasattr(provider, "on_sensor_failure"):
-            provider.on_sensor_failure = callback
+        """Liga `callback` as falhas de sensor: o Sampler chama depois de publicar a leitura."""
+        self._ctx.sampler.on_sensor_failure = callback
 
     def diagnostics_report(self, results: list[CheckResult]) -> str:
         sources = self._diagnostics_sources()

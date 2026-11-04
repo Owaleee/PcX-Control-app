@@ -89,8 +89,7 @@ class TrayApp:
         self.icon.icon = tray_image(alert)
         self.icon.title = texts.TOOLTIP_ALERT if alert else self.controller.status_text()
         if alert != was or self.icon.menu is None:
-            self.icon.menu = build_menu(self._actions, alert)
-        self.icon.update_menu()
+            self.icon.menu = build_menu(self._actions, alert)  # o setter do pystray ja atualiza o menu
 
     def notify(self, result: CheckResult) -> None:
         try:

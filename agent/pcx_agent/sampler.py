@@ -41,6 +41,8 @@ class Sampler:
         self._nudge = asyncio.Event()
         self.latest: Snapshot | None = None
         self.latest_at: float | None = None  # relogio do Sampler na ultima leitura boa
+        # Chamado depois de publicar uma leitura em que o provider registrou uma falha.
+        self.on_sensor_failure: Callable[[], None] | None = None
 
     def reading_age(self) -> float | None:
         """Segundos desde a ultima leitura boa; None se ainda nao houve nenhuma."""
@@ -57,10 +59,22 @@ class Sampler:
             return
         self.latest = snapshot
         self.latest_at = self._clock()
+        self._notify_failure()
         self._accumulate(snapshot)
         if self.on_snapshot is not None and self._has_active():
             self.on_snapshot(snapshot)
         await self._maybe_flush()
+
+    def _notify_failure(self) -> None:
+        take = getattr(self._provider, "take_failure", None)
+        callback = self.on_sensor_failure
+        if take is None or callback is None:
+            return
+        try:
+            if take():
+                callback()
+        except Exception:
+            logger.debug("Aviso de falha dos sensores falhou", exc_info=True)
 
     def _accumulate(self, snapshot: Snapshot) -> None:
         for metric, value in snapshot.metrics().items():

@@ -444,23 +444,12 @@ def test_reset_sensors_waits_for_an_in_flight_read(make):
     assert len(FakePdh.instances) == 2
 
 
-def test_sensor_failure_callback_fires_once_per_logged_failure(make):
+def test_take_failure_reports_once_per_logged_failure(make):
     provider, _ = make()
-    calls = []
-    provider.on_sensor_failure = lambda: calls.append(1)
+    assert provider.take_failure() is False
     FakePdh.instances[0].fail = True
     provider.read()
-    assert calls == [1]
-    provider.read()  # dentro do intervalo do log: nao repete
-    assert calls == [1]
-
-
-def test_sensor_failure_callback_never_raises_into_provider(make):
-    provider, _ = make()
-
-    def broken():
-        raise RuntimeError("callback quebrado")
-
-    provider.on_sensor_failure = broken
-    FakePdh.instances[0].fail = True
-    provider.read()  # nao propaga
+    assert provider.take_failure() is True
+    assert provider.take_failure() is False  # limpa ao consultar
+    provider.read()  # dentro do intervalo do log: nao marca de novo
+    assert provider.take_failure() is False

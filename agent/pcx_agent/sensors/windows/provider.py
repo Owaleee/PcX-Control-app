@@ -53,8 +53,9 @@ class WindowsSensorProvider:
         self._last = time.monotonic()
         # Falhas repetidas da GPU: no maximo uma linha por minuto por tipo.
         self._failures = RateLimitedLog(logger, interval_s=60.0, clock=clock)
-        # A bandeja liga aqui a verificacao dos sensores; chamado so quando a falha vai para o log.
-        self.on_sensor_failure: Callable[[], None] | None = None
+        # Falha que foi para o log desde o ultimo `take_failure` (a bandeja confere depois da leitura).
+        self._failure_lock = threading.Lock()
+        self._failure_pending = False
         self._adapters: dict[str, AdapterInfo] = {}
         # Temperatura de alerta por LUID: lida uma vez por lista de placas, nao a cada leitura.
         self._warnings: dict[str, float] = {}
@@ -110,13 +111,15 @@ class WindowsSensorProvider:
             self._load_warnings()
 
     def _report_failure(self, key: str, msg: str, *args: object, exc_info: bool = False) -> None:
-        logged = self._failures.report(key, msg, *args, exc_info=exc_info)
-        callback = self.on_sensor_failure
-        if logged and callback is not None:
-            try:
-                callback()
-            except Exception:
-                logger.debug("on_sensor_failure falhou", exc_info=True)
+        if self._failures.report(key, msg, *args, exc_info=exc_info):
+            with self._failure_lock:
+                self._failure_pending = True
+
+    def take_failure(self) -> bool:
+        """True se houve falha registrada desde a ultima chamada (e limpa). O Sampler consulta depois de publicar a leitura."""
+        with self._failure_lock:
+            pending, self._failure_pending = self._failure_pending, False
+        return pending
 
     @_locked
     def adapter_drivers(self) -> dict[str, str | None]:
