@@ -47,7 +47,7 @@ def check_ip(interfaces: list[NetInterface], chosen: NetInterface | None) -> lis
             "O roteador não entregou um IP para este PC (endereço 169.254.x.x). "
             "Reinicie o roteador ou desconecte e conecte o cabo ou o Wi-Fi.",
         )
-    if any(is_virtual(i.name, i.ipv4) for i in up):
+    if any(is_virtual(i.name, i.ipv4, i.description) for i in up):
         return _result(
             "rede.ip", GROUP_NETWORK, title, "problema",
             "Só há VPN ou placa virtual ligada. Conecte o PC ao mesmo roteador do celular "
@@ -126,8 +126,13 @@ def check_firewall(rules: list[FirewallRule] | None, exe_path: str | None) -> li
     return _result("rede.firewall", GROUP_NETWORK, title, "problema", detail + " Crie a regra de novo.", "criar_firewall")
 
 
+def label(interface: NetInterface) -> str:
+    """`nome (descricao do driver)` quando ha descricao."""
+    return f"{interface.name} ({interface.description})" if interface.description else interface.name
+
+
 def _is_vpn(interface: NetInterface) -> bool:
-    name = interface.name.lower()
+    name = f"{interface.name} {interface.description}".lower()
     if any(word in name for word in VPN_NAMES):
         return True
     try:
@@ -138,7 +143,7 @@ def _is_vpn(interface: NetInterface) -> bool:
 
 def check_vpn(interfaces: list[NetInterface]) -> list[CheckResult]:
     title = "VPN"
-    names = sorted({i.name for i in interfaces if i.up and _is_vpn(i)})
+    names = sorted({label(i) for i in interfaces if i.up and _is_vpn(i)})
     if not names:
         return _result("rede.vpn", GROUP_NETWORK, title, "ok", "Nenhuma VPN ligada.")
     return _result(

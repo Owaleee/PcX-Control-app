@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass, field
 
-from pcx_agent.diagnostics.checks import VENDOR_LABELS, _is_vpn
+from pcx_agent.diagnostics.checks import VENDOR_LABELS, _is_vpn, label
 from pcx_agent.diagnostics.model import GROUPS, CheckResult
 from pcx_agent.logs import redact
 from pcx_agent.network import NetInterface, is_virtual
@@ -57,8 +57,8 @@ def build_report(results: list[CheckResult], facts: ReportFacts) -> str:
         lines.append("")
     lines.append("[Placas de rede]")
     for i in facts.interfaces:
-        kind = "VPN" if _is_vpn(i) else "virtual" if is_virtual(i.name, i.ipv4) else "rede"
-        lines.append(f"- {i.name}: {i.ipv4} | {'ligada' if i.up else 'desligada'} | {kind}")
+        kind = "VPN" if _is_vpn(i) else "virtual" if is_virtual(i.name, i.ipv4, i.description) else "rede"
+        lines.append(f"- {label(i)}: {i.ipv4} | {'ligada' if i.up else 'desligada'} | {kind}")
     lines.append("")
     lines.append("[Placas de vídeo]")
     for gpu in facts.gpus:

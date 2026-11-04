@@ -1,0 +1,26 @@
+[
+ {
+  "name": "vEthernet (WSL)",
+  "description": "Hyper-V Virtual Ethernet Adapter",
+  "if_type": 6,
+  "oper_status": 1,
+  "ipv4": "172.25.160.1",
+  "has_gateway": false
+ },
+ {
+  "name": "Conexão de Rede 2",
+  "description": "Hyper-V Virtual Ethernet Adapter #2",
+  "if_type": 6,
+  "oper_status": 1,
+  "ipv4": "192.168.50.1",
+  "has_gateway": false
+ },
+ {
+  "name": "Wi-Fi",
+  "description": "Intel(R) Wi-Fi 6 AX200 160MHz",
+  "if_type": 71,
+  "oper_status": 1,
+  "ipv4": "10.0.0.15",
+  "has_gateway": true
+ }
+]

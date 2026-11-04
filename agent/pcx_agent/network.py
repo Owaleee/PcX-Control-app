@@ -10,6 +10,7 @@ import logging
 import subprocess
 import sys
 from dataclasses import dataclass
+from typing import Literal
 
 import psutil
 
@@ -54,10 +55,17 @@ class NetInterface:
     name: str
     ipv4: str
     up: bool
+    description: str = ""  # descricao do driver (a pessoa nao renomeia)
+    kind: Literal["ethernet", "wifi", "outra", "desconhecido"] = "desconhecido"
+    has_gateway: bool = False
 
 
-def is_virtual(name: str, ipv4: str) -> bool:
-    lowered = name.lower()
+# Tipos aceitos na escolha; "desconhecido" e a lista do psutil, que nao informa o tipo.
+LAN_KINDS = {"ethernet", "wifi", "desconhecido"}
+
+
+def is_virtual(name: str, ipv4: str, description: str = "") -> bool:
+    lowered = f"{name} {description}".lower()
     if any(word in lowered for word in VIRTUAL_NAMES):
         return True
     address = ipaddress.ip_address(ipv4)
@@ -73,20 +81,29 @@ def _lan_rank(ipv4: str) -> int | None:
 
 
 def choose_lan(interfaces: list[NetInterface], preferred: str | None) -> NetInterface | None:
-    """A placa ativa, real e com IP privado; a da rota padrao vence, depois 192.168 > 10 > 172."""
+    """A placa ativa, Ethernet ou Wi-Fi, real e com IP privado. Entre elas: com gateway, a da
+    rota padrao, depois 192.168 > 10 > 172."""
     candidates = [
         i for i in interfaces
-        if i.up and not is_virtual(i.name, i.ipv4) and _lan_rank(i.ipv4) is not None
+        if i.up and i.kind in LAN_KINDS and not is_virtual(i.name, i.ipv4, i.description)
+        and _lan_rank(i.ipv4) is not None
     ]
-    for interface in candidates:
-        if interface.ipv4 == preferred:
-            return interface
     if not candidates:
         return None
-    return min(candidates, key=lambda i: _lan_rank(i.ipv4))
+    return min(
+        candidates,
+        key=lambda i: (not i.has_gateway, i.ipv4 != preferred, _lan_rank(i.ipv4)),
+    )
 
 
 def list_interfaces() -> list[NetInterface]:
+    if IS_WINDOWS:
+        from pcx_agent.winsys import adapters  # import tardio: adapters importa este modulo
+
+        try:
+            return adapters.read_adapters()
+        except OSError as exc:
+            logger.warning("GetAdaptersAddresses falhou, usando o psutil: %s", exc)
     stats = psutil.net_if_stats()
     found = []
     for name, addresses in psutil.net_if_addrs().items():
