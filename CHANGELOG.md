@@ -27,8 +27,8 @@ quem está ajudando. Compatível com o app 0.2.0 ou mais novo (protocolo 1).
   e versões, sem banco de dados, senha, código, token nem o nome do usuário do Windows.
 - Novas verificações e correções num clique no **Verificar conexão**: leitura de sensores parada
   (mais de 30 s sem leitura nova) com **Reiniciar sensores**, porta ocupada por outro programa com
-  **Trocar porta** (tenta de `porta + 1` até 20 vezes), antivírus de terceiros e **Copiar caminho**
-  da pasta de logs. A janela também mostra se o servidor do agente está no ar.
+  **Trocar porta** (tenta de `porta + 1` até 20 vezes), antivírus de terceiros com
+  **Copiar caminho do programa** (para liberar no antivírus). A janela também mostra se o servidor do agente está no ar.
 - **Aviso de fechamento inesperado** na abertura seguinte, com o horário da última atividade.
   Reiniciar ou desligar o PC não conta como fechamento inesperado.
 - `crash.log` com um arquivo por travamento (ficam os 10 mais recentes).

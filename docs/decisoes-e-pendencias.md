@@ -283,10 +283,11 @@ fácil de atualizar. As regras do protocolo que sustentam isso estão em
 
 ## Pendências de compatibilidade
 
-- **(Resolvida no app 0.5.0.) Protocolo novo sem quebrar apps antigos:** antes o app só aceitava `protocol: 1` no `hello` e,
-  com outro número, falha ao conectar sem explicar. Antes de um protocolo 2 (por exemplo, com o
-  HTTPS planejado), o app precisa mostrar "Atualize o app para usar este PC", e o agente precisa
-  continuar aceitando o protocolo 1 por pelo menos uma versão.
+- **(Resolvida no app 0.5.0.) App com protocolo novo no PC:** antes o app só aceitava `protocol: 1`
+  e, com outro número, falhava ao conectar sem explicar. Agora mostra "Atualize o app".
+- **Ainda pendente: o agente aceitar o protocolo 1 depois de um protocolo 2.** Quando o protocolo 2
+  vier (por exemplo, com o HTTPS planejado), o agente deve continuar aceitando o 1 por pelo menos
+  uma versão.
 - **Agente antigo com app novo:** quando o app ganhar uma função que dependa de algo novo no
   agente, ele deve checar a capacidade no `hello` e mostrar "Atualize o PcX Control no PC para
   usar isto" em vez de um cartão vazio.
