@@ -16,7 +16,15 @@ STATUS_TEXT = {
     "problema": texts.DIAG_STATUS_PROBLEM,
     "info": texts.DIAG_STATUS_INFO,
 }
-FIX_TEXT = {"abrir_rede": texts.DIAG_FIX_NETWORK, "criar_firewall": texts.DIAG_FIX_FIREWALL}
+FIX_TEXT = {
+    "abrir_rede": texts.DIAG_FIX_NETWORK,
+    "criar_firewall": texts.DIAG_FIX_FIREWALL,
+    "reiniciar_sensores": texts.DIAG_FIX_SENSORS,
+    "reiniciar_servidor": texts.DIAG_FIX_RESTART,
+    "trocar_porta": texts.DIAG_FIX_PORT,
+    "copiar_caminho": texts.DIAG_FIX_COPY_PATH,
+    "salvar_pacote": texts.DIAG_FIX_SAVE_PACKAGE,
+}
 DOT = 10
 WRAP = 400
 

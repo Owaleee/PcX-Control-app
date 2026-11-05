@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type AlertBadge, tempBadge, tempLevel, usageBadge, usageLevel } from '../../../src/alerts/levels';
 import { Gauge, type GaugeLayout, type GaugeStat } from '../../../src/components/Gauge';
+import { OutdatedNotice } from '../../../src/components/OutdatedNotice';
 import { statusLabel } from '../../../src/components/StatusPill';
 import { formatBytes, formatPercent, formatRate, formatTemp, formatUsage } from '../../../src/format/format';
 import { usePc } from '../../../src/hooks/PcContext';
@@ -101,6 +102,9 @@ export default function PanelMode() {
             <Text style={[styles.status, { color: theme.text, backgroundColor: theme.surface }]}>
               {statusLabel(state)}
             </Text>
+          ) : null}
+          {state.kind === 'outdated' ? (
+            <OutdatedNotice who={state.who} agentVersion={state.agentVersion} />
           ) : null}
           {data ? (
             <View testID="panel-gauges" style={[styles.gauges, { opacity: stale ? 0.5 : 1 }]}>

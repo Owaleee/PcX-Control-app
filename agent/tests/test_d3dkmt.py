@@ -5,7 +5,14 @@ import sys
 
 import pytest
 
-from pcx_agent.sensors.windows.d3dkmt import PERFDATA_SIZE, luid_parts, parse_perfdata
+from pcx_agent.sensors.windows.d3dkmt import (
+    KMTQAITYPE_ADAPTERPERFDATA_CAPS,
+    PERFDATA_SIZE,
+    PERFDATACAPS_SIZE,
+    luid_parts,
+    parse_perfdata,
+    parse_perfdata_caps,
+)
 
 windows = pytest.mark.skipif(sys.platform != "win32", reason="so no Windows")
 
@@ -39,6 +46,32 @@ def test_short_buffer_means_no_reading():
     assert parse_perfdata(b"") is None
 
 
+def perfdata_caps(warning_deci_c: int, maximum_deci_c: int = 950) -> bytes:
+    """D3DKMT_ADAPTER_PERFDATACAPS: UINT32 + 4 de alinhamento, 2 ULONGLONG, 3 ULONG + 4 de alinhamento."""
+    return struct.pack("<I4x2Q3I4x", 0, 1, 2, 2000, maximum_deci_c, warning_deci_c)
+
+
+def test_caps_layout_has_40_bytes_and_warning_at_offset_32():
+    raw = perfdata_caps(830)
+    assert len(raw) == PERFDATACAPS_SIZE == 40
+    assert KMTQAITYPE_ADAPTERPERFDATA_CAPS == 63
+    assert struct.unpack_from("<I", raw, 32)[0] == 830
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (perfdata_caps(830), 83.0),
+        (perfdata_caps(0), None),
+        (perfdata_caps(1600), None),
+        (perfdata_caps(830)[:35], None),
+    ],
+    ids=["830", "zero", "1600", "curto"],
+)
+def test_parse_perfdata_caps(raw, expected):
+    assert parse_perfdata_caps(raw) == expected
+
+
 @pytest.mark.parametrize(
     ("luid", "parts"),
     [
@@ -66,6 +99,20 @@ def test_real_adapters_are_read_without_errors():
     temps = D3dkmtTemperatures()
     try:
         result = temps.read(list(native.list_adapters()))
+    finally:
+        temps.close()
+    assert isinstance(result, dict)
+    assert all(isinstance(v, float) and 0 < v <= 150 for v in result.values())
+
+
+@windows
+def test_read_warnings_real_adapters_no_exception():
+    from pcx_agent.sensors.windows import native
+    from pcx_agent.sensors.windows.d3dkmt import D3dkmtTemperatures
+
+    temps = D3dkmtTemperatures()
+    try:
+        result = temps.read_warnings(list(native.list_adapters()))
     finally:
         temps.close()
     assert isinstance(result, dict)

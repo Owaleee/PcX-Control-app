@@ -44,6 +44,7 @@ def example_snapshot() -> Snapshot:
                 vram_total_bytes=8406433792,
                 temp_c=49.0,
                 vendor="nvidia",
+                temp_warn_c=83.0,
             )
         ],
         host_name=AGENT_NAME,

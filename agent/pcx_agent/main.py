@@ -10,13 +10,16 @@ import logging
 import sys
 import tempfile
 import threading
+from dataclasses import replace
 from pathlib import Path
+
+import psutil
 
 from pcx_agent import __version__
 from pcx_agent.api.app import build_context
-from pcx_agent.config import DEFAULT_PORT, default_data_dir, load_settings
+from pcx_agent.config import DEFAULT_PORT, announced_protocol, default_data_dir, load_settings
 from pcx_agent.controller import NO_NETWORK_WARNING
-from pcx_agent.crashlog import install_crash_logging, log_startup
+from pcx_agent.crashlog import install_crash_logging, log_startup, previous_session
 from pcx_agent.logs import setup_logging
 from pcx_agent.network import lan_address
 from pcx_agent.pairing_uri import pairing_uri, print_pairing
@@ -73,6 +76,7 @@ def run_console(args) -> int:
     install_crash_logging(data_dir / "logs")
     log_startup()
     settings = load_settings(data_dir=data_dir, port=args.port)
+    settings = replace(settings, protocol=announced_protocol(args.demo))
     ctx = build_context(settings, _provider(args.demo))
     try:
         if not ctx.passwords.is_set():
@@ -114,33 +118,39 @@ def run_tray(args) -> int:
     from pcx_agent.winsys.instance import acquire_single_instance
 
     data_dir = Path(args.data_dir) if args.data_dir is not None else default_data_dir()
-    setup_logging(data_dir / "logs")
-    install_crash_logging(data_dir / "logs")
-    log_startup()
-    settings = load_settings(data_dir=data_dir, port=args.port)
-    lock = acquire_single_instance(settings.data_dir)
+    # A trava vem antes de qualquer log: uma segunda execucao ("ja esta rodando") nao pode
+    # escrever no crash.log da primeira e esconder uma queda dela.
+    lock = acquire_single_instance(data_dir)
     if lock is None:
         show_message(texts.APP_NAME, texts.ALREADY_RUNNING)
         return 0
     ctx = None
     server = None
     try:
+        # Antes de abrir os logs desta execucao: ainda mostram como a anterior terminou.
+        previous = previous_session(data_dir / "logs", psutil.boot_time())
+        setup_logging(data_dir / "logs")
+        install_crash_logging(data_dir / "logs")
+        log_startup()
+        settings = load_settings(data_dir=data_dir, port=args.port)
         ctx = build_context(settings, _provider(demo=False))
         server = AgentServer(ctx, args.host, settings.port)
         try:
             server.start()
-        except PortInUseError as exc:
-            text = texts.PORT_IN_USE.format(porta=exc.port, arquivo=settings.config_path)
-            show_message(texts.APP_NAME, text, error=True)
-            return 1
+        except PortInUseError:
+            # Segue para a bandeja sem servidor: o alerta do diagnostico avisa e oferece trocar a porta.
+            logger.warning("Porta %s em uso; seguindo sem servidor", settings.port)
         from pcx_agent.tray.app import TrayApp
 
-        controller = AgentController(ctx, settings.port)
         autostart = AutoStart(WinRegistryRunStore(), launch_command())
+        controller = AgentController(
+            ctx, settings.port, server=server, previous_session=previous,
+            autostart_enabled=autostart.is_enabled,
+        )
         return TrayApp(settings, server, controller, autostart).run()
     except Exception:
         logger.exception("Falha ao iniciar o agente")
-        show_message(texts.APP_NAME, texts.STARTUP_ERROR.format(pasta=settings.log_dir), error=True)
+        show_message(texts.APP_NAME, texts.STARTUP_ERROR.format(pasta=data_dir / "logs"), error=True)
         return 1
     finally:
         if server is not None:

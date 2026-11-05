@@ -67,12 +67,18 @@ class FakeD3d:
 
     instances: ClassVar[list] = []
     temps: ClassVar[dict] = {}
+    warns: ClassVar[dict] = {}
 
     def __init__(self) -> None:
         FakeD3d.instances.append(self)
         self.fail = False
         self.closed = False
         self.asked: list[list[str]] = []
+        self.asked_warnings: list[list[str]] = []
+
+    def read_warnings(self, luids):
+        self.asked_warnings.append(list(luids))
+        return {luid: t for luid, t in FakeD3d.warns.items() if luid in luids}
 
     def read(self, luids):
         self.asked.append(list(luids))
@@ -91,6 +97,7 @@ def make(monkeypatch):
     FakeNvml.broken = False
     FakeD3d.instances = []
     FakeD3d.temps = {}
+    FakeD3d.warns = {}
     monkeypatch.setattr(provider_module.native, "PdhGpuCounters", FakePdh)
     monkeypatch.setattr(provider_module.native, "NvmlTemperatures", FakeNvml)
     monkeypatch.setattr(provider_module.d3dkmt, "D3dkmtTemperatures", FakeD3d)
@@ -117,6 +124,44 @@ def test_normal_read_has_usage_vram_and_temperature(make):
     gpu = provider.read().gpus[0]
     assert (gpu.usage_percent, gpu.temp_c) == (42.0, 61.0)
     assert (gpu.vram_used_bytes, gpu.vram_total_bytes) == (2 * GIB, 8 * GIB)
+
+
+def test_provider_fills_temp_warn_by_luid(make):
+    FakeD3d.warns = {LUID: 83.0}
+    provider, _ = make()
+    assert provider.read().gpus[0].temp_warn_c == 83.0
+
+
+def test_temp_warn_is_none_when_driver_has_no_value(make):
+    provider, _ = make()
+    assert provider.read().gpus[0].temp_warn_c is None
+
+
+def test_warnings_read_once_per_adapter_list(make):
+    FakeD3d.warns = {LUID: 83.0}
+    provider, clock = make()
+    for _ in range(3):
+        provider.read()
+    assert len(FakeD3d.instances[0].asked_warnings) == 1
+    clock.now += 61  # a lista de placas e lida de novo
+    provider.read()
+    assert len(FakeD3d.instances[0].asked_warnings) == 2
+
+
+def test_reset_sensors_reads_warnings_again(make):
+    FakeD3d.warns = {LUID: 83.0}
+    provider, _ = make()
+    FakeD3d.warns = {LUID: 90.0}
+    provider.reset_sensors()
+    assert provider.read().gpus[0].temp_warn_c == 90.0
+
+
+def test_warning_failure_keeps_the_reading(make):
+    provider, clock = make()
+    FakeD3d.instances[0].read_warnings = lambda luids: (_ for _ in ()).throw(OSError("caps"))
+    clock.now += 61
+    gpu = provider.read().gpus[0]
+    assert gpu.usage_percent == 42.0 and gpu.temp_warn_c is None
 
 
 def test_nvml_failure_keeps_gpu_usage_with_none_temperature(make):
@@ -183,9 +228,9 @@ def test_logs_the_cards_once_and_again_when_the_list_changes(make, monkeypatch, 
         provider.read()
     cards = [m for m in _gpu_logs(caplog) if m.startswith("Placa de video:")]
     assert cards == [
-        "Placa de video: NVIDIA Teste | fabricante outra (VendorId 0x0000) | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
-        "Placa de video: NVIDIA Teste | fabricante nvidia (VendorId 0x10DE) | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
-        "Placa de video: Intel UHD | fabricante intel (VendorId 0x8086) | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2",
+        "Placa de video: NVIDIA Teste | fabricante outra (VendorId 0x0000) | DeviceId 0x0000 | driver desconhecido | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
+        "Placa de video: NVIDIA Teste | fabricante nvidia (VendorId 0x10DE) | DeviceId 0x0000 | driver desconhecido | VRAM 8.0 GiB | LUID 0x00000000_0x0000d1a5",
+        "Placa de video: Intel UHD | fabricante intel (VendorId 0x8086) | DeviceId 0x0000 | driver desconhecido | VRAM 0.5 GiB | LUID 0x00000000_0x0000a1b2",
     ]
 
 
@@ -218,6 +263,53 @@ def test_nvml_failure_is_a_warning_with_the_reason(make, caplog):
         provider.read()
     (record,) = [r for r in caplog.records if "NVML" in r.getMessage()]
     assert record.exc_info is not None
+
+
+def _source_lines(caplog):
+    return [m for m in _gpu_logs(caplog) if m.startswith("Temperatura de")]
+
+
+def test_temperature_sources_logged_once_and_on_change(make, caplog):
+    FakeD3d.temps = {LUID: 52.0}
+    with caplog.at_level(logging.INFO, logger=provider_module.logger.name):
+        provider, _ = make()
+        provider.read()
+        provider.read()  # igual: nao repete
+        assert provider.temperature_source == {LUID: "driver"}
+        FakeD3d.temps = {}  # o driver perde o dado e o NVML assume
+        provider.read()
+        provider.read()
+        assert provider.temperature_source == {LUID: "nvml"}
+    assert _source_lines(caplog) == [
+        "Temperatura de NVIDIA Teste: driver",
+        "Temperatura de NVIDIA Teste: nvml",
+    ]
+
+
+def test_temperature_source_is_nenhuma_without_any_source(make):
+    FakeNvml.broken = True
+    provider, _ = make()
+    provider.read()
+    assert provider.temperature_source == {LUID: "nenhuma"}
+
+
+def test_failure_messages_name_the_board_and_the_source(make, caplog):
+    provider, _ = make()
+    FakeNvml.instances[-1].fail = True
+    FakeD3d.instances[-1].fail = True
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        provider.read()
+    messages = _gpu_logs(caplog, logging.WARNING)
+    assert any("(NVML)" in m and "NVIDIA Teste" in m for m in messages)
+    assert any("(D3DKMT)" in m and "NVIDIA Teste" in m for m in messages)
+
+
+def test_pdh_failure_names_the_source(make, caplog):
+    provider, _ = make()
+    FakePdh.instances[-1].fail = True
+    with caplog.at_level(logging.WARNING, logger=provider_module.logger.name):
+        provider.read()
+    assert any("(PDH)" in m for m in _gpu_logs(caplog, logging.WARNING))
 
 
 def test_driver_temperature_wins_over_nvml(make):
@@ -312,3 +404,121 @@ def test_capabilities_never_touch_the_hardware(make):
     for _ in range(3):
         assert "gpu.temp" in provider.capabilities()
     assert len(FakeD3d.instances[0].asked) == asked
+
+
+def test_reset_sensors_reopens_now(make):
+    provider, _ = make()
+    first = (FakePdh.instances[0], FakeNvml.instances[0], FakeD3d.instances[0])
+    provider.reset_sensors()  # sem esperar a janela de 60 s
+    assert all(resource.closed for resource in first)
+    assert (len(FakePdh.instances), len(FakeNvml.instances), len(FakeD3d.instances)) == (2, 2, 2)
+    assert provider.read().gpus[0].usage_percent == 42.0
+
+
+def test_reset_sensors_waits_for_an_in_flight_read(make):
+    import threading
+
+    provider, _ = make()
+    inside, release = threading.Event(), threading.Event()
+    original = FakePdh.instances[0].read
+
+    def slow_read():
+        inside.set()
+        release.wait(5)
+        return original()
+
+    FakePdh.instances[0].read = slow_read
+    reading = threading.Thread(target=provider.read)
+    reading.start()
+    assert inside.wait(5)
+    resetting = threading.Thread(target=provider.reset_sensors)
+    resetting.start()
+    resetting.join(0.3)
+    assert resetting.is_alive()  # espera a leitura em andamento
+    assert FakePdh.instances[0].closed is False
+    release.set()
+    reading.join(5)
+    resetting.join(5)
+    assert not resetting.is_alive()
+    assert FakePdh.instances[0].closed is True
+    assert len(FakePdh.instances) == 2
+
+
+def test_take_failure_reports_once_per_logged_failure(make):
+    provider, _ = make()
+    assert provider.take_failure() is False
+    FakePdh.instances[0].fail = True
+    provider.read()
+    assert provider.take_failure() is True
+    assert provider.take_failure() is False  # limpa ao consultar
+    provider.read()  # dentro do intervalo do log: nao marca de novo
+    assert provider.take_failure() is False
+
+
+def test_capabilities_answer_while_another_thread_holds_the_lock(make):
+    """capabilities() roda no laco do servidor: um driver travado na leitura nao pode congela-lo."""
+    import threading
+
+    provider, _ = make()
+    holding, release = threading.Event(), threading.Event()
+
+    def hold():
+        with provider._lock:
+            holding.set()
+            release.wait(5)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    try:
+        assert holding.wait(5)
+        result: list[set[str]] = []
+        asking = threading.Thread(target=lambda: result.append(provider.capabilities()))
+        asking.start()
+        asking.join(0.5)
+        assert not asking.is_alive()
+        assert "gpu" in result[0]
+    finally:
+        release.set()
+        holder.join(5)
+
+
+def test_gpu_failed_follows_the_pdh_failure_until_it_reads_again(make):
+    provider, clock = make()
+    provider.read()
+    assert provider.gpu_failed is False
+    FakePdh.instances[0].fail = True
+    provider.read()
+    assert provider.gpu_failed is True
+    provider.read()  # PDH fechado esperando a nova tentativa: continua em falha
+    assert provider.gpu_failed is True
+    clock.now += 61
+    assert provider.read().gpus
+    assert provider.gpu_failed is False
+
+
+def test_gpu_failed_on_temperature_failure_until_the_source_reads_again(make):
+    provider, clock = make()
+    FakeNvml.instances[0].fail = True
+    provider.read()
+    assert provider.gpu_failed is True
+    provider.read()  # NVML fechado: o uso da GPU le, mas a temperatura ainda nao voltou
+    assert provider.gpu_failed is True
+    clock.now += 61
+    provider.read()
+    assert provider.gpu_failed is False
+
+
+def test_gpu_failed_on_driver_temperature_failure(make):
+    provider, _ = make()
+    FakeD3d.instances[0].fail = True
+    provider.read()
+    assert provider.gpu_failed is True
+
+
+def test_reset_sensors_clears_gpu_failed(make):
+    provider, _ = make()
+    FakePdh.instances[0].fail = True
+    provider.read()
+    assert provider.gpu_failed is True
+    provider.reset_sensors()
+    assert provider.gpu_failed is False

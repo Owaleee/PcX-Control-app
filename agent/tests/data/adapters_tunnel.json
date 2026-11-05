@@ -1,0 +1,26 @@
+[
+ {
+  "name": "Teredo Tunneling Pseudo-Interface",
+  "description": "Microsoft Teredo Tunneling Adapter",
+  "if_type": 131,
+  "oper_status": 1,
+  "ipv4": "192.168.77.2",
+  "has_gateway": true
+ },
+ {
+  "name": "Ethernet",
+  "description": "Realtek PCIe GbE Family Controller",
+  "if_type": 6,
+  "oper_status": 1,
+  "ipv4": "172.16.0.9",
+  "has_gateway": true
+ },
+ {
+  "name": "Wi-Fi",
+  "description": "Intel(R) Wi-Fi 6 AX200 160MHz",
+  "if_type": 71,
+  "oper_status": 2,
+  "ipv4": "192.168.1.5",
+  "has_gateway": true
+ }
+]

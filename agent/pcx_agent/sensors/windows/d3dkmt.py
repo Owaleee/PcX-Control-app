@@ -16,6 +16,12 @@ PERFDATA_SIZE = 64
 _TEMPERATURE_OFFSET = 56
 _MAX_DECI_C = 1500  # acima de 150 C e lixo do driver
 KMTQAITYPE_ADAPTERPERFDATA = 62
+# D3DKMT_ADAPTER_PERFDATACAPS: UINT32 PhysicalAdapterIndex, 4 bytes de alinhamento,
+# ULONGLONG MaxMemoryBandwidth (8), ULONGLONG MaxPCIEBandwidth (16), ULONG MaxFanRPM (24),
+# ULONG TemperatureMax (28), ULONG TemperatureWarning (32, decimos de grau Celsius).
+KMTQAITYPE_ADAPTERPERFDATA_CAPS = 63
+PERFDATACAPS_SIZE = 40
+_WARNING_OFFSET = 32
 _LUID = re.compile(r"^0x([0-9a-f]{1,8})_0x([0-9a-f]{1,8})$", re.IGNORECASE)
 
 
@@ -24,6 +30,16 @@ def parse_perfdata(raw: bytes) -> float | None:
     if len(raw) < _TEMPERATURE_OFFSET + 4:
         return None
     (deci_c,) = struct.unpack_from("<I", raw, _TEMPERATURE_OFFSET)
+    if deci_c == 0 or deci_c > _MAX_DECI_C:
+        return None
+    return round(deci_c / 10.0, 1)
+
+
+def parse_perfdata_caps(raw: bytes) -> float | None:
+    """Temperatura de alerta (TemperatureWarning) em graus Celsius, ou None se nao houver."""
+    if len(raw) < _WARNING_OFFSET + 4:
+        return None
+    (deci_c,) = struct.unpack_from("<I", raw, _WARNING_OFFSET)
     if deci_c == 0 or deci_c > _MAX_DECI_C:
         return None
     return round(deci_c / 10.0, 1)
@@ -75,26 +91,39 @@ class D3dkmtTemperatures:
         self._query.argtypes = [ct.POINTER(_QueryAdapterInfo)]
         self._close.argtypes = [ct.POINTER(_CloseAdapter)]
 
-    def _read_one(self, luid: str) -> float | None:
+    def _query_adapter(self, luid: str, info_type: int, size: int) -> bytes | None:
+        """Abre a placa pelo LUID, consulta um tipo de informacao e fecha; None se falhar."""
         low, high = luid_parts(luid)
         opened = _OpenAdapterFromLuid(_Luid(low, high), 0)
         if self._open(ct.byref(opened)) != 0:
             return None
         try:
-            buffer = (ct.c_ubyte * PERFDATA_SIZE)()  # PhysicalAdapterIndex = 0 (zerado)
-            info = _QueryAdapterInfo(
-                opened.hAdapter, KMTQAITYPE_ADAPTERPERFDATA, ct.cast(buffer, ct.c_void_p), PERFDATA_SIZE
-            )
+            buffer = (ct.c_ubyte * size)()  # PhysicalAdapterIndex = 0 (zerado)
+            info = _QueryAdapterInfo(opened.hAdapter, info_type, ct.cast(buffer, ct.c_void_p), size)
             if self._query(ct.byref(info)) != 0:
                 return None  # driver antigo (sem WDDM 2.4) ou sem o dado
-            return parse_perfdata(bytes(buffer))
+            return bytes(buffer)
         finally:
             self._close(ct.byref(_CloseAdapter(opened.hAdapter)))
+
+    def _read_one(self, luid: str) -> float | None:
+        raw = self._query_adapter(luid, KMTQAITYPE_ADAPTERPERFDATA, PERFDATA_SIZE)
+        return None if raw is None else parse_perfdata(raw)
 
     def read(self, luids: list[str]) -> dict[str, float]:
         result: dict[str, float] = {}
         for luid in luids:
             value = self._read_one(luid)
+            if value is not None:
+                result[luid] = value
+        return result
+
+    def read_warnings(self, luids: list[str]) -> dict[str, float]:
+        """Temperatura de alerta do driver por LUID; placas sem o dado nao aparecem."""
+        result: dict[str, float] = {}
+        for luid in luids:
+            raw = self._query_adapter(luid, KMTQAITYPE_ADAPTERPERFDATA_CAPS, PERFDATACAPS_SIZE)
+            value = None if raw is None else parse_perfdata_caps(raw)
             if value is not None:
                 result[luid] = value
         return result

@@ -1,9 +1,9 @@
-"""Texto do "Copiar relatorio": o que a pessoa manda para quem esta ajudando."""
+"""Texto do relatorio.txt do pacote de suporte: o que a pessoa manda para quem esta ajudando."""
 
 import re
 from dataclasses import dataclass, field
 
-from pcx_agent.diagnostics.checks import VENDOR_LABELS, _is_vpn
+from pcx_agent.diagnostics.checks import VENDOR_LABELS, _is_vpn, label
 from pcx_agent.diagnostics.model import GROUPS, CheckResult
 from pcx_agent.logs import redact
 from pcx_agent.network import NetInterface, is_virtual
@@ -20,6 +20,7 @@ class ReportFacts:
     interfaces: list[NetInterface] = field(default_factory=list)
     gpus: list[GpuReading] = field(default_factory=list)
     pdh_instances: list[str] = field(default_factory=list)
+    extra: list[str] = field(default_factory=list)  # linhas de [PC e agente], sem nomes de aparelhos
 
 
 def engine_types(instances: list[str]) -> dict[str, list[str]]:
@@ -43,6 +44,10 @@ def build_report(results: list[CheckResult], facts: ReportFacts) -> str:
         f"Windows: {facts.windows_version}",
         "",
     ]
+    if facts.extra:
+        lines.append("[PC e agente]")
+        lines.extend(f"- {line}" for line in facts.extra)
+        lines.append("")
     for group in GROUPS:
         items = [r for r in results if r.group == group]
         if not items:
@@ -52,8 +57,8 @@ def build_report(results: list[CheckResult], facts: ReportFacts) -> str:
         lines.append("")
     lines.append("[Placas de rede]")
     for i in facts.interfaces:
-        kind = "VPN" if _is_vpn(i) else "virtual" if is_virtual(i.name, i.ipv4) else "rede"
-        lines.append(f"- {i.name}: {i.ipv4} | {'ligada' if i.up else 'desligada'} | {kind}")
+        kind = "VPN" if _is_vpn(i) else "virtual" if is_virtual(i.name, i.ipv4, i.description) else "rede"
+        lines.append(f"- {label(i)}: {i.ipv4} | {'ligada' if i.up else 'desligada'} | {kind}")
     lines.append("")
     lines.append("[Placas de vídeo]")
     for gpu in facts.gpus:

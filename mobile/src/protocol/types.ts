@@ -23,6 +23,8 @@ export type GpuReading = {
   temp_c: number | null;
   /** Agente 0.5.0+: "nvidia", "amd", "intel" ou "outra". So para relatorio; a tela nao mostra. */
   vendor?: string | null;
+  /** Agente 0.6.0+: limite de temperatura que o proprio PC considera alto. */
+  temp_warn_c?: number | null;
 };
 
 export type DiskVolume = {

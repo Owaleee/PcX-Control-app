@@ -127,3 +127,81 @@ def test_server_shutdown_is_bounded():
     from pcx_agent.server import uvicorn_config
 
     assert uvicorn_config(object(), "127.0.0.1", 0).timeout_graceful_shutdown <= 3
+
+
+def test_restart_records_port_in_use(ctx):
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        server = AgentServer(ctx, "127.0.0.1", port)
+        server.restart()  # nao levanta
+        assert server.start_error == "port_in_use"
+        assert not server.running
+        assert server.port == port
+
+
+def test_start_sets_start_error_and_still_raises(ctx):
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        server = AgentServer(ctx, "127.0.0.1", busy.getsockname()[1])
+        with pytest.raises(PortInUseError):
+            server.start()
+        assert server.start_error == "port_in_use"
+
+
+def test_restart_clears_start_error_and_can_change_port(ctx):
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        server = AgentServer(ctx, "127.0.0.1", busy.getsockname()[1])
+        server.restart()
+        assert server.start_error == "port_in_use"
+        server.restart(0)
+    try:
+        assert server.start_error is None and server.running and server.port == 0
+    finally:
+        server.stop()
+
+
+class _CountingProvider(FakeSensorProvider):
+    def __init__(self) -> None:
+        super().__init__(seed=5)
+        self.closed = 0
+
+    def close(self) -> None:
+        self.closed += 1
+
+
+def _wait_fresh(ctx, limit: float = 0.5, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        age = ctx.sampler.reading_age()
+        if age is not None and age < limit:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_restart_keeps_sampler_reading_and_shuts_down_cleanly(tmp_path, caplog):
+    """Depois de restart() (novo laco do Uvicorn) as leituras continuam e o desligamento e limpo."""
+    provider = _CountingProvider()
+    context = build_context(
+        load_settings(data_dir=tmp_path), provider, idle_interval=0.05, active_interval=0.05
+    )
+    server = AgentServer(context, "127.0.0.1", 0)
+    try:
+        server.start()
+        assert _wait_fresh(context)
+        server.restart(0)
+        assert server.start_error is None
+        time.sleep(0.6)  # deixa a leitura antiga envelhecer
+        assert _wait_fresh(context, limit=0.3)
+        server.stop()
+        assert provider.closed == 2
+        assert "Application shutdown failed" not in caplog.text
+        assert "different event loop" not in caplog.text
+    finally:
+        server.stop()
+        context.db.close()

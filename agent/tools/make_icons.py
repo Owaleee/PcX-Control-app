@@ -7,6 +7,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from pcx_agent.tray.theme import COLORS
+
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "mobile" / "assets" / "icon.png"
 OUT = ROOT / "agent" / "pcx_agent" / "assets"
@@ -15,6 +17,7 @@ ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 # Android, que deixaria o desenho minusculo na bandeja (16 px).
 CROP = (172, 160, 852, 840)
 CORNER = 0.2
+ALERT_DOT = 0.3
 
 
 def rounded(image: Image.Image) -> Image.Image:
@@ -26,12 +29,30 @@ def rounded(image: Image.Image) -> Image.Image:
     return image
 
 
+def with_alert_dot(tray: Image.Image) -> Image.Image:
+    """O icone da bandeja com um circulo de alerta (30% do lado) no canto inferior direito."""
+    size = tray.size[0]
+    diameter = round(size * ALERT_DOT)
+    border = 2
+    right = size - 1
+    box = (right - diameter, right - diameter, right, right)
+    out = tray.copy()
+    draw = ImageDraw.Draw(out)
+    draw.ellipse(box, fill=COLORS["background"])  # contorno de 2 px da cor de fundo
+    draw.ellipse(
+        (box[0] + border, box[1] + border, box[2] - border, box[3] - border), fill=COLORS["danger"]
+    )
+    return out
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     with Image.open(SOURCE) as source:
         base = rounded(source.crop(CROP).resize((256, 256), Image.Resampling.LANCZOS))
     base.save(OUT / "icon.ico", sizes=[(s, s) for s in ICO_SIZES])
-    base.resize((64, 64), Image.Resampling.LANCZOS).save(OUT / "tray.png")
+    tray = base.resize((64, 64), Image.Resampling.LANCZOS)
+    tray.save(OUT / "tray.png")
+    with_alert_dot(tray).save(OUT / "tray-alert.png")
     print(f"Ícones gravados em {OUT}")
 
 

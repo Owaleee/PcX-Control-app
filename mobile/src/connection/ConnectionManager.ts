@@ -1,5 +1,6 @@
 // Conexao WebSocket com o agente: autenticacao, reconexao e os codigos de fechamento do protocolo.
 import type { Hello, SnapshotMessage } from '../protocol/types';
+import { checkProtocol, helloProtocol } from '../protocol/compat';
 import { parseHello, parseSnapshotMessage } from '../protocol/validate';
 import { backoffDelay } from './backoff';
 
@@ -19,6 +20,7 @@ export type ConnState =
   | { kind: 'busy'; activeDevice: string }
   | { kind: 'taken_over' }
   | { kind: 'revoked' }
+  | { kind: 'outdated'; who: 'app' | 'agent'; agentVersion: string }
   | { kind: 'stopped' };
 
 export const CLOSE_REVOKED = 4401;
@@ -159,6 +161,12 @@ export class ConnectionManager {
     }
     const type = (message as { type?: unknown } | null)?.type;
     if (type === 'hello') {
+      const protocol = helloProtocol(message);
+      const side = protocol === null ? 'ok' : checkProtocol(protocol);
+      if (side !== 'ok') {
+        this.markOutdated(side, message);
+        return;
+      }
       const hello = parseHello(message);
       if (!hello) return;
       if (this.helloTimer) clearTimeout(this.helloTimer);
@@ -174,6 +182,14 @@ export class ConnectionManager {
       this.last = snapshot;
       for (const listener of [...this.snapshotListeners]) listener(snapshot);
     }
+  }
+
+  /** Protocolo diferente: reconectar nao resolve, so atualizar o app ou o agente. */
+  private markOutdated(who: 'app' | 'agent', hello: unknown): void {
+    const agent = (hello as { agent?: { version?: unknown } | null }).agent;
+    const version = typeof agent?.version === 'string' && agent.version ? agent.version : 'desconhecida';
+    this.teardown();
+    this.setState({ kind: 'outdated', who, agentVersion: version });
   }
 
   private handleClose(socket: SocketLike, code: number, reason: string): void {

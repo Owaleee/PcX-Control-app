@@ -71,8 +71,17 @@ no Windows. A janela de pareamento avisa quando não está.
 ### "PC não encontrado" no celular
 
 O celular não conseguiu chegar ao PC. No agente 0.5.0 ou mais novo, comece pela bandeja:
-**Verificar conexão** confere tudo abaixo de uma vez, diz o que fazer e corrige a rede Pública e a
-regra do firewall num clique. **Copiar relatório** gera um texto para mandar a quem está ajudando.
+**Verificar conexão** confere tudo abaixo de uma vez, diz o que fazer e corrige a rede Pública, a
+regra do firewall, os sensores parados e a porta ocupada num clique.
+
+Desde o agente 0.6.0, o agente também confere a conexão sozinho a cada 5 minutos: se algo sai do
+normal, o ícone da bandeja muda de cor, chega uma notificação do Windows e o clique duplo no
+ícone abre o **Verificar conexão**.
+
+**Pacote de suporte.** Para pedir ajuda, abra o **Verificar conexão** e use **Salvar pacote de suporte**:
+ele grava um `.zip` com o relatório do diagnóstico, os logs e as versões, e mostra o arquivo na pasta. Não vão
+no pacote o banco de dados, senhas, códigos, tokens nem o nome do seu usuário do Windows; mesmo
+assim, confira o conteúdo antes de enviar.
 
 Na ordem do mais comum:
 
@@ -111,7 +120,11 @@ agente 0.4.0, cada tentativa de pareamento aparece com o IP do celular e o resul
 conexão e desconexão também. Senha, código e token nunca são gravados.
 
 Desde o agente 0.5.0, a pasta também guarda o `crash.log`: se o agente fechar sozinho (por
-exemplo, por uma falha no driver de vídeo), a pilha do momento fica registrada ali. Cada execução
+exemplo, por uma falha no driver de vídeo), a pilha do momento fica registrada ali. Desde a
+0.6.0, cada travamento vira um arquivo próprio (ficam os 10 mais recentes), a pasta tem o
+`gpu.log` com a versão do driver e a origem da temperatura, e, se o agente tiver fechado sem
+avisar, a abertura seguinte mostra "O agente fechou inesperadamente" com o horário.
+Reiniciar ou desligar o PC não conta como fechamento inesperado. Cada execução
 termina com a linha `=== encerrado normalmente ===`; uma pilha seguida dessa linha foi um erro
 que o driver tratou sozinho, não uma queda. O
 `agent.log` registra as placas de vídeo ao iniciar e cada resultado do "Verificar conexão".

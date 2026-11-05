@@ -6,6 +6,7 @@ esta acontecendo e o que fazer, em portugues simples.
 
 import ipaddress
 import ntpath
+from typing import TYPE_CHECKING
 
 from pcx_agent.diagnostics.model import (
     GROUP_AGENT,
@@ -19,6 +20,9 @@ from pcx_agent.diagnostics.model import (
 )
 from pcx_agent.network import NetInterface, is_virtual
 from pcx_agent.sensors.base import GpuReading, Snapshot
+
+if TYPE_CHECKING:
+    from pcx_agent.crashlog import PreviousSession
 
 RULE_NAME = "PcX Control - agente"
 # So VPNs de verdade (as placas virtuais de Hyper-V, WSL e afins nao atrapalham o celular).
@@ -43,7 +47,7 @@ def check_ip(interfaces: list[NetInterface], chosen: NetInterface | None) -> lis
             "O roteador não entregou um IP para este PC (endereço 169.254.x.x). "
             "Reinicie o roteador ou desconecte e conecte o cabo ou o Wi-Fi.",
         )
-    if any(is_virtual(i.name, i.ipv4) for i in up):
+    if any(is_virtual(i.name, i.ipv4, i.description) for i in up):
         return _result(
             "rede.ip", GROUP_NETWORK, title, "problema",
             "Só há VPN ou placa virtual ligada. Conecte o PC ao mesmo roteador do celular "
@@ -122,8 +126,13 @@ def check_firewall(rules: list[FirewallRule] | None, exe_path: str | None) -> li
     return _result("rede.firewall", GROUP_NETWORK, title, "problema", detail + " Crie a regra de novo.", "criar_firewall")
 
 
+def label(interface: NetInterface) -> str:
+    """`nome (descricao do driver)` quando ha descricao."""
+    return f"{interface.name} ({interface.description})" if interface.description else interface.name
+
+
 def _is_vpn(interface: NetInterface) -> bool:
-    name = interface.name.lower()
+    name = f"{interface.name} {interface.description}".lower()
     if any(word in name for word in VPN_NAMES):
         return True
     try:
@@ -134,7 +143,7 @@ def _is_vpn(interface: NetInterface) -> bool:
 
 def check_vpn(interfaces: list[NetInterface]) -> list[CheckResult]:
     title = "VPN"
-    names = sorted({i.name for i in interfaces if i.up and _is_vpn(i)})
+    names = sorted({label(i) for i in interfaces if i.up and _is_vpn(i)})
     if not names:
         return _result("rede.vpn", GROUP_NETWORK, title, "ok", "Nenhuma VPN ligada.")
     return _result(
@@ -144,13 +153,29 @@ def check_vpn(interfaces: list[NetInterface]) -> list[CheckResult]:
     )
 
 
-def check_agent(probe: AgentProbe, address: str) -> list[CheckResult]:
+def check_agent(
+    probe: AgentProbe, address: str, server_error: str | None = None, server_running: bool = True
+) -> list[CheckResult]:
     title = "Agente respondendo na rede"
+    if server_error == "port_in_use":
+        return _result(
+            "agente.local", GROUP_AGENT, title, "problema",
+            "A porta do PcX Control já está em uso por outro programa, então o agente não está "
+            "no ar. Troque a porta.",
+            "trocar_porta",
+        )
+    if not server_running:
+        return _result(
+            "agente.local", GROUP_AGENT, title, "problema",
+            "O servidor do agente está parado. Reinicie o servidor.",
+            "reiniciar_servidor",
+        )
     note = " (teste feito de dentro do PC: não prova o caminho até o celular)"
     if probe.reachable and probe.same_agent:
         return _result("agente.local", GROUP_AGENT, title, "ok", f"O agente responde em {address}{note}.")
     if probe.reachable:
         detail = f"Outro programa respondeu em {address}. Feche-o ou troque a porta do PcX Control."
+        return _result("agente.local", GROUP_AGENT, title, "problema", detail, "trocar_porta")
     else:
         detail = f"O agente não respondeu em {address}: {probe.error or 'sem resposta'}."
     return _result("agente.local", GROUP_AGENT, title, "problema", detail)
@@ -175,13 +200,25 @@ def check_antivirus(products: list[SecurityProduct] | None) -> list[CheckResult]
         CheckResult(
             "antivirus.terceiros", GROUP_ANTIVIRUS, name, "atencao",
             f"{'Firewall' if kind == 'firewall' else 'Antivírus'} de terceiros ativo. "
-            "Se o celular não conectar, libere o PcX Control nele.",
+            f"Libere este programa no {name}.",
+            "copiar_caminho",
         )
         for name, kind in others
     ]
 
 
-def check_gpus(gpus: list[GpuReading]) -> list[CheckResult]:
+def check_gpus(gpus: list[GpuReading] | None, failed: bool = False) -> list[CheckResult]:
+    """`gpus` None = sem leitura ainda (ou servidor parado); `failed` = o provider registrou falha."""
+    if failed:
+        return _result(
+            "sensores.gpu", GROUP_SENSORS, "Placa de vídeo", "problema",
+            "A leitura da placa de vídeo falhou.", "reiniciar_sensores",
+        )
+    if gpus is None:
+        return _result(
+            "sensores.gpu", GROUP_SENSORS, "Placa de vídeo", "info",
+            "Sem leitura dos sensores agora: a placa de vídeo aparece depois da próxima leitura.",
+        )
     if not gpus:
         return _result(
             "sensores.gpu", GROUP_SENSORS, "Placa de vídeo", "atencao",
@@ -199,11 +236,32 @@ def check_gpus(gpus: list[GpuReading]) -> list[CheckResult]:
     return results
 
 
-def check_reading(snapshot: Snapshot | None, error: str | None) -> list[CheckResult]:
+def check_reading(
+    snapshot: Snapshot | None, error: str | None, age_s: float | None = None, stale_after_s: float = 30.0
+) -> list[CheckResult]:
     title = "Leitura dos sensores"
     if snapshot is None:
-        return _result("sensores.leitura", GROUP_SENSORS, title, "problema", f"A leitura falhou: {error or 'sem dados'}.")
+        return _result(
+            "sensores.leitura", GROUP_SENSORS, title, "problema",
+            f"A leitura falhou: {error or 'sem dados'}.", "reiniciar_sensores",
+        )
+    if age_s is not None and age_s > stale_after_s:
+        return _result(
+            "sensores.leitura", GROUP_SENSORS, title, "problema",
+            f"Os sensores pararam de responder há {age_s:.0f} s.", "reiniciar_sensores",
+        )
     return _result(
         "sensores.leitura", GROUP_SENSORS, title, "ok",
         f"CPU, memória, {len(snapshot.disks)} disco(s) e rede lidos.",
+    )
+
+
+def check_shutdown(previous: "PreviousSession | None") -> list[CheckResult]:
+    """Avisa quando a execucao anterior do agente caiu (horario local do ultimo registro)."""
+    if previous is None or not previous.crashed or previous.last_seen is None:
+        return []
+    local = previous.last_seen.astimezone()
+    detail = f"O PcX Control fechou inesperadamente em {local:%d/%m} às {local:%H:%M}."
+    return _result(
+        "agente.encerramento", GROUP_AGENT, "Fechamento inesperado", "problema", detail, "salvar_pacote"
     )

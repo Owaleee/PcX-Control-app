@@ -246,8 +246,8 @@ agente 0.5.0.
 
 ## Pendências (Plano 4)
 
-- VPN com nome que o agente não reconhece (um WireGuard chamado "casa", um adaptador TAP
-  "Ethernet 3") ainda pode ir para o QR. O caminho robusto é ler o tipo e a descrição da placa no
+- **(Resolvida no agente 0.6.0.)** VPN com nome que o agente não reconhece (um WireGuard chamado
+  "casa", um adaptador TAP "Ethernet 3") ainda pode ir para o QR. O caminho robusto é ler o tipo e a descrição da placa no
   Windows (`GetAdaptersAddresses` ou `Get-NetAdapter`).
 - No modo painel, um toque no cartão da GPU abre o histórico mesmo quando a ideia era só mostrar
   os controles; avaliar toque longo se incomodar no uso.
@@ -277,16 +277,17 @@ fácil de atualizar. As regras do protocolo que sustentam isso estão em
   agentes mais antigos.
 - **Diagnóstico embutido:** log de atividade e avisos de rede (agente 0.4.0) reduzem os casos em
   que é preciso atualizar o agente só para descobrir um problema.
-- **Antes de declarar o agente estável:** fechar as pendências que afetam o uso (VPN com nome
-  desconhecido no QR, teste em placas AMD e Intel) e rodar o roteiro manual completo num PC
+- **Antes de declarar o agente estável:** fechar as pendências que afetam o uso (teste em placas
+  AMD e Intel; a VPN com nome desconhecido no QR fechou na 0.6.0) e rodar o roteiro manual completo num PC
   que não seja o de desenvolvimento.
 
 ## Pendências de compatibilidade
 
-- **Protocolo novo sem quebrar apps antigos:** hoje o app só aceita `protocol: 1` no `hello` e,
-  com outro número, falha ao conectar sem explicar. Antes de um protocolo 2 (por exemplo, com o
-  HTTPS planejado), o app precisa mostrar "Atualize o app para usar este PC", e o agente precisa
-  continuar aceitando o protocolo 1 por pelo menos uma versão.
+- **(Resolvida no app 0.5.0.) App com protocolo novo no PC:** antes o app só aceitava `protocol: 1`
+  e, com outro número, falhava ao conectar sem explicar. Agora mostra "Atualize o app".
+- **Ainda pendente: o agente aceitar o protocolo 1 depois de um protocolo 2.** Quando o protocolo 2
+  vier (por exemplo, com o HTTPS planejado), o agente deve continuar aceitando o 1 por pelo menos
+  uma versão.
 - **Agente antigo com app novo:** quando o app ganhar uma função que dependa de algo novo no
   agente, ele deve checar a capacidade no `hello` e mostrar "Atualize o PcX Control no PC para
   usar isto" em vez de um cartão vazio.
@@ -334,9 +335,122 @@ fácil de atualizar. As regras do protocolo que sustentam isso estão em
 
 - Num celular bem estreito em paisagem (cartão abaixo de ~300 px), um nome de placa de 30 letras
   ou mais com dois selos ainda pode ser cortado, mesmo com os selos curtos.
-- O `crash.log` só é cortado (1 MiB) ao iniciar; um driver que gere muitos alarmes falsos numa
+- **(Resolvida no agente 0.6.0.)** O `crash.log` só é cortado (1 MiB) ao iniciar; um driver que gere muitos alarmes falsos numa
   sessão longa faz o arquivo crescer até o próximo início.
-- A linha de início do log não diz de onde vem a temperatura de cada placa (driver ou NVML).
+- **(Resolvida no agente 0.6.0.)** A linha de início do log não diz de onde vem a temperatura de
+  cada placa (driver ou NVML).
 - A comparação com o Gerenciador de Tarefas na RX 7600 (item A23 do roteiro) e o pedido de
   administrador real (A20) só podem ser conferidos num PC de verdade.
 
+---
+
+# Plano 6: suporte no agente e aviso de versão no app (agente 0.6.0, app 0.5.0)
+
+Origem: [spec](specs/2026-11-03-agente-0.6-suporte-design.md) e
+[plano](plans/2026-11-03-plano-6-agente-0.6.md). O protocolo continua em `1`, só com acréscimo
+(`temp_warn_c` em cada GPU).
+
+## Desvios do spec (decididos antes de começar)
+
+1. **Fechamento inesperado e desligamento do PC.** No desligamento ou reinício, o Windows pode
+   encerrar o processo sem rodar a rotina de saída, e o `crash.log` ficaria sem "encerrado
+   normalmente". Por isso só conta como fechamento inesperado se a última linha do `agent.log` da
+   execução anterior for **depois do último boot** do Windows. O horário mostrado é o dessa linha.
+2. **Clique na notificação.** A biblioteca da bandeja não avisa quando a pessoa clica na
+   notificação do Windows. Com o alerta aceso, a ação padrão do ícone (clique duplo) passa de
+   "Parear celular" para "Verificar conexão" e volta quando o alerta apaga.
+
+## Decisões tomadas na execução
+
+1. **A leitura parada vem da idade da última leitura** do coletor (mais de 30 s), e o estado do
+   servidor vem do próprio servidor; o controlador liga os dois à janela de diagnóstico.
+2. **Sensores com o servidor parado:** o coletor só roda com o servidor no ar. Nesse caso a
+   verificação mostra "Sensores parados enquanto o agente não está na rede" em vez de "falhou".
+3. **O fechamento inesperado é uma verificação do grupo Agente** (`agente.encerramento`), junto
+   das outras, e não um aviso à parte.
+4. **"Copiar relatório" saiu** da janela; entrou "Salvar pacote de suporte" (zip gravado em
+   arquivo temporário e renomeado no fim, sem sobras se falhar).
+5. **A falha de um sensor só é avisada depois da leitura publicada**, e pedidos de verificação
+   que chegam juntos se juntam numa rodada.
+6. **Placa de rede escolhida por tipo e descrição do driver** (lista de adaptadores do Windows),
+   não só pelo nome; é isso que fecha a pendência da VPN renomeada.
+7. **Driver da placa de vídeo achado pelo LUID**, para não misturar placas num PC com integrada e
+   dedicada.
+8. **Variável `PCX_TEST_PROTOCOL`**, só em `--demo`, para o roteiro manual testar o aviso
+   "Atualize o app" sem precisar de um agente de protocolo 2.
+9. **O aviso de versão no app mostra também a versão do agente** ("Versão no PC"), mesmo fora do
+   texto previsto no spec: ajuda quem for pedir suporte.
+10. **Desligar com a Inicialização rápida:** o horário do boot não muda nesse caso, então a regra
+    do boot não basta. A bandeja trata o fim da sessão do Windows (`WM_SAVE_YOURSELF` no Tk, que
+    vem do `WM_QUERYENDSESSION`), grava "encerrado normalmente" uma vez só
+    (`crashlog.mark_normal_exit()`) e sai como o **Sair**. Item A32b no roteiro manual.
+11. **Falha na GPU oferece "Reiniciar sensores":** o provider expõe `gpu_failed` (PDH, D3DKMT ou
+    NVML em falha até a fonte ler de novo ou o reset). Com falha, `sensores.gpu` vira `problema`;
+    sem leitura (servidor parado ou iniciando) vira `info`, sem acender o alerta.
+12. **Antivírus de terceiros fora do alerta automático**, como a VPN: continua na janela. As
+    notificações pendentes saem com `problema` antes de `atencao` (depois pelo `id`).
+13. **A rodada de 5 minutos confere a regra do firewall** (`rede.firewall`), para cumprir o
+    critério 1 do spec (regra apagada acende o alerta em até 5 minutos).
+
+## Achados da revisão independente (corrigidos)
+
+1. Reiniciar os sensores podia rodar ao mesmo tempo que uma leitura; a leitura do provider ganhou
+   uma trava, e a ordem dos botões do teste foi acertada.
+2. O driver da placa era procurado pelo nome e podia vir de outra placa; agora vem do LUID.
+3. A pasta de logs e o zip do pacote podiam deixar sobras se a gravação falhasse.
+4. A falha de um sensor era avisada antes de a leitura ser publicada, e dois pedidos de
+   verificação simultâneos rodavam duas vezes.
+
+## Achados da revisão final (corrigidos)
+
+1. **Leituras paravam depois de reiniciar o servidor:** os eventos internos do coletor ficavam
+   presos ao primeiro laço do servidor; depois de **Reiniciar servidor** ou **Trocar a porta** a
+   leitura não voltava e o encerramento pulava o fechamento dos sensores. Agora nascem a cada
+   início do coletor.
+2. **Driver travado congelava o servidor:** a consulta das capacidades dos sensores esperava a
+   leitura em andamento; agora só lê o que já sabe, sem a trava.
+3. **Segunda execução escrevia no `crash.log`:** a trava de instância única vem antes de qualquer
+   log.
+4. **Desligar com a Inicialização rápida virava "fechou inesperadamente"** (decisão 10).
+5. **Falha na GPU não oferecia "Reiniciar sensores"** (decisão 11).
+6. **Antivírus acendia o alerta automático e a ordem das notificações era alfabética**
+   (decisão 12).
+7. **A regra do firewall apagada só aparecia ao abrir a janela** (decisão 13).
+8. Menores: no app, uma `temp_warn_c` inválida descartava a placa inteira (agora vira vazia);
+   **Trocar a porta** dizia que trocou mesmo sem o servidor subir na porta nova; o roteiro A31
+   citava o texto errado do aviso.
+
+## Pendências fechadas neste plano
+
+- O `crash.log` só era cortado ao iniciar (agora o corte acontece durante a execução).
+- A linha de início do log não dizia a origem da temperatura (agora diz).
+- VPN com nome desconhecido ou renomeado no QR (agora o tipo e a descrição da placa decidem).
+- Compatibilidade de protocolo: o app mostra "Atualize o app" quando o PC anuncia um protocolo
+  mais novo (e pede para atualizar o PC quando é mais antigo).
+
+## Pendências (Plano 6)
+
+- A "leitura parada" só é percebida na verificação de 5 minutos; não há aviso imediato.
+- Trocar a porta usa sempre todas as placas de rede (`0.0.0.0`); se a troca falhar, a porta nova
+  fica gravada no `config.json` (o aviso de sucesso não aparece mais nesse caso).
+- Entre as verificações, o monitor do alerta não tem trava própria: hoje tudo passa pela thread da
+  interface, mas qualquer chamada nova de outro lugar precisa seguir isso.
+- O `crash.log` pode ficar sem registro por um instante curto durante a manutenção, e a rotação
+  pode apagar o arquivo recém-gravado se o relógio do PC voltar no tempo.
+- Falha do D3DKMT ou do NVML lista todas as placas; a falha da versão do driver só aparece no nível
+  de depuração do log.
+- O formato dos contadores de capacidade do driver (`PERFDATACAPS`) não foi conferido em
+  hardware real, e a leitura duplica parte do código da leitura de desempenho.
+- A janela de diagnóstico tem 166 linhas (meta: ~150).
+- O filtro do nome do usuário no pacote pode esconder palavras comuns em nomes curtos (como
+  "admin" ou "max"); um zip interrompido à força pode deixar um arquivo `.part`; a liberação de
+  memória da pasta conhecida do Windows não ocorre em caso de falha.
+- Só o primeiro endereço IPv4 de cada placa é considerado; uma resposta vazia da lista de
+  adaptadores do Windows não cai na leitura alternativa; os exemplos de adaptadores nos testes são
+  sintéticos.
+- No app: o aviso de versão não some ao trocar entre QR e digitar IP; não há teste de ir para
+  segundo plano e voltar com o aviso aberto, nem do aviso em paisagem no modo painel.
+- Itens do roteiro que só um PC e um celular de verdade confirmam: A23 a A32b (bandeja, clique
+  duplo com alerta, notificação, troca de porta, pacote de suporte, aviso de fechamento,
+  desligamento com a Inicialização rápida) e o item
+  27 (aviso com `PCX_TEST_PROTOCOL=2`).

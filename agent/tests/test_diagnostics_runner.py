@@ -206,3 +206,53 @@ def test_probe_other_agent_id():
 def test_report_shows_the_card_luid():
     text = build_report([], ReportFacts("0.5.0", "10", gpus=[GPU]))
     assert "| LUID 0x00000000_0x00009962 phys 0" in text
+
+
+def test_run_all_only_runs_selected():
+    calls = []
+
+    def probe(address):
+        calls.append(address)
+        return AgentProbe(reachable=True, same_agent=True)
+
+    results = runner.run_all(sources(probe=probe), only={"rede.ip", "sensores.leitura"})
+    assert [r.id for r in results] == ["rede.ip", "sensores.leitura"]
+    assert calls == []
+    assert len(runner.run_all(sources())) > 2
+
+
+def test_quick_checks_ids():
+    # A regra do firewall apagada tem que acender o alerta em ate 5 min (criterio 1 do spec).
+    assert runner.QUICK_CHECKS == frozenset({"rede.ip", "rede.tipo", "rede.firewall", "sensores.leitura"})
+
+
+def test_reading_age_and_server_state_reach_the_checks():
+    stale = runner.run_all(sources(reading_age=lambda: 45.0), only={"sensores.leitura"})
+    assert by_id(stale)["sensores.leitura"][0].fix == "reiniciar_sensores"
+    down = runner.run_all(
+        sources(server_state=lambda: ("port_in_use", False)), only={"agente.local"}
+    )
+    assert by_id(down)["agente.local"][0].fix == "trocar_porta"
+
+
+def test_all_checks_lists_every_plan_id():
+    assert runner.ALL_CHECKS >= {r.id for r in runner.run_all(sources())}
+    assert runner.QUICK_CHECKS <= runner.ALL_CHECKS
+    assert len(runner.ALL_CHECKS) == 9
+
+
+def test_gpu_failure_from_the_provider_reaches_the_check():
+    failed = runner.run_all(sources(gpu_failed=lambda: True), only={"sensores.gpu"})
+    assert [(r.status, r.fix) for r in failed] == [("problema", "reiniciar_sensores")]
+    fine = runner.run_all(sources(), only={"sensores.gpu"})
+    assert [r.status for r in fine] == ["info"]
+
+
+def test_gpu_without_reading_is_info():
+    results = runner.run_all(sources(reading=lambda: (None, "ainda sem leitura")), only={"sensores.gpu"})
+    assert [r.status for r in results] == ["info"]
+
+
+def test_gpu_with_server_stopped_is_info_even_with_an_old_reading():
+    results = runner.run_all(sources(server_state=lambda: ("port_in_use", False)), only={"sensores.gpu"})
+    assert [(r.status, r.title) for r in results] == [("info", "Placa de vídeo")]

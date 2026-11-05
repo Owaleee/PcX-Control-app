@@ -30,6 +30,8 @@ class GpuReading(BaseModel):
     temp_c: float | None = None
     # Acrescimo do protocolo 1 (agente 0.5.0): "nvidia", "amd", "intel" ou "outra".
     vendor: str | None = None
+    # Acrescimo do protocolo 1 (agente 0.6.0): temperatura de alerta do driver, em graus Celsius.
+    temp_warn_c: float | None = None
 
 
 class DiskVolume(BaseModel):

@@ -12,7 +12,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
-from pcx_agent import PROTOCOL
 from pcx_agent.api.stream import StreamHub, register_stream
 from pcx_agent.auth.pairing import Device, PairError, PairingService
 from pcx_agent.auth.passwords import PasswordService
@@ -198,7 +197,7 @@ def create_app(
         "id": ctx.db.agent_id,
         "name": ctx.db.agent_name,
         "version": ctx.settings.version,
-        "protocol": PROTOCOL,
+        "protocol": ctx.settings.protocol,
     }
 
     @app.get("/v1/info")
@@ -207,7 +206,7 @@ def create_app(
             "agent_id": agent_info["id"],
             "name": ctx.db.agent_name,
             "version": agent_info["version"],
-            "protocol": PROTOCOL,
+            "protocol": ctx.settings.protocol,
             "busy": ctx.sessions.has_active(),
         }
 

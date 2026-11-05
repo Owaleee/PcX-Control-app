@@ -1,8 +1,13 @@
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { FONT_SCALE_CAP, Gauge, subtitleFontSize, valueFontSize } from '../../src/components/Gauge';
 import { MetricCard } from '../../src/components/MetricCard';
+import { Linking } from 'react-native';
+
+import { NeedsAgentUpdate } from '../../src/components/NeedsAgentUpdate';
+import { OutdatedNotice } from '../../src/components/OutdatedNotice';
+import { RELEASES_URL } from '../../src/protocol/compat';
 import { Sparkline, sparklinePath } from '../../src/components/Sparkline';
 import { StatusPill, statusLabel } from '../../src/components/StatusPill';
 import { CardGrid, WIDE_MIN_WIDTH } from '../../src/components/ui';
@@ -206,5 +211,32 @@ describe('CardGrid', () => {
     const grid = screen.getByTestId('card-grid');
     expect(StyleSheet.flatten(grid.props.style)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
     expect(screen.getAllByTestId('metric-card')).toHaveLength(3);
+  });
+});
+
+describe('avisos de versao', () => {
+  test('OutdatedNotice para app mostra texto e botao que abre as releases', async () => {
+    const open = jest.spyOn(Linking, 'openURL').mockImplementation(async () => undefined);
+    await render(<OutdatedNotice who="app" agentVersion="9.0.0" />);
+    expect(screen.getByText('Este PC usa uma versão mais nova do PcX Control. Atualize o app.')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Baixar a versão nova'));
+    expect(open).toHaveBeenCalledWith(RELEASES_URL);
+    open.mockRestore();
+  });
+
+  test('OutdatedNotice para agente nao tem botao', async () => {
+    await render(<OutdatedNotice who="agent" agentVersion="0.1.0" />);
+    expect(screen.getByText('Este PC usa uma versão antiga do PcX Control. Atualize o programa no PC.')).toBeTruthy();
+    expect(screen.queryByText('Baixar a versão nova')).toBeNull();
+  });
+
+  test('NeedsAgentUpdate mostra a versao do PC', async () => {
+    await render(<NeedsAgentUpdate agentVersion="0.5.1" />);
+    expect(screen.getByText('Atualize o PcX Control no PC para usar isto.')).toBeTruthy();
+    expect(screen.getByText('Versão no PC: 0.5.1')).toBeTruthy();
+  });
+
+  test('StatusPill tem rotulo para outdated', () => {
+    expect(statusLabel({ kind: 'outdated', who: 'app', agentVersion: '1' })).toBe('Versão incompatível');
   });
 });

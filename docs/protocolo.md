@@ -74,8 +74,9 @@ algo sério. As funções novas entram pelo **app**. Para isso, o protocolo segu
 3. **Função nova no agente vira capacidade nova.** Por exemplo, um agente que passe a ler a
    temperatura da CPU anuncia `cpu.temp`; o app esconde o cartão em agentes que não anunciam.
 4. **Quebra de compatibilidade só com protocolo 2**, e o agente continua aceitando o 1 por pelo
-   menos uma versão. O app que não reconhece o protocolo mostra "Atualize o app" em vez de só
-   falhar (pendência registrada em `decisoes-e-pendencias.md`).
+   menos uma versão. Desde o app 0.5.0, o app que não reconhece o protocolo anunciado (no `hello`
+   ou em `/v1/info`) mostra "Atualize o app" com o link das releases em vez de só falhar; se o PC
+   anuncia um protocolo mais antigo, pede para atualizar o programa no PC.
 
 ### Acréscimos já feitos na versão 1
 
@@ -83,3 +84,4 @@ algo sério. As funções novas entram pelo **app**. Para isso, o protocolo segu
 | --- | --- | --- |
 | 0.5.0 | `vendor` em cada item de `gpus` (`"nvidia"`, `"amd"`, `"intel"` ou `"outra"`, a partir do `VendorId` da placa) | opcional; ausente ou inválido vira `null`. Usado em relatório e log, não aparece na tela |
 | 0.5.0 | `gpus` ordenadas pela VRAM dedicada, da maior para a menor | o app continua mostrando `gpus[0]` no painel, que agora é a placa dedicada |
+| 0.6.0 | `temp_warn_c` em cada item de `gpus` (temperatura de alerta da placa, em °C, informada pelo driver) | opcional; `null` quando o driver não informa. Ausente ou inválido vira `null` |

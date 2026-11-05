@@ -22,11 +22,16 @@ class TrayActions:
     quit: Callable[[], None]
 
 
-def build_tray_icon(controller, actions: TrayActions) -> pystray.Icon:
-    menu = pystray.Menu(
-        pystray.MenuItem(texts.MENU_PAIR, lambda: actions.pair(), default=True),
+def build_menu(actions: TrayActions, alert: bool = False) -> pystray.Menu:
+    """Com o alerta aceso, "Verificar conexao" vira a acao padrao (clique duplo) no lugar de "Parear"."""
+    return pystray.Menu(
+        pystray.MenuItem(texts.MENU_PAIR, lambda: actions.pair(), default=not alert),
         pystray.MenuItem(texts.MENU_DEVICES, lambda: actions.devices()),
-        pystray.MenuItem(texts.MENU_DIAGNOSTICS, lambda: actions.diagnostics()),
+        pystray.MenuItem(
+            texts.MENU_DIAGNOSTICS_ALERT if alert else texts.MENU_DIAGNOSTICS,
+            lambda: actions.diagnostics(),
+            default=alert,
+        ),
         pystray.MenuItem(texts.MENU_PASSWORD, lambda: actions.password()),
         pystray.MenuItem(
             texts.MENU_AUTOSTART,
@@ -37,5 +42,12 @@ def build_tray_icon(controller, actions: TrayActions) -> pystray.Icon:
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(texts.MENU_QUIT, lambda: actions.quit()),
     )
-    image = Image.open(assets_path("tray.png"))
-    return pystray.Icon("PcXControl", image, controller.status_text(), menu)
+
+
+def tray_image(alert: bool = False) -> Image.Image:
+    with Image.open(assets_path("tray-alert.png" if alert else "tray.png")) as image:
+        return image.copy()
+
+
+def build_tray_icon(controller, actions: TrayActions) -> pystray.Icon:
+    return pystray.Icon("PcXControl", tray_image(), controller.status_text(), build_menu(actions))

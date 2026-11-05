@@ -32,10 +32,12 @@ def truncate_reason(text: str, limit: int = MAX_REASON_BYTES) -> str:
     return text.encode("utf-8")[:limit].decode("utf-8", errors="ignore")
 
 
-def build_hello(agent_id: str, name: str, version: str, capabilities: set[str]) -> dict:
+def build_hello(
+    agent_id: str, name: str, version: str, capabilities: set[str], protocol: int = PROTOCOL
+) -> dict:
     return {
         "type": "hello",
-        "protocol": PROTOCOL,
+        "protocol": protocol,
         "agent": {"id": agent_id, "name": name, "version": version},
         "capabilities": sorted(capabilities),
     }
@@ -176,7 +178,9 @@ async def _serve(
     try:
         agent_id, agent_name = await asyncio.to_thread(lambda: (ctx.db.agent_id, ctx.db.agent_name))
         await ws.send_json(
-            build_hello(agent_id, agent_name, ctx.settings.version, ctx.provider.capabilities())
+            build_hello(
+                agent_id, agent_name, ctx.settings.version, ctx.provider.capabilities(), ctx.settings.protocol
+            )
         )
         ctx.sessions.touch(device.id)
         ctx.sampler.nudge()

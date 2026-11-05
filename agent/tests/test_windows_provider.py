@@ -46,3 +46,12 @@ def test_dxgi_adapters_listing_does_not_raise():
 
     adapters = native.list_adapters()
     assert isinstance(adapters, dict)
+
+
+def test_list_adapters_has_driver_version():
+    from pcx_agent.sensors.windows import native
+
+    for info in native.list_adapters().values():
+        assert info.device_id >= 0
+        # Placa real com driver WDDM: "31.0.15.7002"; sem resposta, None (nunca levanta).
+        assert info.driver_version is None or len(info.driver_version.split(".")) == 4

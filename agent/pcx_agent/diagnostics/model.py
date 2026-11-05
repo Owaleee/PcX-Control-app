@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from typing import Literal
 
 Status = Literal["ok", "atencao", "problema", "info"]
-Fix = Literal["abrir_rede", "criar_firewall"]
+Fix = Literal[
+    "abrir_rede", "criar_firewall", "reiniciar_sensores", "reiniciar_servidor", "trocar_porta",
+    "copiar_caminho", "salvar_pacote",
+]
 
 GROUP_NETWORK = "Rede e firewall"
 GROUP_AGENT = "Agente acessível"

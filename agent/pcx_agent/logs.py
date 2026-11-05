@@ -11,6 +11,10 @@ from pathlib import Path
 LOG_FILE = "agent.log"
 MAX_BYTES = 1_048_576
 BACKUP_COUNT = 4  # 5 arquivos no total
+GPU_LOG_FILE = "gpu.log"
+GPU_MAX_BYTES = 524_288
+GPU_BACKUP_COUNT = 1  # 2 arquivos de 512 KiB
+SENSORS_LOGGER = "pcx_agent.sensors"
 REDACTED = "[oculto]"
 
 # Tokens e codigos vem de secrets.token_urlsafe: 22+ caracteres de base64url.
@@ -80,6 +84,20 @@ def setup_logging(log_dir: Path, *, console: bool = False, level: int = logging.
         setattr(handler, _MARK, True)
         root.addHandler(handler)
     root.setLevel(level)
+
+    # gpu.log: so os sensores; o logger continua propagando para o agent.log.
+    sensors = logging.getLogger(SENSORS_LOGGER)
+    for handler in sensors.handlers[:]:
+        if getattr(handler, _MARK, False):
+            sensors.removeHandler(handler)
+            handler.close()
+    gpu_handler = RotatingFileHandler(
+        log_dir / GPU_LOG_FILE, maxBytes=GPU_MAX_BYTES, backupCount=GPU_BACKUP_COUNT, encoding="utf-8"
+    )
+    gpu_handler.setFormatter(JsonFormatter())
+    gpu_handler.addFilter(redactor)
+    setattr(gpu_handler, _MARK, True)
+    sensors.addHandler(gpu_handler)
     # O Uvicorn pode ter configurado os proprios loggers sem propagar: tudo vai para a raiz.
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         uv = logging.getLogger(name)

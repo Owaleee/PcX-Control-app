@@ -65,3 +65,8 @@ async def test_metrics_fixture_matches_snapshot_metrics():
 
 async def test_pair_device_helper_still_works(client, ctx):
     assert await pair_device(client, ctx)
+
+
+def test_snapshot_fixture_has_gpu_temp_warn():
+    gpu = build_fixtures()["snapshot_message"]["data"]["gpus"][0]
+    assert gpu["temp_warn_c"] == 83.0

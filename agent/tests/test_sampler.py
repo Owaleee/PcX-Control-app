@@ -200,3 +200,83 @@ async def test_slow_history_write_does_not_block_the_event_loop(parts):
 
     await asyncio.gather(sampler.tick(), heartbeat())
     assert max(gaps) < 0.1
+
+
+async def test_latest_at_updates_on_good_read_only(parts):
+    _, clock, _ = parts
+    sampler, _ = build(parts, [10.0, RuntimeError("falhou"), 20.0])
+    assert sampler.latest_at is None
+    assert sampler.reading_age() is None
+    clock.now = 100.0
+    await sampler.tick()
+    assert sampler.latest_at == 100.0
+    clock.now = 105.0
+    await sampler.tick()  # leitura falhou: continua com a hora da ultima boa
+    assert sampler.latest_at == 100.0
+    assert sampler.reading_age() == 5.0
+    clock.now = 110.0
+    await sampler.tick()
+    assert sampler.latest_at == 110.0
+
+
+class FailingProvider(ScriptedProvider):
+    """Registra uma falha de GPU durante a leitura e a entrega no `take_failure` seguinte."""
+
+    def __init__(self) -> None:
+        super().__init__([10.0])
+        self.failed = False
+
+    def read(self):
+        self.failed = True
+        return super().read()
+
+    def take_failure(self) -> bool:
+        failed, self.failed = self.failed, False
+        return failed
+
+
+async def test_sensor_failure_hook_fires_after_snapshot_is_published(parts):
+    history, clock, wall = parts
+    provider = FailingProvider()
+    sampler = Sampler(provider, history, lambda: False, clock=clock, wall=wall)
+    seen = []
+    sampler.on_sensor_failure = lambda: seen.append(sampler.latest)
+    await sampler.tick()
+    assert len(seen) == 1
+    assert seen[0] is sampler.latest and seen[0] is not None  # ja com a leitura nova
+    await sampler.tick()
+    assert len(seen) == 2
+
+
+async def test_sensor_failure_hook_error_does_not_break_tick(parts):
+    history, clock, wall = parts
+    sampler = Sampler(FailingProvider(), history, lambda: False, clock=clock, wall=wall)
+
+    def broken():
+        raise RuntimeError("x")
+
+    sampler.on_sensor_failure = broken
+    await sampler.tick()
+    assert sampler.latest is not None
+
+
+def test_run_works_again_in_a_new_event_loop(parts):
+    """O restart do servidor roda o Sampler num laco novo; stop/nudge antes do run nao quebram."""
+    sampler, provider = build(parts, [10.0], idle_interval=0.01)
+    sampler.stop()
+    sampler.nudge()
+
+    async def run_once() -> None:
+        task = asyncio.create_task(sampler.run())
+        before = provider.calls
+        for _ in range(100):
+            if provider.calls > before:
+                break
+            await asyncio.sleep(0.01)
+        sampler.stop()
+        await asyncio.wait_for(task, timeout=1.0)
+
+    asyncio.run(run_once())
+    first = provider.calls
+    asyncio.run(run_once())
+    assert first >= 1 and provider.calls > first

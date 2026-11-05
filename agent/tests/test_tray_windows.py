@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -335,17 +336,25 @@ class _DiagnosticsController:
         self.results = results
         self.runs = 0
         self.fixes = []
+        self.saved = []
 
     def run_diagnostics(self):
         self.runs += 1
         return self.results
 
-    def diagnostics_report(self, results):
-        return f"relatorio com {len(results)} itens"
+    def save_support_package(self, results):
+        self.saved.append(len(results))
+        return Path("/tmp/PcXControl-suporte-20261103-1405.zip")
+
+    last_fix_message = None
+    program = r"C:\Programa\PcXControl.exe"
 
     def apply_fix(self, fix):
         self.fixes.append(fix)
         return True
+
+    def program_path(self):
+        return self.program
 
 
 def _diag_results():
@@ -414,13 +423,44 @@ def test_diagnostics_fix_buttons_call_the_controller_and_rerun_on_focus(root):
     window.close()
 
 
-def test_diagnostics_copy_report_goes_to_clipboard(root):
-    from pcx_agent.tray import texts
+def test_window_save_button_replaces_copy(root, monkeypatch):
+    from pcx_agent.tray import diagnostics_window, texts
 
-    window = _open_diagnostics(root, _DiagnosticsController(_diag_results()))
-    window.copy_report()
-    assert root.clipboard_get() == "relatorio com 8 itens"
-    assert window.status.cget("text") == texts.DIAG_COPIED
+    revealed = []
+    monkeypatch.setattr(diagnostics_window.folders, "reveal", revealed.append)
+    controller = _DiagnosticsController(_diag_results())
+    window = _open_diagnostics(root, controller)
+    assert _find(window, "Copiar relatório") is None
+    assert not hasattr(window, "copy_report")
+    window.save_button.invoke()
+    assert window.status.cget("text") == texts.DIAG_SAVING
+    deadline = time.monotonic() + 5
+    while (not revealed or controller.runs < 2 or window.status.cget("text") == texts.DIAG_RUNNING) and (
+        time.monotonic() < deadline
+    ):
+        root.update()
+        time.sleep(0.02)
+    assert controller.saved == [8]
+    assert revealed == [Path("/tmp/PcXControl-suporte-20261103-1405.zip")]
+    assert window.status.cget("text") == texts.DIAG_PACKAGE_SAVED.format(nome="PcXControl-suporte-20261103-1405.zip")
+    assert controller.runs == 2  # verifica de novo depois de salvar
+    window.close()
+
+
+def test_fix_salvar_pacote_saves_like_the_button(root, monkeypatch):
+    from pcx_agent.tray import diagnostics_window
+
+    revealed = []
+    monkeypatch.setattr(diagnostics_window.folders, "reveal", revealed.append)
+    controller = _DiagnosticsController(_diag_results())
+    window = _open_diagnostics(root, controller)
+    window._fix("salvar_pacote")
+    deadline = time.monotonic() + 5
+    while not revealed and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.02)
+    assert controller.saved == [8]
+    assert "salvar_pacote" not in controller.fixes
     window.close()
 
 
@@ -428,7 +468,7 @@ def test_diagnostics_footer_buttons_are_not_cut(root):
     from pcx_agent.tray import texts
 
     window = _open_diagnostics(root, _DiagnosticsController(_diag_results()))
-    for text in (texts.DIAG_COPY, texts.DIAG_AGAIN, texts.CLOSE):
+    for text in (texts.DIAG_SAVE_PACKAGE, texts.DIAG_AGAIN, texts.CLOSE):
         assert _fully_visible(window, _find(window, text)), text
     window.close()
 
@@ -482,3 +522,84 @@ def test_firewall_fix_runs_in_background_and_checks_again_when_done(root):
     assert controller.fixes == ["criar_firewall"]
     assert controller.runs == 2  # verificou de novo sem precisar voltar o foco
     window.close()
+
+
+def test_rows_show_new_fix_buttons(root):
+    from pcx_agent.diagnostics.model import CheckResult
+    from pcx_agent.tray import texts
+
+    results = [
+        CheckResult("sensores.leitura", "Sensores", "Leitura", "problema", "Parada.", "reiniciar_sensores"),
+        CheckResult("agente.local", "Agente acessível", "Agente", "problema", "Fora.", "reiniciar_servidor"),
+        CheckResult("agente.porta", "Agente acessível", "Porta", "problema", "Em uso.", "trocar_porta"),
+        CheckResult("antivirus.terceiros", "Antivírus", "Avast", "atencao", "Libere.", "copiar_caminho"),
+    ]
+    window = _open_diagnostics(root, _DiagnosticsController(results))
+    assert [b.cget("text") for b in window.results_list.fix_buttons] == [
+        texts.DIAG_FIX_RESTART, texts.DIAG_FIX_PORT, texts.DIAG_FIX_COPY_PATH, texts.DIAG_FIX_SENSORS,
+    ]
+    window.close()
+
+
+def test_copy_path_puts_exe_in_clipboard(root):
+    from pcx_agent.diagnostics.model import CheckResult
+    from pcx_agent.tray import texts
+
+    results = [CheckResult("antivirus.terceiros", "Antivírus", "Avast", "atencao", "Libere.", "copiar_caminho")]
+    controller = _DiagnosticsController(results)
+    window = _open_diagnostics(root, controller)
+    window.results_list.fix_buttons[0].invoke()
+    assert root.clipboard_get() == controller.program
+    assert window.status.cget("text") == texts.DIAG_PATH_COPIED
+    assert controller.fixes == []  # a janela cuida da area de transferencia
+    window.close()
+
+
+def test_any_fix_runs_diagnostics_again_and_shows_the_message(root):
+    from pcx_agent.diagnostics.model import CheckResult
+
+    results = [CheckResult("agente.porta", "Agente acessível", "Porta", "problema", "Em uso.", "trocar_porta")]
+    controller = _DiagnosticsController(results)
+    controller.last_fix_message = "Porta trocada para 8766."
+    window = _open_diagnostics(root, controller)
+    window.results_list.fix_buttons[0].invoke()
+    deadline = time.monotonic() + 5
+    while controller.runs < 2 and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.02)
+    for _ in range(10):
+        root.update()
+        time.sleep(0.02)
+    assert controller.fixes == ["trocar_porta"]
+    assert controller.runs == 2
+    assert window.status.cget("text") == "Porta trocada para 8766."
+    assert controller.last_fix_message is None  # mostrada uma vez
+    window.close()
+
+
+def test_windows_session_end_marks_normal_exit_once_and_quits(root, tmp_path):
+    """Desligar/sair do Windows (WM_QUERYENDSESSION vira WM_SAVE_YOURSELF no Tk): com a
+    Inicializacao rapida o boot nao muda, entao a saida normal tem que ficar gravada antes."""
+    from types import SimpleNamespace
+
+    from pcx_agent import crashlog
+    from pcx_agent.tray.app import TrayApp
+
+    stopped: list[str] = []
+    server = SimpleNamespace(stop=lambda: stopped.append("server"))
+    app = TrayApp(SimpleNamespace(log_dir=tmp_path), server, SimpleNamespace(), None)
+    app.icon = SimpleNamespace(stop=lambda: stopped.append("icon"))
+    app.root = root
+    crashlog.install_crash_logging(tmp_path)
+    try:
+        app._watch_session_end()
+        command = root.protocol("WM_SAVE_YOURSELF")
+        assert command
+        root.tk.call(command)
+        root.tk.call(command)
+    finally:
+        root.protocol("WM_SAVE_YOURSELF", "")
+        crashlog.uninstall_crash_logging()
+    lines = (tmp_path / crashlog.CRASH_FILE).read_text(encoding="utf-8").splitlines()
+    assert lines.count(crashlog.ENDED_NORMALLY) == 1
+    assert stopped[:2] == ["server", "icon"]

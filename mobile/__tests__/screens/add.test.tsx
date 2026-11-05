@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import AddPc from '../../app/add';
@@ -32,9 +32,9 @@ jest.mock('../../src/storage/storage', () => ({
   getTheme: jest.fn(async () => 'dark'),
   setTheme: jest.fn(),
 }));
-jest.mock('../../src/api/http', () => ({ ...jest.requireActual('../../src/api/http'), pair: jest.fn() }));
+jest.mock('../../src/api/http', () => ({ ...jest.requireActual('../../src/api/http'), pair: jest.fn(), getInfo: jest.fn() }));
 
-const http = jest.requireMock('../../src/api/http') as { pair: jest.Mock };
+const http = jest.requireMock('../../src/api/http') as { pair: jest.Mock; getInfo: jest.Mock };
 const storage = jest.requireMock('../../src/storage/storage') as { savePc: jest.Mock; getPc: jest.Mock };
 const camera = (jest.requireMock('expo-camera') as { __camera: { onScan?: (e: { data: string }) => void } })
   .__camera;
@@ -47,6 +47,8 @@ const apiError = (kind: string, extra = {}) =>
 beforeEach(() => {
   resetRouter();
   http.pair.mockReset();
+  http.getInfo.mockReset();
+  http.getInfo.mockResolvedValue(fx.clone(fx.info));
   storage.savePc.mockClear();
   storage.getPc.mockReset();
   storage.getPc.mockResolvedValue(null);
@@ -221,4 +223,33 @@ test('com o celular deitado o quadro da camera cabe na altura da tela', async ()
   expect(box.aspectRatio).toBe(1);
   expect(box.maxWidth).toBeLessThanOrEqual(360 * 0.6);
   windowSize.mockReturnValue({ width: 750, height: 1334, scale: 2, fontScale: 2 });
+});
+
+describe('compatibilidade de protocolo', () => {
+  test('info com protocol 2 mostra o aviso e nao chama pair', async () => {
+    http.getInfo.mockResolvedValue({ ...fx.clone(fx.info), protocol: 2 });
+    await openManual();
+    await fillManual('192.168.0.10');
+    await fireEvent.press(screen.getByText('Conectar'));
+    expect(await screen.findByText('Este PC usa uma versão mais nova do PcX Control. Atualize o app.')).toBeTruthy();
+    expect(http.pair).not.toHaveBeenCalled();
+    expect(storage.savePc).not.toHaveBeenCalled();
+  });
+
+  test('QR com info de protocolo antigo mostra o aviso do agente', async () => {
+    http.getInfo.mockResolvedValue({ ...fx.clone(fx.info), protocol: 0 });
+    await render(<AddPc />);
+    await act(async () => camera.onScan?.({ data: QR }));
+    expect(await screen.findByText('Este PC usa uma versão antiga do PcX Control. Atualize o programa no PC.')).toBeTruthy();
+    expect(http.pair).not.toHaveBeenCalled();
+  });
+
+  test('falha de rede no info segue o caminho de erro de hoje (tenta parear)', async () => {
+    http.getInfo.mockRejectedValue(apiError('network'));
+    http.pair.mockRejectedValue(apiError('network'));
+    await openManual();
+    await fillManual('192.168.0.10');
+    await fireEvent.press(screen.getByText('Conectar'));
+    await waitFor(() => expect(http.pair).toHaveBeenCalled());
+  });
 });
